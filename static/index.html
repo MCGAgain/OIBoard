@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OIBoard - 跨平台算法训练与数据看板</title>
+  <!-- 网站 Favicon 对齐 3X-UI 经典升起柱状图标 -->
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#06b6d4', 600: '#0891b2' },
+            dark: { 800: '#131823', 850: '#0e131f', 900: '#090d16', 950: '#05080e' }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- ECharts -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="text-slate-200 min-h-screen antialiased selection:bg-cyan-500 selection:text-white bg-[#06090f] flex overflow-x-hidden">
+  <div id="app" v-cloak class="flex w-full min-h-screen">
+
+    <!-- ================= 未登录界面 (3X-UI 极简暗黑登录/注册卡片) ================= -->
+    <div v-if="!isLoggedIn" class="min-h-screen w-full flex items-center justify-center p-4">
+      <div class="ui-card w-full max-w-md p-7 space-y-6 relative border border-white/10 shadow-2xl">
+        <!-- Logo & 系统名称 -->
+        <div class="text-center space-y-2">
+          <div class="w-14 h-14 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
+            <svg class="w-7 h-7 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 16v4m6-10v10m6-7v7"></path>
+            </svg>
+          </div>
+          <h1 class="text-xl font-bold text-white font-mono tracking-tight flex items-center justify-center space-x-1.5 pt-1">
+            <span>OIBoard</span>
+            <span class="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">3X</span>
+          </h1>
+          <p class="text-xs text-slate-400 font-sans">跨平台算法训练看板 · 独立多用户数据隔离</p>
+        </div>
+
+        <!-- 登录 / 注册 Tab 切换 -->
+        <div class="flex p-1 rounded-xl bg-dark-900 border border-white/10 text-xs font-mono">
+          <button @click="authMode = 'login'; authError = ''" 
+                  :class="['flex-1 py-2 rounded-lg font-semibold transition-all', authMode === 'login' ? 'bg-cyan-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200']">
+            LOGIN 登录
+          </button>
+          <button @click="authMode = 'register'; authError = ''" 
+                  :class="['flex-1 py-2 rounded-lg font-semibold transition-all', authMode === 'register' ? 'bg-cyan-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200']">
+            REGISTER 注册
+          </button>
+        </div>
+
+        <!-- 错误提示 -->
+        <div v-if="authError" class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-center space-x-2 font-mono">
+          <svg class="w-4 h-4 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <span>{{ authError }}</span>
+        </div>
+
+        <!-- 表单区域 -->
+        <form @submit.prevent="authMode === 'login' ? handleLogin() : handleRegister()" class="space-y-4 text-xs font-mono">
+          <div>
+            <label class="block text-slate-400 mb-1.5">USERNAME / 用户名</label>
+            <input v-model="authForm.username" type="text" required placeholder="输入账号用户名 (3-32位)"
+                   class="ui-input font-mono">
+          </div>
+
+          <div>
+            <label class="block text-slate-400 mb-1.5">PASSWORD / 密码</label>
+            <input v-model="authForm.password" type="password" required placeholder="输入登录密码 (至少6位)"
+                   class="ui-input font-mono">
+          </div>
+
+          <div v-if="authMode === 'register'">
+            <label class="block text-slate-400 mb-1.5">CONFIRM PASSWORD / 确认密码</label>
+            <input v-model="authForm.confirmPassword" type="password" required placeholder="再次确认登录密码"
+                   class="ui-input font-mono">
+          </div>
+
+          <button type="submit" :disabled="isAuthLoading"
+                  class="btn-primary w-full py-2.5 flex items-center justify-center space-x-2 text-xs font-mono mt-2">
+            <svg v-if="isAuthLoading" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <span>{{ isAuthLoading ? 'PROCESSING...' : authMode === 'login' ? 'SIGN IN 立即登录' : 'CREATE ACCOUNT 注册账号' }}</span>
+          </button>
+        </form>
+
+        <div class="pt-2 text-center text-[11px] text-slate-500 font-mono">
+          <span>SECURE HASHED AUTH · NO PLAINTEXT STORAGE</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 已登录看板主界面 (Authenticated View) ================= -->
+    <template v-if="isLoggedIn">
+
+      <!-- 3X-UI 左侧悬浮/自动伸缩侧边栏 (Collapsible Hover Sidebar) -->
+      <aside class="sidebar group fixed top-0 left-0 bottom-0 z-40 w-16 hover:w-60 bg-[#090d16]/95 backdrop-blur-xl border-r border-white/10 flex flex-col justify-between transition-all duration-300 ease-in-out shadow-2xl overflow-hidden select-none">
+        
+        <!-- 顶部 Logo 与系统名 -->
+        <div>
+          <div class="h-16 flex items-center px-3 border-b border-white/5 space-x-3 overflow-hidden cursor-pointer" @click="currentTab = 'overview'">
+            <div class="w-10 h-10 flex-shrink-0 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
+              <svg class="w-5 h-5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 16v4m6-10v10m6-7v7"></path>
+              </svg>
+            </div>
+            <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden">
+              <div class="flex items-center space-x-1.5">
+                <span class="text-sm font-bold text-white font-mono tracking-tight">OIBoard</span>
+                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">3X</span>
+              </div>
+              <p class="text-[10px] text-slate-400 font-mono">OI ALGO DASHBOARD</p>
+            </div>
+          </div>
+
+          <!-- 侧边栏主菜单项 (严格对齐 3X-UI 线条图标形态) -->
+          <nav class="p-2 space-y-2 mt-3">
+            <!-- 1. 数据总览 -->
+            <button @click="currentTab = 'overview'" 
+                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-mono font-medium transition-all group/item overflow-hidden',
+                             currentTab === 'overview' ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]']">
+              <svg class="w-5 h-5 flex-shrink-0" :class="currentTab === 'overview' ? 'text-cyan-400' : 'text-slate-400 group-hover/item:text-slate-200'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="4" width="6" height="6" rx="2"></rect>
+                <rect x="14" y="4" width="6" height="6" rx="2"></rect>
+                <rect x="4" y="14" width="6" height="6" rx="2"></rect>
+                <rect x="14" y="14" width="6" height="6" rx="2"></rect>
+              </svg>
+              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">OVERVIEW 总览</span>
+            </button>
+
+            <!-- 2. 提交记录流 -->
+            <button @click="currentTab = 'submissions'" 
+                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-mono font-medium transition-all group/item overflow-hidden',
+                             currentTab === 'submissions' ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]']">
+              <svg class="w-5 h-5 flex-shrink-0" :class="currentTab === 'submissions' ? 'text-cyan-400' : 'text-slate-400 group-hover/item:text-slate-200'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                <line x1="9" y1="12" x2="9.01" y2="12"></line>
+                <line x1="13" y1="12" x2="16" y2="12"></line>
+                <line x1="9" y1="16" x2="9.01" y2="16"></line>
+                <line x1="13" y1="16" x2="16" y2="16"></line>
+              </svg>
+              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap flex items-center justify-between flex-1">
+                <span>SUBMISSIONS 记录</span>
+                <span class="px-1.5 py-0.2 rounded text-[10px] bg-dark-900 text-slate-400 border border-white/5">{{ overview.stats.total_subs || 0 }}</span>
+              </span>
+            </button>
+
+            <!-- 3. 待攻克错题集 -->
+            <button @click="currentTab = 'mistakes'" 
+                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-mono font-medium transition-all group/item overflow-hidden',
+                             currentTab === 'mistakes' ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]']">
+              <svg class="w-5 h-5 flex-shrink-0" :class="currentTab === 'mistakes' ? 'text-rose-400' : 'text-slate-400 group-hover/item:text-slate-200'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap flex items-center justify-between flex-1">
+                <span>MISTAKES 错题</span>
+                <span v-if="mistakes.length > 0" class="px-1.5 py-0.2 rounded text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30">{{ mistakes.length }}</span>
+              </span>
+            </button>
+
+            <!-- 4. 平台与系统设置 -->
+            <button @click="currentTab = 'settings'" 
+                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-mono font-medium transition-all group/item overflow-hidden',
+                             currentTab === 'settings' ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]']">
+              <svg class="w-5 h-5 flex-shrink-0" :class="currentTab === 'settings' ? 'text-cyan-400' : 'text-slate-400 group-hover/item:text-slate-200'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="4" y1="21" x2="4" y2="14"></line>
+                <line x1="4" y1="10" x2="4" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12" y2="3"></line>
+                <line x1="20" y1="21" x2="20" y2="16"></line>
+                <line x1="20" y1="12" x2="20" y2="3"></line>
+                <line x1="1" y1="14" x2="7" y2="14"></line>
+                <line x1="9" y1="8" x2="15" y2="8"></line>
+                <line x1="17" y1="16" x2="23" y2="16"></line>
+              </svg>
+              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">CONFIG 设置</span>
+            </button>
+          </nav>
+        </div>
+
+        <!-- 底部系统快捷状态与退出登录 (对齐 3X-UI 侧边栏图标基准线) -->
+        <div class="p-2 border-t border-white/5 space-y-2 overflow-hidden">
+          <button @click="syncNow('all')" :disabled="isSyncing"
+                  class="w-full flex items-center h-11 px-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 text-xs font-mono transition-all disabled:opacity-50 group/item overflow-hidden">
+            <svg :class="['w-5 h-5 flex-shrink-0', isSyncing ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden">{{ isSyncing ? 'SYNCING...' : 'SYNC ALL' }}</span>
+          </button>
+
+          <button @click="handleLogout" 
+                  class="w-full flex items-center h-11 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-mono transition-all group/item overflow-hidden">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+            </svg>
+            <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden">LOGOUT 退出</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- 主工作区 (Main Content Area, 左侧预留侧边栏间距) -->
+      <main class="flex-1 ml-16 p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto w-full transition-all">
+
+        <!-- 3X-UI 风格顶栏 -->
+        <header class="ui-card p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div class="flex items-center space-x-3">
+            <div>
+              <div class="flex items-center space-x-2">
+                <h1 class="text-base font-bold tracking-tight text-white font-mono uppercase">
+                  {{ currentTab === 'overview' ? 'DASHBOARD 总览' : 
+                     currentTab === 'submissions' ? 'SUBMISSION STREAM 提交记录' : 
+                     currentTab === 'mistakes' ? 'MISTAKE BOOK 待攻克错题' : 'PLATFORM SETTINGS 平台与系统设置' }}
+                </h1>
+                <span class="px-2 py-0.2 rounded text-[10px] font-mono font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">LIVE</span>
+              </div>
+              <p class="text-xs text-slate-400">Codeforces · 洛谷 · AcWing 跨平台聚合看板</p>
+            </div>
+          </div>
+
+          <!-- 右侧控制与状态区 -->
+          <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-between md:justify-end">
+            <!-- 当前用户徽章 -->
+            <div class="flex items-center space-x-2 bg-dark-900/90 px-3 py-1.5 rounded-lg border border-white/10 text-xs font-mono">
+              <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400"></span>
+              <span class="text-white font-bold">{{ currentUser?.username }}</span>
+              <span v-if="currentUser?.is_admin" class="px-1.5 py-0.2 rounded text-[9px] bg-amber-500/15 text-amber-300 border border-amber-500/30">ADMIN</span>
+            </div>
+
+            <!-- 平台健康指示灯 -->
+            <div class="flex items-center space-x-3 bg-dark-900/90 px-3.5 py-1.5 rounded-lg border border-white/10 text-xs">
+              <div class="flex items-center space-x-2" title="Codeforces">
+                <span :class="['pulse-dot', getStatusClass('codeforces')]"></span>
+                <span class="text-slate-300 font-mono text-[11px]">CF:{{ overview.stats.platforms?.codeforces?.ac || 0 }}</span>
+              </div>
+              <span class="text-slate-700">|</span>
+              <div class="flex items-center space-x-2" title="洛谷">
+                <span :class="['pulse-dot', getStatusClass('luogu')]"></span>
+                <span class="text-slate-300 font-mono text-[11px]">LG:{{ overview.stats.platforms?.luogu?.ac || 0 }}</span>
+              </div>
+              <span class="text-slate-700">|</span>
+              <div class="flex items-center space-x-2" title="AcWing">
+                <span :class="['pulse-dot', getStatusClass('acwing')]"></span>
+                <span class="text-slate-300 font-mono text-[11px]">AW:{{ overview.stats.platforms?.acwing?.ac || 0 }}</span>
+              </div>
+            </div>
+
+            <!-- 冲刺模式开关 -->
+            <button @click="toggleSprintMode" 
+                    :class="['px-3 py-1.5 rounded-lg text-xs font-mono font-medium flex items-center space-x-1.5 transition-all border', 
+                             configs.sprint_mode === 'true' ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-sm' : 'bg-dark-900/80 text-slate-400 hover:text-slate-200 border-white/10']">
+              <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+              </svg>
+              <span>{{ configs.sprint_mode === 'true' ? 'SPRINT: 5M' : 'NORMAL: 30M' }}</span>
+            </button>
+
+            <!-- 一键同步按钮 -->
+            <button @click="syncNow('all')" :disabled="isSyncing"
+                    class="btn-primary flex items-center space-x-1.5 disabled:opacity-50 font-mono text-xs">
+              <svg :class="['w-3.5 h-3.5', isSyncing ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+              </svg>
+              <span>{{ isSyncing ? 'SYNCING...' : 'SYNC NOW' }}</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- 告警提示条 -->
+        <div v-if="warningBanner" class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center justify-between text-xs text-rose-300">
+          <div class="flex items-center space-x-2">
+            <svg class="w-4 h-4 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+            <span>{{ warningBanner }}</span>
+          </div>
+          <button @click="currentTab = 'settings'" class="underline hover:text-rose-200">配置账号 / 代理</button>
+        </div>
+
+        <!-- ================= TAB 1: 数据总览 (OVERVIEW) ================= -->
+        <div v-show="currentTab === 'overview'" class="space-y-6">
+          <!-- 3X-UI 极简 KPI 4 卡片 -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- 总 AC 题数 -->
+            <div class="ui-card p-5">
+              <div class="flex items-center justify-between text-slate-400 text-xs font-mono">
+                <span class="flex items-center space-x-1.5">
+                  <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span>TOTAL AC</span>
+                </span>
+                <span class="text-[10px] text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">ALL</span>
+              </div>
+              <div class="mt-3 flex items-baseline space-x-2">
+                <span class="text-3xl font-bold text-white mono">{{ overview.stats.total_ac || 0 }}</span>
+                <span class="text-xs text-slate-500 font-mono">problems</span>
+              </div>
+              <div class="mt-3 pt-3 border-t border-white/5 flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+                <span class="text-blue-400">CF:{{ overview.stats.platforms?.codeforces?.ac || 0 }}</span>
+                <span class="text-slate-600">/</span>
+                <span class="text-amber-400">LG:{{ overview.stats.platforms?.luogu?.ac || 0 }}</span>
+                <span class="text-slate-600">/</span>
+                <span class="text-indigo-400">AW:{{ overview.stats.platforms?.acwing?.ac || 0 }}</span>
+              </div>
+            </div>
+
+            <!-- 今日战报 -->
+            <div class="ui-card p-5">
+              <div class="flex items-center justify-between text-slate-400 text-xs font-mono">
+                <span class="flex items-center space-x-1.5">
+                  <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span>TODAY</span>
+                </span>
+                <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">DAILY</span>
+              </div>
+              <div class="mt-3 flex items-baseline space-x-2">
+                <span class="text-3xl font-bold text-emerald-400 mono">{{ overview.stats.today_ac || 0 }}</span>
+                <span class="text-xs text-slate-500 font-mono">/ {{ overview.stats.today_subs || 0 }} subs</span>
+              </div>
+              <div class="mt-3 pt-3 border-t border-white/5 text-[11px] font-mono text-slate-400">
+                <span v-if="overview.stats.today_ac > 0" class="text-emerald-400">PASSED TODAY</span>
+                <span v-else class="text-slate-500">NO SUBMISSIONS YET</span>
+              </div>
+            </div>
+
+            <!-- 连续打卡天数 (Streak) -->
+            <div class="ui-card p-5">
+              <div class="flex items-center justify-between text-slate-400 text-xs font-mono">
+                <span class="flex items-center space-x-1.5">
+                  <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"></path>
+                  </svg>
+                  <span>STREAK</span>
+                </span>
+                <span class="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">DAYS</span>
+              </div>
+              <div class="mt-3 flex items-baseline space-x-2">
+                <span class="text-3xl font-bold text-amber-400 mono">{{ overview.stats.streak || 0 }}</span>
+                <span class="text-xs text-slate-500 font-mono">days</span>
+              </div>
+              <div class="mt-3 pt-3 border-t border-white/5 text-[11px] font-mono text-slate-400">
+                <span>ACTIVE STREAK COUNTER</span>
+              </div>
+            </div>
+
+            <!-- 总提交记录 -->
+            <div class="ui-card p-5">
+              <div class="flex items-center justify-between text-slate-400 text-xs font-mono">
+                <span class="flex items-center space-x-1.5">
+                  <svg class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+                  </svg>
+                  <span>TOTAL SUBS</span>
+                </span>
+                <span class="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">DB</span>
+              </div>
+              <div class="mt-3 flex items-baseline space-x-2">
+                <span class="text-3xl font-bold text-purple-300 mono">{{ overview.stats.total_subs || 0 }}</span>
+                <span class="text-xs text-slate-500 font-mono">records</span>
+              </div>
+              <div class="mt-3 pt-3 border-t border-white/5 text-[11px] font-mono text-slate-500 truncate" :title="overview.last_sync_time">
+                SYNC: {{ overview.last_sync_time || 'N/A' }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 年度刷题热力图 (GitHub-Style Contribution Heatmap) -->
+          <div class="ui-card p-5 space-y-3">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+              <div>
+                <h2 class="text-xs font-bold text-slate-200 font-mono flex items-center space-x-2">
+                  <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  </svg>
+                  <span>ACTIVITY HEATMAP</span>
+                </h2>
+              </div>
+              <div class="flex items-center space-x-1 text-xs bg-dark-900 p-1 rounded-lg border border-white/10 font-mono">
+                <button @click="setHeatmapFilter('all')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'all' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">ALL</button>
+                <button @click="setHeatmapFilter('codeforces')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'codeforces' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">CF</button>
+                <button @click="setHeatmapFilter('luogu')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'luogu' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">LUOGU</button>
+                <button @click="setHeatmapFilter('acwing')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'acwing' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">ACWING</button>
+              </div>
+            </div>
+
+            <!-- Heatmap ECharts 容器 -->
+            <div class="w-full overflow-x-auto">
+              <div id="heatmap-chart" class="w-full min-w-[750px] h-44"></div>
+            </div>
+          </div>
+
+          <!-- 知识点分析与图表栏 (2列布局) -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- 算法标签掌握分布 -->
+            <div class="ui-card p-5 space-y-3">
+              <div class="flex items-center justify-between pb-3 border-b border-white/5">
+                <h2 class="text-xs font-bold text-slate-200 font-mono flex items-center space-x-2">
+                  <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  </svg>
+                  <span>TAGS & ALGORITHMS</span>
+                </h2>
+                <span class="text-[11px] text-slate-500 font-mono">BY AC COUNT</span>
+              </div>
+              <div id="tag-bar-chart" class="w-full h-72"></div>
+            </div>
+
+            <!-- 各平台题量占比 -->
+            <div class="ui-card p-5 space-y-3">
+              <div class="flex items-center justify-between pb-3 border-b border-white/5">
+                <h2 class="text-xs font-bold text-slate-200 font-mono flex items-center space-x-2">
+                  <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
+                  </svg>
+                  <span>PLATFORMS DISTRIBUTION</span>
+                </h2>
+                <span class="text-[11px] text-slate-500 font-mono">BREAKDOWN</span>
+              </div>
+              <div id="platform-pie-chart" class="w-full h-72"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= TAB 2: 全量提交记录流 (SUBMISSIONS STREAM) ================= -->
+        <div v-show="currentTab === 'submissions'" class="ui-card p-5 space-y-4">
+          <!-- 顶部标题与快速重置 -->
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+            <div>
+              <h2 class="text-xs font-bold text-slate-200 font-mono flex items-center space-x-2">
+                <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                </svg>
+                <span>SUBMISSION STREAM & LOGS</span>
+              </h2>
+              <p class="text-xs text-slate-400 mt-0.5 font-sans">跨平台实时提交记录流（共 {{ filteredSubmissions.length }} 条记录匹配）</p>
+            </div>
+            
+            <button @click="resetFilters" class="text-xs text-slate-400 hover:text-cyan-400 font-mono flex items-center space-x-1">
+              <span>↺ RESET FILTERS</span>
+            </button>
+          </div>
+
+          <!-- 3X-UI 多维组合筛选工具栏 -->
+          <div class="p-3.5 rounded-xl bg-dark-900/80 border border-white/5 space-y-3 text-xs font-mono">
+            <!-- 第一行: 日期快捷预设 + 自定义日期选择器 -->
+            <div class="flex flex-wrap items-center justify-between gap-2.5">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="text-slate-500 text-[11px]">DATE:</span>
+                <button @click="setDateFilter('all')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === 'all' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">ALL 全部</button>
+                <button @click="setDateFilter('today')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === 'today' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">TODAY 今天</button>
+                <button @click="setDateFilter('7d')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === '7d' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">7 DAYS 最近7天</button>
+                <button @click="setDateFilter('30d')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === '30d' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">30 DAYS 1个月</button>
+                <button @click="setDateFilter('year')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === 'year' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">THIS YEAR 今年</button>
+              </div>
+
+              <!-- 自定义日期区间 -->
+              <div class="flex items-center space-x-1.5 text-xs text-slate-400">
+                <input type="date" v-model="startDate" @change="dateFilter = 'custom'" 
+                       class="bg-dark-850 border border-white/10 rounded px-2 py-0.5 text-slate-200 text-[11px] focus:outline-none focus:border-cyan-500">
+                <span>至</span>
+                <input type="date" v-model="endDate" @change="dateFilter = 'custom'" 
+                       class="bg-dark-850 border border-white/10 rounded px-2 py-0.5 text-slate-200 text-[11px] focus:outline-none focus:border-cyan-500">
+              </div>
+            </div>
+
+            <!-- 第二行: 平台 + 状态 + 算法标签 + 关键词搜索 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-2 border-t border-white/5">
+              <!-- 平台选择 -->
+              <div>
+                <label class="block text-slate-500 text-[10px] mb-1">PLATFORM 平台</label>
+                <select v-model="subFilter" class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-slate-300 text-xs focus:outline-none focus:border-cyan-500 font-mono">
+                  <option value="all">ALL 所有平台</option>
+                  <option value="codeforces">Codeforces</option>
+                  <option value="luogu">洛谷 (Luogu)</option>
+                  <option value="acwing">AcWing</option>
+                </select>
+              </div>
+
+              <!-- 状态选择 -->
+              <div>
+                <label class="block text-slate-500 text-[10px] mb-1">VERDICT 状态</label>
+                <select v-model="verdictFilter" class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-slate-300 text-xs focus:outline-none focus:border-cyan-500 font-mono">
+                  <option value="all">ALL 所有状态</option>
+                  <option value="AC">AC (通过)</option>
+                  <option value="WA">WA / 待攻克 (未通过)</option>
+                </select>
+              </div>
+
+              <!-- 算法标签 -->
+              <div>
+                <label class="block text-slate-500 text-[10px] mb-1">ALGORITHM 算法分类</label>
+                <select v-model="selectedTag" class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-slate-300 text-xs focus:outline-none focus:border-cyan-500 font-mono">
+                  <option value="">ALL 全部算法分类</option>
+                  <option v-for="t in availableTags" :key="t" :value="t">{{ t }}</option>
+                </select>
+              </div>
+
+              <!-- 关键词即时搜索 -->
+              <div>
+                <label class="block text-slate-500 text-[10px] mb-1">SEARCH 关键词</label>
+                <input v-model="searchKeyword" type="text" placeholder="搜索题号/标题/语言..."
+                       class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono">
+              </div>
+            </div>
+          </div>
+
+          <!-- 提交记录列表 -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="text-slate-400 bg-dark-900/60 uppercase border-b border-white/5 font-mono">
+                <tr>
+                  <th class="px-4 py-3">PLATFORM</th>
+                  <th class="px-4 py-3">PROBLEM</th>
+                  <th class="px-4 py-3">DIFF</th>
+                  <th class="px-4 py-3">TAGS</th>
+                  <th class="px-4 py-3">STATUS</th>
+                  <th class="px-4 py-3">LANG</th>
+                  <th class="px-4 py-3">SUBMITTED AT</th>
+                  <th class="px-4 py-3 text-right">ACTION</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/5 font-sans">
+                <tr v-for="sub in paginatedSubmissions" :key="sub.id" class="hover:bg-white/[0.02] transition-all">
+                  <td class="px-4 py-3 font-mono">
+                    <span :class="['px-2 py-0.5 rounded text-[11px] font-bold border', 
+                                   sub.platform === 'codeforces' ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' :
+                                   sub.platform === 'luogu' ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20']">
+                      {{ sub.platform === 'codeforces' ? 'CF' : sub.platform === 'luogu' ? 'LUOGU' : 'ACWING' }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-white font-medium">
+                    <div class="flex items-center space-x-2">
+                      <span class="text-slate-400 font-mono">[{{ sub.problem_id }}]</span>
+                      <span>{{ sub.problem_title }}</span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-slate-400 font-mono text-[11px]">
+                    {{ sub.difficulty || 'N/A' }}
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="flex flex-wrap gap-1">
+                      <span v-for="t in (sub.tags || []).slice(0, 2)" :key="t" 
+                            class="px-1.5 py-0.2 rounded bg-dark-900 text-slate-400 text-[10px] font-mono border border-white/5">
+                        {{ t }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 font-mono">
+                    <span :class="['px-2 py-0.5 rounded text-[11px] font-bold border',
+                                   sub.verdict === 'AC' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' :
+                                   sub.verdict === 'WA' ? 'bg-rose-500/15 text-rose-400 border-rose-500/30' :
+                                   'bg-amber-500/15 text-amber-400 border-amber-500/30']">
+                      {{ sub.verdict }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 font-mono text-slate-400 text-[11px]">{{ sub.code_language || 'C++' }}</td>
+                  <td class="px-4 py-3 text-slate-400 font-mono text-[11px]">{{ sub.submitted_at || sub.date || '历史题库' }}</td>
+                  <td class="px-4 py-3 text-right">
+                    <a v-if="sub.submission_url" :href="sub.submission_url" target="_blank" 
+                       class="inline-flex items-center space-x-1 text-cyan-400 hover:text-cyan-300 hover:underline font-mono text-xs">
+                      <span>VIEW</span>
+                      <span>↗</span>
+                    </a>
+                  </td>
+                </tr>
+                <tr v-if="paginatedSubmissions.length === 0">
+                  <td colspan="8" class="px-4 py-12 text-center text-slate-500 font-mono">
+                    NO SUBMISSIONS MATCHING CURRENT FILTERS
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 3X-UI 极简分页与条数选择器 -->
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-white/5 text-xs font-mono text-slate-400">
+            <div class="flex items-center space-x-2">
+              <span>SHOW:</span>
+              <select v-model="pageSize" @change="currentPage = 1" class="bg-dark-900 border border-white/10 rounded px-2 py-1 text-slate-200 text-xs focus:outline-none">
+                <option :value="20">20 / page</option>
+                <option :value="50">50 / page</option>
+                <option :value="100">100 / page</option>
+                <option :value="1000">ALL 全部</option>
+              </select>
+              <span class="text-slate-500">Total {{ filteredSubmissions.length }} records</span>
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1"
+                      class="px-2.5 py-1 rounded bg-dark-900 border border-white/10 text-slate-300 disabled:opacity-30 hover:text-white">
+                ◀ PREV
+              </button>
+              <span class="text-slate-300">{{ currentPage }} / {{ totalPages }}</span>
+              <button @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage >= totalPages"
+                      class="px-2.5 py-1 rounded bg-dark-900 border border-white/10 text-slate-300 disabled:opacity-30 hover:text-white">
+                NEXT ▶
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= TAB 3: 待攻克错题集 (MISTAKES) ================= -->
+        <div v-show="currentTab === 'mistakes'" class="ui-card p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-white/5">
+            <div>
+              <h2 class="text-xs font-bold text-slate-200 font-mono flex items-center space-x-2">
+                <svg class="w-4 h-4 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span>MISTAKES & UNRESOLVED</span>
+              </h2>
+              <p class="text-xs text-slate-400 mt-0.5 font-sans">曾有 WA / TLE / MLE 记录且至今尚未 AC 的题目清单</p>
+            </div>
+            <span class="text-xs font-mono bg-rose-500/10 text-rose-300 font-semibold px-2 py-0.5 rounded border border-rose-500/20">
+              COUNT: {{ mistakes.length }}
+            </span>
+          </div>
+
+          <!-- 错题表格 -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="text-slate-400 bg-dark-900/60 uppercase border-b border-white/5 font-mono">
+                <tr>
+                  <th class="px-4 py-3">PLATFORM</th>
+                  <th class="px-4 py-3">PROBLEM</th>
+                  <th class="px-4 py-3">DIFF</th>
+                  <th class="px-4 py-3">STATUS</th>
+                  <th class="px-4 py-3">FAILS</th>
+                  <th class="px-4 py-3">LAST ATTEMPT</th>
+                  <th class="px-4 py-3 text-right">ACTION</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/5 font-sans">
+                <tr v-for="item in mistakes" :key="item.platform + item.problem_id" class="hover:bg-white/[0.02] transition-all">
+                  <td class="px-4 py-3 font-mono">
+                    <span :class="['px-2 py-0.5 rounded text-[11px] font-bold border', 
+                                   item.platform === 'codeforces' ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' :
+                                   item.platform === 'luogu' ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20']">
+                      {{ item.platform === 'codeforces' ? 'CF' : item.platform === 'luogu' ? 'LUOGU' : 'ACWING' }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-white font-medium">
+                    <div class="flex items-center space-x-2">
+                      <span class="text-slate-400 font-mono">[{{ item.problem_id }}]</span>
+                      <span>{{ item.problem_title }}</span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-slate-400">
+                    <span class="px-2 py-0.5 rounded bg-dark-900 text-slate-300 text-[11px] font-mono border border-white/5">{{ item.difficulty || 'N/A' }}</span>
+                  </td>
+                  <td class="px-4 py-3 font-mono">
+                    <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                      {{ item.verdict }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 font-mono text-slate-400">{{ item.fail_times }}</td>
+                  <td class="px-4 py-3 text-slate-400 font-mono text-[11px]">{{ item.submitted_at || '待攻克' }}</td>
+                  <td class="px-4 py-3 text-right">
+                    <a v-if="item.submission_url" :href="item.submission_url" target="_blank" 
+                       class="inline-flex items-center space-x-1 text-cyan-400 hover:text-cyan-300 hover:underline font-mono text-xs">
+                      <span>SOLVE</span>
+                      <span>↗</span>
+                    </a>
+                  </td>
+                </tr>
+                <tr v-if="mistakes.length === 0">
+                  <td colspan="7" class="px-4 py-12 text-center text-slate-500 font-mono">
+                    NO PENDING MISTAKES FOUND (ALL SOLVED)
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ================= TAB 4: 平台与系统设置 (SETTINGS 全屏独立页面) ================= -->
+        <div v-show="currentTab === 'settings'" class="space-y-6">
+          <div class="ui-card p-6 space-y-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
+              <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                  <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="21" x2="4" y2="14"></line>
+                    <line x1="4" y1="10" x2="4" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12" y2="3"></line>
+                    <line x1="20" y1="21" x2="20" y2="16"></line>
+                    <line x1="20" y1="12" x2="20" y2="3"></line>
+                    <line x1="1" y1="14" x2="7" y2="14"></line>
+                    <line x1="9" y1="8" x2="15" y2="8"></line>
+                    <line x1="17" y1="16" x2="23" y2="16"></line>
+                  </svg>
+                </div>
+                <div>
+                  <h2 class="text-sm font-bold text-white font-mono tracking-tight">PLATFORM & ACCOUNT SETTINGS</h2>
+                  <p class="text-xs text-slate-400">平台账号凭证、密码安全与系统同步参数配置</p>
+                </div>
+              </div>
+
+              <div class="flex items-center space-x-2">
+                <button @click="saveSettingsAndSync" :disabled="isSaving"
+                        class="btn-primary flex items-center space-x-1.5 font-mono text-xs">
+                  <svg :class="['w-3.5 h-3.5', isSaving ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  <span>{{ isSaving ? 'SAVING & SYNCING...' : 'SAVE & SYNC NOW' }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 详细填表指引折叠面板 -->
+            <div class="p-4 rounded-xl bg-cyan-950/20 border border-cyan-500/20 text-xs space-y-2 text-cyan-200 font-mono">
+              <div class="font-bold flex items-center justify-between cursor-pointer" @click="showGuide = !showGuide">
+                <span class="flex items-center space-x-2">
+                  <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span>平台配置与获取指南 (点击{{ showGuide ? '收起' : '展开' }})</span>
+                </span>
+                <span class="text-cyan-400 text-xs">{{ showGuide ? '▲' : '▼' }}</span>
+              </div>
+              <div v-if="showGuide" class="space-y-2 pt-2 border-t border-cyan-500/10 text-slate-300 font-sans leading-relaxed text-xs">
+                <div>
+                  <b class="text-cyan-400 font-mono">Codeforces:</b> 填写个人主页 URL 中的用户名 (Handle)，例如 <code class="bg-black/40 px-1 rounded text-cyan-300 font-mono">your_handle</code>。
+                </div>
+                <div>
+                  <b class="text-amber-400 font-mono">洛谷 (Luogu):</b>
+                  <span class="text-slate-300">UID 为个人空间 URL 中的纯数字 (如 <code class="bg-black/40 px-1 rounded text-amber-300 font-mono">10001</code>)；Cookie 填入 <code class="bg-black/40 px-1 rounded text-amber-300 font-mono">__client_id</code>。</span>
+                </div>
+                <div>
+                  <b class="text-indigo-400 font-mono">AcWing:</b>
+                  <span class="text-slate-300">空间 ID 为个人空间地址栏数字 (如 <code class="bg-black/40 px-1 rounded text-indigo-300 font-mono">10001</code>)；Cookie 填入 <code class="bg-black/40 px-1 rounded text-indigo-300 font-mono">sessionid=xxxx</code>。</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 平台配置表单网格 -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              <!-- 1. Codeforces 配置卡片 -->
+              <div class="p-4 rounded-xl bg-dark-900/90 border border-white/5 space-y-3 flex flex-col justify-between">
+                <div class="space-y-2.5">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                      <span class="w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400"></span>
+                      <span class="font-bold text-white text-xs font-mono">Codeforces</span>
+                    </div>
+                    <span :class="['status-pill', getPlatformPillClass('codeforces')]">
+                      {{ platformStatusMap['codeforces']?.message || '未配置' }}
+                    </span>
+                  </div>
+                  <div>
+                    <label class="block text-slate-400 mb-1 font-mono text-[11px]">CF HANDLE / 用户名</label>
+                    <input v-model="settingsForm.cf_handle" type="text" placeholder="输入 CF 用户名 (如 your_handle)" 
+                           class="ui-input font-mono">
+                  </div>
+                </div>
+                <div class="pt-2 border-t border-white/5 flex justify-end">
+                  <button @click="verifyPlatform('codeforces')" :disabled="isVerifying['codeforces']"
+                          class="btn-secondary text-xs font-mono w-full sm:w-auto">
+                    {{ isVerifying['codeforces'] ? 'CHECKING...' : 'TEST CF' }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- 2. 洛谷 (Luogu) 配置卡片 -->
+              <div class="p-4 rounded-xl bg-dark-900/90 border border-white/5 space-y-3 flex flex-col justify-between">
+                <div class="space-y-2.5">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                      <span class="w-2 h-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400"></span>
+                      <span class="font-bold text-white text-xs font-mono">洛谷 (Luogu)</span>
+                    </div>
+                    <span :class="['status-pill', getPlatformPillClass('luogu')]">
+                      {{ platformStatusMap['luogu']?.message || '未配置' }}
+                    </span>
+                  </div>
+                  <div class="space-y-2">
+                    <div>
+                      <label class="block text-slate-400 mb-1 font-mono text-[11px]">LUOGU UID (纯数字)</label>
+                      <input v-model="settingsForm.luogu_uid" type="text" placeholder="输入 UID 纯数字 (如 10001)" 
+                             class="ui-input font-mono">
+                    </div>
+                    <div>
+                      <label class="block text-slate-400 mb-1 font-mono text-[11px]">COOKIE (__client_id)</label>
+                      <input v-model="settingsForm.luogu_cookie" type="text" placeholder="输入 __client_id 字符串" 
+                             class="ui-input font-mono">
+                    </div>
+                  </div>
+                </div>
+                <div class="pt-2 border-t border-white/5 flex justify-end">
+                  <button @click="verifyPlatform('luogu')" :disabled="isVerifying['luogu']"
+                          class="btn-secondary text-xs font-mono w-full sm:w-auto">
+                    {{ isVerifying['luogu'] ? 'CHECKING...' : 'TEST LUOGU' }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- 3. AcWing 配置卡片 -->
+              <div class="p-4 rounded-xl bg-dark-900/90 border border-white/5 space-y-3 flex flex-col justify-between">
+                <div class="space-y-2.5">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                      <span class="w-2 h-2 rounded-full bg-indigo-400 shadow-sm shadow-indigo-400"></span>
+                      <span class="font-bold text-white text-xs font-mono">AcWing</span>
+                    </div>
+                    <span :class="['status-pill', getPlatformPillClass('acwing')]">
+                      {{ platformStatusMap['acwing']?.message || '未配置' }}
+                    </span>
+                  </div>
+                  <div class="space-y-2">
+                    <div>
+                      <label class="block text-slate-400 mb-1 font-mono text-[11px]">SPACE ID (空间ID)</label>
+                      <input v-model="settingsForm.acwing_user_id" type="text" placeholder="输入空间 ID 纯数字 (如 10001)" 
+                             class="ui-input font-mono">
+                    </div>
+                    <div>
+                      <label class="block text-slate-400 mb-1 font-mono text-[11px]">COOKIE (sessionid)</label>
+                      <input v-model="settingsForm.acwing_cookie" type="text" placeholder="输入 sessionid 字符串" 
+                             class="ui-input font-mono">
+                    </div>
+                  </div>
+                </div>
+                <div class="pt-2 border-t border-white/5 flex justify-end">
+                  <button @click="verifyPlatform('acwing')" :disabled="isVerifying['acwing']"
+                          class="btn-secondary text-xs font-mono w-full sm:w-auto">
+                    {{ isVerifying['acwing'] ? 'CHECKING...' : 'TEST ACWING' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 系统参数与网络代理 -->
+            <div class="p-4 rounded-xl bg-dark-900/90 border border-white/5 space-y-3">
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-white text-xs font-mono">⚙️ SYSTEM & NETWORK PROXY 参数</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label class="block text-slate-400 mb-1 font-mono text-[11px]">AUTO POLL INTERVAL (MIN / 分钟)</label>
+                  <input v-model="settingsForm.poll_interval_minutes" type="number" min="1" max="1440"
+                         class="ui-input font-mono">
+                  <p class="text-[10px] text-slate-500 mt-1 font-mono">默认日常 30 分钟轮询，冲刺模式自动为 5 分钟</p>
+                </div>
+                <div>
+                  <label class="block text-slate-400 mb-1 font-mono text-[11px]">OUTBOUND HTTP PROXY (可选出站代理)</label>
+                  <input v-model="settingsForm.http_proxy" type="text" placeholder="http://127.0.0.1:7890 (国内VPS请留空)" 
+                         class="ui-input font-mono text-xs">
+                  <p class="text-[10px] text-slate-500 mt-1 font-mono">用于加速海外 CF 连接，留空则直连</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 账号密码安全设置卡片 (Password Change) -->
+            <div class="p-4 rounded-xl bg-dark-900/90 border border-white/5 space-y-3">
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-white text-xs font-mono">🔒 ACCOUNT PASSWORD SECURITY (修改登录密码)</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div>
+                  <label class="block text-slate-400 mb-1 font-mono text-[11px]">OLD PASSWORD / 原密码</label>
+                  <input v-model="pwdForm.oldPassword" type="password" placeholder="输入原密码" 
+                         class="ui-input font-mono">
+                </div>
+                <div>
+                  <label class="block text-slate-400 mb-1 font-mono text-[11px]">NEW PASSWORD / 新密码</label>
+                  <input v-model="pwdForm.newPassword" type="password" placeholder="输入新密码 (至少6位)" 
+                         class="ui-input font-mono">
+                </div>
+                <div>
+                  <label class="block text-slate-400 mb-1 font-mono text-[11px]">CONFIRM / 确认新密码</label>
+                  <input v-model="pwdForm.confirmNewPassword" type="password" placeholder="再次输入新密码" 
+                         class="ui-input font-mono">
+                </div>
+              </div>
+              <div class="flex justify-end pt-1">
+                <button @click="handleChangePassword" :disabled="isChangingPwd"
+                        class="btn-secondary text-xs font-mono">
+                  {{ isChangingPwd ? 'UPDATING...' : 'UPDATE PASSWORD 修改密码' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 底部保存按钮 -->
+            <div class="flex items-center justify-end space-x-3 pt-3 border-t border-white/10">
+              <button @click="currentTab = 'overview'" class="btn-secondary font-mono text-xs">BACK TO DASHBOARD</button>
+              <button @click="saveSettingsAndSync" :disabled="isSaving"
+                      class="btn-primary font-mono text-xs">
+                {{ isSaving ? 'SAVING...' : 'SAVE & SYNC NOW' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </main>
+
+    </template>
+
+    <!-- 全局浮动提示 (Toast) -->
+    <div v-if="toast.show" class="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl text-xs font-mono font-semibold border flex items-center space-x-2 transition-all"
+         :class="toast.type === 'success' ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/40 shadow-emerald-950/50' : 'bg-rose-950/90 text-rose-300 border-rose-500/40 shadow-rose-950/50'">
+      <span>{{ toast.type === 'success' ? '✓' : '✕' }}</span>
+      <span>{{ toast.message }}</span>
+    </div>
+
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

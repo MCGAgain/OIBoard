@@ -1,0 +1,15 @@
+[Unit]
+Description=OIBoard Algorithm Dashboard (CF / Luogu / AcWing)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/oiboard
+ExecStart=/opt/oiboard/.venv/bin/python /opt/oiboard/run.py 2053
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

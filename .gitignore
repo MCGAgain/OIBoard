@@ -1,0 +1,26 @@
+# Python & Virtual Env
+.venv/
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Database & Sensitive Data
+data/*.db
+data/*.db-wal
+data/*.db-shm
+*.db
+deploy_remote.py
+
+# System & IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
