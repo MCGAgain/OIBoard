@@ -484,11 +484,22 @@ createApp({
 
       const option = {
         tooltip: {
-          position: "top",
-          formatter: function (p) {
-            return `<div class="font-mono text-xs font-semibold">${p.value[0]}</div><div class="text-xs text-cyan-400 mt-1">${p.value[1]} Submissions</div>`;
+          trigger: "item",
+          appendToBody: true,
+          confine: false,
+          padding: [8, 12],
+          backgroundColor: "rgba(14, 19, 31, 0.95)",
+          borderColor: "rgba(56, 189, 248, 0.35)",
+          borderWidth: 1,
+          textStyle: {
+            color: "#f8fafc",
+            fontFamily: "JetBrains Mono",
+            fontSize: 11
           },
-          className: "echarts-tooltip-dark"
+          extraCssText: "backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 8px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 0 15px -3px rgba(6, 182, 212, 0.25); z-index: 99999;",
+          formatter: function (p) {
+            return `<div class="font-mono text-xs font-semibold text-slate-200">${p.value[0]}</div><div class="text-xs text-cyan-400 font-mono mt-1 font-bold">${p.value[1]} Submissions</div>`;
+          }
         },
         visualMap: {
           show: false,
@@ -502,7 +513,7 @@ createApp({
           }
         },
         calendar: {
-          top: 20,
+          top: 26,
           left: 35,
           right: 15,
           cellSize: [13, 13],
