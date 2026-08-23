@@ -491,32 +491,20 @@ createApp({
           className: "echarts-tooltip-dark"
         },
         visualMap: {
-          type: "piecewise",
-          orient: "horizontal",
-          left: "center",
-          bottom: 0,
-          itemWidth: 11,
-          itemHeight: 11,
-          itemGap: 5,
-          itemSymbol: "roundRect",
-          showLabel: false,
-          text: ["More", "Less"],
-          textGap: 10,
-          textStyle: { color: "#64748b", fontSize: 11, fontFamily: "JetBrains Mono" },
-          pieces: [
-            { min: 10, color: "#38bdf8" },
-            { min: 5, max: 9, color: "#06b6d4" },
-            { min: 3, max: 4, color: "#08738a" },
-            { min: 1, max: 2, color: "#0e3a47" }
-          ],
+          show: false,
+          min: 1,
+          max: 10,
+          inRange: {
+            color: ["#0e3a47", "#08738a", "#06b6d4", "#38bdf8"]
+          },
           outOfRange: {
             color: "#0e131f"
           }
         },
         calendar: {
-          top: 25,
+          top: 20,
           left: 35,
-          right: 20,
+          right: 15,
           cellSize: [13, 13],
           range: [startDateStr, endDateStr],
           itemStyle: {
