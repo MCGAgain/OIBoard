@@ -83,16 +83,26 @@ createApp({
       }, 3500);
     };
 
-    // --- 安全统一 API 请求包装器 ---
+    // --- 安全统一 API 请求包装器 (彻底杜绝浏览器/CDN缓存) ---
     const apiFetch = async (url, options = {}) => {
       options.headers = options.headers || {};
+      options.headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+      options.headers["Pragma"] = "no-cache";
+      options.headers["Expires"] = "0";
+      options.cache = "no-store";
       if (token.value) {
         options.headers["Authorization"] = `Bearer ${token.value}`;
       }
       
-      const res = await fetch(url, options);
+      // 为 GET 请求自动附加当前毫秒时间戳参数，强制浏览器向服务器请求最新数据
+      let reqUrl = url;
+      if (!options.method || options.method.toUpperCase() === "GET") {
+        const sep = reqUrl.includes("?") ? "&" : "?";
+        reqUrl = `${reqUrl}${sep}_t=${Date.now()}`;
+      }
+      
+      const res = await fetch(reqUrl, options);
       if (res.status === 401) {
-        // Token 失效或未登录
         token.value = "";
         localStorage.removeItem("oiboard_token");
         currentUser.value = null;

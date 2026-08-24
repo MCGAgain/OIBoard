@@ -559,14 +559,17 @@ def get_daily_counts(user_id: int = 1, platform: str = "") -> List[Dict[str, Any
 def get_tag_statistics(user_id: int = 1) -> List[Dict[str, Any]]:
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT tags, verdict FROM submissions WHERE user_id = ? AND tags IS NOT NULL AND tags != '';", (user_id,))
+        cursor.execute("SELECT platform, problem_id, tags, verdict FROM submissions WHERE user_id = ? AND tags IS NOT NULL AND tags != '';", (user_id,))
         rows = cursor.fetchall()
         
         tag_map = {}
+        ac_problem_set = set()
         for r in rows:
             try:
                 tags = json.loads(r["tags"])
                 verdict = r["verdict"]
+                plat = r["platform"]
+                pid = r["problem_id"]
                 for t in tags:
                     t_clean = t.strip()
                     if not t_clean:
@@ -575,7 +578,10 @@ def get_tag_statistics(user_id: int = 1) -> List[Dict[str, Any]]:
                         tag_map[t_clean] = {"tag": t_clean, "ac_count": 0, "total_count": 0}
                     tag_map[t_clean]["total_count"] += 1
                     if verdict == "AC":
-                        tag_map[t_clean]["ac_count"] += 1
+                        key = (t_clean, plat, pid)
+                        if key not in ac_problem_set:
+                            ac_problem_set.add(key)
+                            tag_map[t_clean]["ac_count"] += 1
             except Exception:
                 pass
                 
