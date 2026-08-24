@@ -25,13 +25,23 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
   <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=2.0.5">
+  <link rel="stylesheet" href="/static/style.css?v=2.0.6">
 </head>
 <body class="text-slate-200 min-h-screen antialiased selection:bg-cyan-500 selection:text-white bg-[#06090f] flex overflow-x-hidden">
   <div id="app" v-cloak class="flex w-full min-h-screen">
 
+    <!-- 初始会话验证过渡态 (杜绝已登录刷新时闪烁登录卡片) -->
+    <div v-if="isAuthChecking" class="min-h-screen w-full flex flex-col items-center justify-center space-y-4">
+      <div class="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
+        <svg class="w-6 h-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+      </div>
+      <div class="text-xs font-mono text-slate-400 tracking-wider animate-pulse">CONNECTING...</div>
+    </div>
+
     <!-- ================= 未登录界面 (3X-UI 极简暗黑登录/注册卡片) ================= -->
-    <div v-if="!isLoggedIn" class="min-h-screen w-full flex items-center justify-center p-4">
+    <div v-else-if="!isLoggedIn" class="min-h-screen w-full flex items-center justify-center p-4">
       <div class="ui-card w-full max-w-md p-7 space-y-6 relative border border-white/10 shadow-2xl">
         <!-- Logo & 系统名称 -->
         <div class="text-center space-y-2">
@@ -940,6 +950,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.0.5"></script>
+  <script src="/static/app.js?v=2.0.6"></script>
 </body>
 </html>

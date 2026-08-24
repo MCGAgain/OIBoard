@@ -62,14 +62,14 @@ class ChangePasswordPayload(BaseModel):
     new_password: str
 
 class SettingsPayload(BaseModel):
-    cf_handle: Optional[str] = ""
-    luogu_uid: Optional[str] = ""
-    luogu_cookie: Optional[str] = ""
-    acwing_user_id: Optional[str] = ""
-    acwing_cookie: Optional[str] = ""
-    poll_interval_minutes: Optional[str] = "30"
-    sprint_mode: Optional[str] = "false"
-    http_proxy: Optional[str] = ""
+    cf_handle: Optional[str] = None
+    luogu_uid: Optional[str] = None
+    luogu_cookie: Optional[str] = None
+    acwing_user_id: Optional[str] = None
+    acwing_cookie: Optional[str] = None
+    poll_interval_minutes: Optional[str] = None
+    sprint_mode: Optional[str] = None
+    http_proxy: Optional[str] = None
 
 class SyncPayload(BaseModel):
     platform: Optional[str] = "all"
@@ -198,7 +198,8 @@ async def get_settings(current_user: Dict[str, Any] = Depends(get_current_user))
 @app.post("/api/settings")
 async def update_settings(payload: SettingsPayload, current_user: Dict[str, Any] = Depends(get_current_user)):
     uid = current_user["id"]
-    for k, v in payload.model_dump().items():
+    data = payload.model_dump(exclude_unset=True)
+    for k, v in data.items():
         if v is not None:
             db.set_config(uid, k, v)
     return {"success": True, "message": "配置更新成功"}

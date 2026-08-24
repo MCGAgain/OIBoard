@@ -3,8 +3,16 @@ const { createApp, ref, onMounted, computed, nextTick, watch } = Vue;
 createApp({
   setup() {
     // --- Auth State ---
+    let cachedUser = null;
+    try {
+      cachedUser = JSON.parse(localStorage.getItem("oiboard_user") || "null");
+    } catch (e) {
+      cachedUser = null;
+    }
+
     const token = ref(localStorage.getItem("oiboard_token") || "");
-    const currentUser = ref(null);
+    const currentUser = ref(cachedUser);
+    const isAuthChecking = ref(!!token.value && !currentUser.value);
     const isLoggedIn = computed(() => !!currentUser.value);
     
     const authMode = ref("login"); // 'login' | 'register'
@@ -105,6 +113,7 @@ createApp({
       if (res.status === 401) {
         token.value = "";
         localStorage.removeItem("oiboard_token");
+        localStorage.removeItem("oiboard_user");
         currentUser.value = null;
         authError.value = "登录会话已过期，请重新登录";
         throw new Error("UNAUTHORIZED");
@@ -133,7 +142,9 @@ createApp({
         if (res.ok && data.success) {
           token.value = data.token;
           localStorage.setItem("oiboard_token", data.token);
+          localStorage.setItem("oiboard_user", JSON.stringify(data.user));
           currentUser.value = data.user;
+          isAuthChecking.value = false;
           showToast(`欢迎回来，${data.user.username}！`, "success");
           authForm.value = { username: "", password: "", confirmPassword: "" };
           await reloadAllData();
@@ -183,7 +194,9 @@ createApp({
         if (res.ok && data.success) {
           token.value = data.token;
           localStorage.setItem("oiboard_token", data.token);
+          localStorage.setItem("oiboard_user", JSON.stringify(data.user));
           currentUser.value = data.user;
+          isAuthChecking.value = false;
           showToast("账户注册成功！", "success");
           authForm.value = { username: "", password: "", confirmPassword: "" };
           await reloadAllData();
@@ -209,7 +222,9 @@ createApp({
       } finally {
         token.value = "";
         localStorage.removeItem("oiboard_token");
+        localStorage.removeItem("oiboard_user");
         currentUser.value = null;
+        isAuthChecking.value = false;
         showToast("已成功退出登录", "success");
       }
     };
@@ -797,10 +812,19 @@ createApp({
           const res = await apiFetch("/api/auth/me");
           const data = await res.json();
           currentUser.value = data.user;
+          localStorage.setItem("oiboard_user", JSON.stringify(data.user));
           await reloadAllData();
         } catch (e) {
-          currentUser.value = null;
+          if (e.message === "UNAUTHORIZED") {
+            currentUser.value = null;
+            localStorage.removeItem("oiboard_token");
+            localStorage.removeItem("oiboard_user");
+          }
+        } finally {
+          isAuthChecking.value = false;
         }
+      } else {
+        isAuthChecking.value = false;
       }
 
       window.addEventListener("resize", () => {
@@ -823,6 +847,7 @@ createApp({
     return {
       token,
       currentUser,
+      isAuthChecking,
       isLoggedIn,
       authMode,
       authForm,
