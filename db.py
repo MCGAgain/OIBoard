@@ -78,11 +78,49 @@ def init_db():
             );
         """)
         
-        # 兼容旧表升级：检查 submissions 表是否有 user_id 列
-        cursor.execute("PRAGMA table_info(submissions);")
-        sub_cols = [row["name"] for row in cursor.fetchall()]
-        if "user_id" not in sub_cols:
-            cursor.execute("ALTER TABLE submissions ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;")
+        # 兼容旧表升级：检查 submissions 表是否有旧的非租户约束或缺少 user_id 列
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='submissions';")
+        sub_sql_row = cursor.fetchone()
+        if sub_sql_row and ("UNIQUE(platform, raw_id)" in sub_sql_row["sql"] or "UNIQUE (platform, raw_id)" in sub_sql_row["sql"]):
+            cursor.execute("ALTER TABLE submissions RENAME TO submissions_old;")
+            cursor.execute("""
+                CREATE TABLE submissions (
+                    id TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL DEFAULT 1,
+                    platform TEXT NOT NULL,
+                    raw_id TEXT NOT NULL,
+                    problem_id TEXT NOT NULL,
+                    problem_title TEXT NOT NULL,
+                    verdict TEXT NOT NULL,
+                    tags TEXT,
+                    difficulty TEXT,
+                    difficulty_score INTEGER DEFAULT 0,
+                    submitted_at TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    submission_url TEXT,
+                    code_language TEXT,
+                    extra_data TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(user_id, platform, raw_id),
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+            """)
+            cursor.execute("""
+                INSERT OR IGNORE INTO submissions (
+                    id, user_id, platform, raw_id, problem_id, problem_title, verdict, tags,
+                    difficulty, difficulty_score, submitted_at, date, submission_url, code_language, extra_data, created_at
+                ) SELECT 
+                    'u' || COALESCE(user_id, 1) || '_' || platform || '_' || raw_id,
+                    COALESCE(user_id, 1), platform, raw_id, problem_id, problem_title, verdict, tags,
+                    difficulty, difficulty_score, submitted_at, date, submission_url, code_language, extra_data, created_at
+                FROM submissions_old;
+            """)
+            cursor.execute("DROP TABLE submissions_old;")
+        else:
+            cursor.execute("PRAGMA table_info(submissions);")
+            sub_cols = [row["name"] for row in cursor.fetchall()]
+            if "user_id" not in sub_cols:
+                cursor.execute("ALTER TABLE submissions ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;")
 
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_date ON submissions(user_id, date);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_platform ON submissions(user_id, platform);")
@@ -403,7 +441,7 @@ def save_submissions(submissions: List[Dict[str, Any]], user_id: int = 1) -> int
                     difficulty, difficulty_score, submitted_at, date, submission_url,
                     code_language, extra_data
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(user_id, platform, raw_id) DO UPDATE SET
+                ON CONFLICT(id) DO UPDATE SET
                     problem_title = excluded.problem_title,
                     verdict = excluded.verdict,
                     tags = excluded.tags,
@@ -434,6 +472,14 @@ def save_submissions(submissions: List[Dict[str, Any]], user_id: int = 1) -> int
             inserted_count += 1
         conn.commit()
         return inserted_count
+
+def cleanup_luogu_placeholder_dates(user_id: int = 1):
+    """清除旧版本中为洛谷历史归档题错误预填的占位日期，确保真实提交流精准显示"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM submissions WHERE user_id = ? AND platform = 'luogu' AND raw_id LIKE 'fail_unpassed_extra_%';", (user_id,))
+        cursor.execute("UPDATE submissions SET submitted_at = '', date = '' WHERE user_id = ? AND platform = 'luogu' AND raw_id LIKE 'prob_%';", (user_id,))
+        conn.commit()
 
 def get_submission_stats(user_id: int = 1) -> Dict[str, Any]:
     with get_connection() as conn:

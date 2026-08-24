@@ -165,23 +165,73 @@ def infer_luogu_tags(title: str, pid: str, diff_num: int) -> List[str]:
     else:
         return ["模拟与暴力", "基础算法与二分"]
 
+LUOGU_STATUS_MAP = {
+    12: "AC",  # Accepted
+    14: "WA",  # Wrong Answer
+    11: "RE",  # Runtime Error
+    13: "TLE", # Time Limit Exceeded
+    15: "MLE", # Memory Limit Exceeded
+    16: "OLE", # Output Limit Exceeded
+    21: "CE",  # Compile Error
+    22: "UKE", # Unknown Error
+}
+
+LUOGU_LANG_MAP = {
+    1: "Pascal",
+    2: "C",
+    3: "C++",
+    4: "C++11",
+    11: "C++14",
+    12: "C++17",
+    14: "C++20",
+    7: "Python 3",
+    8: "Java 8",
+    16: "Go",
+    17: "Rust",
+    18: "Kotlin",
+    19: "Node.js"
+}
+
 class LuoguFetcher(BaseFetcher):
     platform_name = "luogu"
     BASE_URL = "https://www.luogu.com.cn"
 
-    def _get_headers(self, cookie: str = "") -> Dict[str, str]:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "x-lentille-request": "content-only",
-            "Referer": "https://www.luogu.com.cn/",
-            "Accept": "application/json, text/html, */*",
-        }
+    def _parse_cookie_dict(self, cookie: str, uid: str = "") -> Dict[str, str]:
+        cookies_dict = {}
+        if uid:
+            cookies_dict["_uid"] = str(uid).strip()
         if cookie:
             c = cookie.strip()
-            if not c.startswith("__client_id=") and "=" not in c:
-                c = f"__client_id={c}"
-            headers["Cookie"] = c
-        return headers
+            for part in c.split(";"):
+                part = part.strip()
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    cookies_dict[k.strip()] = v.strip()
+                elif part:
+                    cookies_dict["__client_id"] = part
+        return cookies_dict
+
+    def _get_headers(self, uid: str = "") -> Dict[str, str]:
+        return {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Referer": f"{self.BASE_URL}/user/{uid}" if uid else f"{self.BASE_URL}/",
+            "Accept": "application/json, text/html, */*",
+        }
+
+    def _extract_decode_data(self, html_text: str) -> Dict[str, Any]:
+        import urllib.parse
+        soup = BeautifulSoup(html_text, "html.parser")
+        for s in soup.find_all("script"):
+            txt = s.get_text().strip()
+            if "decodeURIComponent" in txt:
+                match = re.search(r'decodeURIComponent\("([^"]+)"\)', txt)
+                if match:
+                    try:
+                        raw_json = urllib.parse.unquote(match.group(1))
+                        return json.loads(raw_json)
+                    except Exception:
+                        pass
+        return {}
 
     def _extract_luogu_data(self, res_text: str, res_json: Any = None) -> Dict[str, Any]:
         if res_json and isinstance(res_json, dict) and "data" in res_json:
@@ -204,8 +254,9 @@ class LuoguFetcher(BaseFetcher):
         url = f"{self.BASE_URL}/user/{uid.strip()}"
         try:
             proxy_url = proxy.strip() if proxy else None
-            async with httpx.AsyncClient(timeout=15.0, proxy=proxy_url, trust_env=bool(proxy_url), follow_redirects=True) as client:
-                res = await client.get(url, headers=self._get_headers(cookie))
+            cookies_dict = self._parse_cookie_dict(cookie, uid)
+            async with httpx.AsyncClient(cookies=cookies_dict, timeout=15.0, proxy=proxy_url, trust_env=bool(proxy_url), follow_redirects=True) as client:
+                res = await client.get(url, headers=self._get_headers(uid))
                 if res.status_code == 200:
                     try:
                         res_json = res.json()
@@ -236,32 +287,97 @@ class LuoguFetcher(BaseFetcher):
         if not uid:
             return [], "未配置洛谷 UID"
         
-        headers = self._get_headers(cookie)
-        submissions = []
+        uid = uid.strip()
+        cookies_dict = self._parse_cookie_dict(cookie, uid)
+        web_headers = self._get_headers(uid)
+        
+        submissions: List[NormalizedSubmission] = []
+        seen_rec_ids = set()
+        seen_ac_pids = set()
 
         try:
             proxy_url = proxy.strip() if proxy else None
-            async with httpx.AsyncClient(timeout=20.0, proxy=proxy_url, trust_env=bool(proxy_url), follow_redirects=True) as client:
-                # 1. 抓取主页获取 dailyCounts (活跃日历) 与基础统计
-                user_url = f"{self.BASE_URL}/user/{uid.strip()}"
-                res = await client.get(user_url, headers=headers)
-                
-                daily_counts = {}
-                passed_count = 0
-                if res.status_code == 200:
-                    try:
-                        res_json = res.json()
-                    except Exception:
-                        res_json = None
-                    data = self._extract_luogu_data(res.text, res_json)
-                    user = data.get("user", {})
-                    passed_count = user.get("passedProblemCount", 299)
-                    submitted_count = user.get("submittedProblemCount", 311)
-                    daily_counts = data.get("dailyCounts", {})
+            async with httpx.AsyncClient(cookies=cookies_dict, timeout=20.0, proxy=proxy_url, trust_env=bool(proxy_url), follow_redirects=True) as client:
+                # 1. 抓取 /record/list 真实提交流 (前 5 页，包含每条提交的精准秒级时间、真实提交题号如 P1734、真实评测状态)
+                max_pages = 5
+                for page in range(1, max_pages + 1):
+                    rec_url = f"{self.BASE_URL}/record/list?user={uid}&page={page}"
+                    res = await client.get(rec_url, headers=web_headers)
+                    if res.status_code != 200:
+                        break
+                    
+                    data = self._extract_decode_data(res.text)
+                    if not data:
+                        try:
+                            data = res.json()
+                        except Exception:
+                            data = {}
+                    
+                    curr_data = data.get("currentData", {}) if "currentData" in data else data.get("data", {})
+                    records_wrap = curr_data.get("records", {})
+                    records_list = records_wrap.get("result", []) if isinstance(records_wrap, dict) else []
+                    
+                    if not records_list:
+                        break
+                    
+                    for r in records_list:
+                        rec_id = r.get("id")
+                        if not rec_id or rec_id in seen_rec_ids:
+                            continue
+                        seen_rec_ids.add(rec_id)
+                        
+                        prob = r.get("problem", {})
+                        pid = prob.get("pid", f"P_{rec_id}")
+                        title = prob.get("title") or prob.get("name") or pid
+                        diff_num = prob.get("difficulty", 0)
+                        diff_label, diff_score = LUOGU_DIFFICULTY_MAP.get(diff_num, ("未知", 0))
+                        tags = infer_luogu_tags(title, pid, diff_num)
+                        
+                        status_code = r.get("status", 0)
+                        verdict = LUOGU_STATUS_MAP.get(status_code, "AC" if status_code == 12 else "WA")
+                        if status_code == 12:
+                            seen_ac_pids.add(pid)
+                        
+                        lang_code = r.get("language", 3)
+                        lang_str = LUOGU_LANG_MAP.get(lang_code, "C++")
+                        
+                        stime = r.get("submitTime", 0)
+                        if stime:
+                            dt = datetime.fromtimestamp(stime)
+                            sub_at = dt.strftime("%Y-%m-%d %H:%M:%S")
+                            sub_date = dt.strftime("%Y-%m-%d")
+                        else:
+                            sub_at = ""
+                            sub_date = ""
+                        
+                        submissions.append(NormalizedSubmission(
+                            id=f"luogu_rec_{rec_id}",
+                            platform="luogu",
+                            raw_id=f"rec_{rec_id}",
+                            problem_id=pid,
+                            problem_title=title,
+                            verdict=verdict,
+                            tags=tags,
+                            difficulty=diff_label,
+                            difficulty_score=diff_score,
+                            submitted_at=sub_at,
+                            date=sub_date,
+                            submission_url=f"{self.BASE_URL}/record/{rec_id}",
+                            code_language=lang_str,
+                            extra_data={"rec_id": rec_id, "pid": pid, "diff_num": diff_num, "status_code": status_code}
+                        ))
+                    
+                    if len(records_list) < 20:
+                        break
 
-                # 2. 抓取 /practice 页面获取全量 299 道通过题目与未通过错题列表
-                practice_url = f"{self.BASE_URL}/user/{uid.strip()}/practice"
-                p_res = await client.get(practice_url, headers=headers)
+                # 2. 抓取 /user/{uid}/practice (获取全量 300 道已通过题目与未解决错题归档)
+                practice_url = f"{self.BASE_URL}/user/{uid}/practice"
+                p_headers = {
+                    "User-Agent": web_headers["User-Agent"],
+                    "x-lentille-request": "content-only",
+                    "Accept": "application/json, text/html, */*",
+                }
+                p_res = await client.get(practice_url, headers=p_headers)
                 
                 passed_list = []
                 submitted_list = []
@@ -274,28 +390,17 @@ class LuoguFetcher(BaseFetcher):
                     passed_list = p_data.get("passed", [])
                     submitted_list = p_data.get("submitted", [])
 
-                # 提取活跃日期列表以供匹配
-                active_dates = []
-                for d_str, c_info in daily_counts.items():
-                    cnt = c_info[0] if isinstance(c_info, (list, tuple)) else c_info
-                    for _ in range(cnt):
-                        active_dates.append(d_str)
-
-                # 处理已通过题目 (AC)
-                for idx, prob in enumerate(passed_list):
-                    pid = prob.get("pid", f"P_{idx}")
+                # 补全历史已通过但未在近期 record/list 中的题目 (确保总通过数严格等于官方通过总数)
+                for prob in passed_list:
+                    pid = prob.get("pid", "")
+                    if not pid or pid in seen_ac_pids:
+                        continue
+                    seen_ac_pids.add(pid)
+                    
                     title = prob.get("name", pid)
                     diff_num = prob.get("difficulty", 0)
                     diff_label, diff_score = LUOGU_DIFFICULTY_MAP.get(diff_num, ("未知", 0))
                     tags = infer_luogu_tags(title, pid, diff_num)
-
-                    if idx < len(active_dates):
-                        d_str = active_dates[idx]
-                        sub_at = f"{d_str} 12:00:00"
-                        sub_date = d_str
-                    else:
-                        sub_at = ""
-                        sub_date = ""
 
                     submissions.append(NormalizedSubmission(
                         id=f"luogu_p_{pid}",
@@ -307,16 +412,22 @@ class LuoguFetcher(BaseFetcher):
                         tags=tags,
                         difficulty=diff_label,
                         difficulty_score=diff_score,
-                        submitted_at=sub_at,
-                        date=sub_date,
-                        submission_url=f"https://www.luogu.com.cn/problem/{pid}",
+                        submitted_at="",
+                        date="",
+                        submission_url=f"{self.BASE_URL}/problem/{pid}",
                         code_language="C++",
-                        extra_data={"pid": pid, "diff_num": diff_num}
+                        extra_data={"pid": pid, "diff_num": diff_num, "archive": True}
                     ))
 
-                # 处理未通过错题 (submitted 但未 passed 的题目)
+                # 补全待攻克错题 (submitted 且未 passed 的题目)
                 for prob in submitted_list:
                     pid = prob.get("pid", "")
+                    if not pid or pid in seen_ac_pids:
+                        continue
+                    
+                    if any(s.problem_id == pid and s.verdict != "AC" for s in submissions):
+                        continue
+
                     title = prob.get("name", pid)
                     diff_num = prob.get("difficulty", 0)
                     diff_label, diff_score = LUOGU_DIFFICULTY_MAP.get(diff_num, ("未知", 0))
@@ -334,36 +445,16 @@ class LuoguFetcher(BaseFetcher):
                         difficulty_score=diff_score,
                         submitted_at="",
                         date="",
-                        submission_url=f"https://www.luogu.com.cn/problem/{pid}",
+                        submission_url=f"{self.BASE_URL}/problem/{pid}",
                         code_language="C++",
                         extra_data={"pid": pid, "is_unresolved": True}
                     ))
 
-                # 补全总提交数与通过数的差额 (严格对齐 submittedProblemCount: 311 题)
-                if submitted_count and submitted_count > len(submissions):
-                    diff_needed = submitted_count - len(submissions)
-                    for k in range(diff_needed):
-                        raw_k = f"unpassed_extra_{k+1}"
-                        submissions.append(NormalizedSubmission(
-                            id=f"luogu_fail_{raw_k}",
-                            platform="luogu",
-                            raw_id=f"fail_{raw_k}",
-                            problem_id=f"LG-Attempt-{k+1}",
-                            problem_title=f"洛谷历史尝试题目 #{k+1}",
-                            verdict="WA",
-                            tags=["洛谷精选题库"],
-                            difficulty="提高-",
-                            difficulty_score=1500,
-                            submitted_at="",
-                            date="",
-                            submission_url=f"https://www.luogu.com.cn/user/{uid.strip()}",
-                            code_language="C++",
-                            extra_data={"is_unresolved": True}
-                        ))
-
                 if not submissions:
                     return [], "未获取到洛谷做题记录 (请检查 UID 或主页隐私)"
-                return submissions, f"成功同步 {len(submissions)} 条洛谷记录 (已通过: {len(passed_list)} 题, 历史提交: {submitted_count or len(submissions)} 题)"
+                
+                recent_ac = sum(1 for s in submissions if s.verdict == "AC" and s.submitted_at)
+                return submissions, f"成功同步 {len(submissions)} 条洛谷记录 (已通过: {len(seen_ac_pids)} 题, 近期提交流: {len(seen_rec_ids)} 条)"
 
         except Exception as e:
             return [], f"洛谷抓取异常: {str(e)}"

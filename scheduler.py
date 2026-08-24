@@ -9,7 +9,8 @@ from db import (
     set_config,
     save_submissions,
     update_platform_status,
-    get_all_user_ids
+    get_all_user_ids,
+    cleanup_luogu_placeholder_dates
 )
 from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher
 
@@ -65,6 +66,7 @@ class TaskScheduler:
 
                 subs, msg = await self.luogu_fetcher.fetch_submissions(uid, cookie, proxy=proxy)
                 if subs:
+                    cleanup_luogu_placeholder_dates(user_id)
                     inserted = save_submissions([s.to_dict() for s in subs], user_id=user_id)
                     update_platform_status(user_id, "luogu", "ok", f"同步成功: {len(subs)}条", item_count=len(subs), rating=rating_str)
                     res.update({"success": True, "message": f"成功同步 {len(subs)} 条", "count": len(subs)})
