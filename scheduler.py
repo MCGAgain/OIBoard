@@ -10,7 +10,8 @@ from db import (
     save_submissions,
     update_platform_status,
     get_all_user_ids,
-    cleanup_luogu_placeholder_dates
+    cleanup_luogu_placeholder_dates,
+    get_beijing_now
 )
 from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher
 
@@ -109,7 +110,7 @@ class TaskScheduler:
             for p in ["codeforces", "luogu", "acwing"]:
                 results[p] = await self.sync_platform(p, user_id=user_id)
             
-            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now_str = get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
             set_config(user_id, "last_sync_time", now_str)
             logger.info(f"Full sync finished for user {user_id} at {now_str}")
             return {"results": results, "synced_at": now_str}
@@ -134,7 +135,7 @@ class TaskScheduler:
                     else:
                         try:
                             last_dt = datetime.strptime(last_sync, "%Y-%m-%d %H:%M:%S")
-                            if (datetime.now() - last_dt).total_seconds() >= interval * 60:
+                            if (get_beijing_now().replace(tzinfo=None) - last_dt).total_seconds() >= interval * 60:
                                 should_sync = True
                         except Exception:
                             should_sync = True

@@ -1,7 +1,35 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Tuple
+
+BEIJING_TZ = timezone(timedelta(hours=8))
+
+def format_beijing_time_and_date(ts: int | float) -> Tuple[str, str]:
+    """
+    将时间戳转换为北京时间 (UTC+8) 格式化字符串，并计算归属统计日期。
+    OIer 熬夜打卡机制：凌晨 04:00 前的提交自动归入前一天的统计日期。
+    """
+    if not ts:
+        return "", ""
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(BEIJING_TZ)
+    submitted_at = dt.strftime("%Y-%m-%d %H:%M:%S")
+    effective_dt = dt - timedelta(hours=4)
+    date_str = effective_dt.strftime("%Y-%m-%d")
+    return submitted_at, date_str
+
+def parse_beijing_str_to_date(dt_str: str) -> str:
+    """
+    将北京时间字符串转换为熬夜归属统计日期（凌晨 4 点前算作前一日）
+    """
+    if not dt_str:
+        return ""
+    try:
+        dt = datetime.strptime(dt_str[:19], "%Y-%m-%d %H:%M:%S")
+        effective_dt = dt - timedelta(hours=4)
+        return effective_dt.strftime("%Y-%m-%d")
+    except Exception:
+        return dt_str[:10]
 
 @dataclass
 class NormalizedSubmission:

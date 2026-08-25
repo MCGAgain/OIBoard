@@ -4,7 +4,7 @@ import httpx
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
-from fetchers.base import BaseFetcher, NormalizedSubmission
+from fetchers.base import BaseFetcher, NormalizedSubmission, parse_beijing_str_to_date
 
 ACWING_PROBLEM_TAGS = {
     "动态规划 DP": ["背包", "DP", "编辑距离", "整数划分", "蒙德里安的梦想", "滑雪", "没有上司的舞会", "计数问题", "最长上升子序列", "石子合并", "方格取数", "数字三角形", "矩阵", "子段和", "最长公共子序列"],
@@ -192,7 +192,7 @@ class AcWingFetcher(BaseFetcher):
                 for pid, (title, diff) in all_passed_probs.items():
                     tags = infer_acwing_tags(title)
                     sub_at = activity_times.get(pid, "")
-                    sub_date = sub_at[:10] if sub_at else ""
+                    sub_date = parse_beijing_str_to_date(sub_at) if sub_at else ""
 
                     diff_score = 1000 if "简单" in diff else 1500 if "中等" in diff else 2000
 

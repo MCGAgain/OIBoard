@@ -2,9 +2,9 @@ import re
 import json
 import httpx
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Tuple
-from fetchers.base import BaseFetcher, NormalizedSubmission
+from fetchers.base import BaseFetcher, NormalizedSubmission, format_beijing_time_and_date
 
 LUOGU_DIFFICULTY_MAP = {
     0: ("暂无评定", 0),
@@ -342,13 +342,7 @@ class LuoguFetcher(BaseFetcher):
                         lang_str = LUOGU_LANG_MAP.get(lang_code, "C++")
                         
                         stime = r.get("submitTime", 0)
-                        if stime:
-                            dt = datetime.fromtimestamp(stime)
-                            sub_at = dt.strftime("%Y-%m-%d %H:%M:%S")
-                            sub_date = dt.strftime("%Y-%m-%d")
-                        else:
-                            sub_at = ""
-                            sub_date = ""
+                        sub_at, sub_date = format_beijing_time_and_date(stime)
                         
                         submissions.append(NormalizedSubmission(
                             id=f"luogu_rec_{rec_id}",

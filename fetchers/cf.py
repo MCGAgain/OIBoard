@@ -1,7 +1,7 @@
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Tuple
-from fetchers.base import BaseFetcher, NormalizedSubmission
+from fetchers.base import BaseFetcher, NormalizedSubmission, format_beijing_time_and_date
 
 CF_TAG_TRANSLATIONS = {
     "dp": "动态规划",
@@ -114,9 +114,7 @@ class CodeforcesFetcher(BaseFetcher):
                     diff_score = rating if rating else 0
                     
                     ts = item.get("creationTimeSeconds", 0)
-                    dt = datetime.fromtimestamp(ts) if ts else datetime.now()
-                    submitted_at = dt.strftime("%Y-%m-%d %H:%M:%S")
-                    date_str = dt.strftime("%Y-%m-%d")
+                    submitted_at, date_str = format_beijing_time_and_date(ts)
                     
                     verdict = self._normalize_verdict(item.get("verdict", ""))
                     code_lang = item.get("programmingLanguage", "")

@@ -1,9 +1,29 @@
 import json
 import sqlite3
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from auth import hash_password, verify_password, generate_session_token
+
+BEIJING_TZ = timezone(timedelta(hours=8))
+
+def get_beijing_now() -> datetime:
+    return datetime.now(BEIJING_TZ)
+
+def get_effective_today() -> str:
+    """获取当前生效的统计归属日期（凌晨 4 点前算作昨日打卡）"""
+    return (get_beijing_now() - timedelta(hours=4)).strftime("%Y-%m-%d")
+
+def parse_beijing_str_to_date(dt_str: str) -> str:
+    """将北京时间字符串转换为熬夜归属统计日期（凌晨 4 点前算作前一日）"""
+    if not dt_str:
+        return ""
+    try:
+        dt = datetime.strptime(dt_str[:19], "%Y-%m-%d %H:%M:%S")
+        effective_dt = dt - timedelta(hours=4)
+        return effective_dt.strftime("%Y-%m-%d")
+    except Exception:
+        return dt_str[:10]
 
 DB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 DB_PATH = os.path.join(DB_DIR, "oiboard.db")
@@ -389,7 +409,7 @@ def get_all_configs(user_id: int) -> Dict[str, str]:
 def update_platform_status(user_id: int, platform: str, status: str, message: str = "", item_count: Optional[int] = None, rating: Optional[str] = None):
     with get_connection() as conn:
         cursor = conn.cursor()
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute("""
             INSERT INTO platform_status (user_id, platform, status, message, last_checked_at, item_count, rating, updated_at)
             VALUES (?, ?, ?, ?, ?, COALESCE(?, 0), COALESCE(?, ''), CURRENT_TIMESTAMP)
@@ -429,10 +449,11 @@ def save_submissions(submissions: List[Dict[str, Any]], user_id: int = 1) -> int
             tags_json = json.dumps(s.get("tags", []), ensure_ascii=False)
             extra_json = json.dumps(s.get("extra_data", {}), ensure_ascii=False)
             
+            sub_at = s.get("submitted_at", "")
             sub_date = s.get("date")
-            if not sub_date and s.get("submitted_at"):
-                sub_date = s.get("submitted_at").split(" ")[0]
-            if not sub_date:
+            if sub_at:
+                sub_date = parse_beijing_str_to_date(sub_at)
+            elif not sub_date:
                 sub_date = ""
 
             cursor.execute("""
@@ -492,7 +513,7 @@ def get_submission_stats(user_id: int = 1) -> Dict[str, Any]:
         """, (user_id,))
         overall = cursor.fetchone()
         
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = get_effective_today()
         cursor.execute("""
             SELECT 
                 COUNT(*) as today_subs,
@@ -517,7 +538,7 @@ def get_submission_stats(user_id: int = 1) -> Dict[str, Any]:
         dates = [r["date"] for r in cursor.fetchall()]
         
         streak = 0
-        curr_d = datetime.now().date()
+        curr_d = (get_beijing_now() - timedelta(hours=4)).date()
         date_set = set(dates)
         if curr_d.strftime("%Y-%m-%d") not in date_set:
             curr_d = curr_d - timedelta(days=1)
