@@ -11,6 +11,7 @@ from db import (
     update_platform_status,
     get_all_user_ids,
     cleanup_luogu_placeholder_dates,
+    cleanup_acwing_old_problem_rows,
     get_beijing_now
 )
 from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher
@@ -87,6 +88,7 @@ class TaskScheduler:
                 valid, v_msg, extra = await self.acwing_fetcher.verify(target_uid, cookie, proxy=proxy)
                 subs, msg = await self.acwing_fetcher.fetch_submissions(target_uid, cookie, proxy=proxy)
                 if subs:
+                    cleanup_acwing_old_problem_rows(user_id)
                     inserted = save_submissions([s.to_dict() for s in subs], user_id=user_id)
                     update_platform_status(user_id, "acwing", "ok", f"同步成功: {len(subs)}条", item_count=len(subs))
                     res.update({"success": True, "message": f"成功同步 {len(subs)} 条", "count": len(subs)})

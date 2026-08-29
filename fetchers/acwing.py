@@ -131,6 +131,102 @@ class AcWingFetcher(BaseFetcher):
             except Exception:
                 return []
 
+    def _normalize_verdict(self, raw: str) -> str:
+        raw = raw.upper().strip()
+        if "ACCEPTED" in raw or "通过" in raw:
+            return "AC"
+        if "WRONG_ANSWER" in raw or "答案错误" in raw:
+            return "WA"
+        if "TIME_LIMIT" in raw or "超时" in raw:
+            return "TLE"
+        if "MEMORY_LIMIT" in raw or "内存超限" in raw:
+            return "MLE"
+        if "RUNTIME_ERROR" in raw or "SEGMENTATION_FAULT" in raw or "运行错误" in raw:
+            return "RE"
+        if "COMPILE_ERROR" in raw or "编译错误" in raw:
+            return "CE"
+        if "OUTPUT_LIMIT" in raw:
+            return "OLE"
+        return "OTHER"
+
+    async def _fetch_problem_submissions(
+        self, client: httpx.AsyncClient, sem: asyncio.Semaphore, prob: Tuple[str, str, str], headers: dict
+    ) -> List[NormalizedSubmission]:
+        pid, title, diff = prob
+        tags = infer_acwing_tags(title)
+        diff_score = 1000 if "简单" in diff else 1500 if "中等" in diff else 2000
+        url = f"{self.BASE_URL}/problem/content/submission/{pid}/"
+        prob_url = f"{self.BASE_URL}/problem/content/{pid}/"
+
+        async with sem:
+            try:
+                res = await client.get(url, headers=headers)
+                if res.status_code == 200:
+                    soup = BeautifulSoup(res.text, "html.parser")
+                    rows = soup.select("table tbody tr, table tr")
+                    prob_subs = []
+                    idx = 0
+                    for tr in rows:
+                        cols = [td.get_text().strip() for td in tr.select("td")]
+                        if len(cols) >= 4:
+                            sub_time_raw = cols[0]
+                            verdict_raw = cols[1]
+                            runtime = cols[2]
+                            lang = cols[3]
+                            mode = cols[4] if len(cols) >= 5 else ""
+
+                            # 格式化时间 "YYYY-MM-DD HH:MM" -> "YYYY-MM-DD HH:MM:00"
+                            sub_at = f"{sub_time_raw}:00" if len(sub_time_raw) == 16 else sub_time_raw
+                            sub_date = parse_beijing_str_to_date(sub_at)
+                            verdict = self._normalize_verdict(verdict_raw)
+
+                            clean_ts = sub_time_raw.replace("-", "").replace(":", "").replace(" ", "_")
+                            raw_id = f"sub_{pid}_{clean_ts}_{idx}"
+
+                            prob_subs.append(NormalizedSubmission(
+                                id=f"acwing_{raw_id}",
+                                platform="acwing",
+                                raw_id=raw_id,
+                                problem_id=f"AcWing-{pid}",
+                                problem_title=title,
+                                verdict=verdict,
+                                tags=tags,
+                                difficulty=diff,
+                                difficulty_score=diff_score,
+                                submitted_at=sub_at,
+                                date=sub_date,
+                                submission_url=prob_url,
+                                code_language=lang,
+                                extra_data={"num": pid, "diff": diff, "runtime": runtime, "mode": mode}
+                            ))
+                            idx += 1
+
+                    if prob_subs:
+                        return prob_subs
+
+            except Exception:
+                pass
+
+        # 若未成功抓取到单题提交列表或该题无单独记录，生成基础通过记录确保题库不遗漏
+        return [
+            NormalizedSubmission(
+                id=f"acwing_prob_{pid}",
+                platform="acwing",
+                raw_id=f"prob_{pid}",
+                problem_id=f"AcWing-{pid}",
+                problem_title=title,
+                verdict="AC",
+                tags=tags,
+                difficulty=diff,
+                difficulty_score=diff_score,
+                submitted_at="",
+                date="",
+                submission_url=prob_url,
+                code_language="C++",
+                extra_data={"num": pid, "diff": diff}
+            )
+        ]
+
     async def fetch_submissions(self, user_id: str, cookie: str = "", proxy: str = "") -> Tuple[List[NormalizedSubmission], str]:
         if not user_id and not cookie:
             return [], "未配置 AcWing 用户ID或 Cookie"
@@ -138,7 +234,7 @@ class AcWingFetcher(BaseFetcher):
         submissions = []
         try:
             proxy_url = proxy.strip() if proxy else None
-            async with httpx.AsyncClient(timeout=20.0, proxy=proxy_url, trust_env=bool(proxy_url), follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=25.0, proxy=proxy_url, trust_env=bool(proxy_url), follow_redirects=True) as client:
                 target_uid = user_id.strip() if user_id else ""
                 if not target_uid and cookie:
                     target_uid, _ = await self._auto_detect_uid(client, cookie)
@@ -155,67 +251,30 @@ class AcWingFetcher(BaseFetcher):
                     if m:
                         total_expected = int(m.group(1))
 
-                # 2. 抓取用户打卡动态（获取精准提交时间）
-                activity_times = {}
-                if target_uid:
-                    for page in range(1, 6):
-                        url = f"{self.BASE_URL}/user/myspace/index/{target_uid}/?page={page}"
-                        res = await client.get(url, headers=headers)
-                        if res.status_code != 200:
-                            break
-                        soup = BeautifulSoup(res.text, "html.parser")
-                        cards = soup.select(".panel.panel-default, .activity-item, .item")
-                        found_cnt = 0
-                        for c in cards:
-                            txt = c.get_text()
-                            match = re.search(r'AcWing\s*(\d+)[\.、\s]*([^\n\r]+)', txt)
-                            if match:
-                                p_num = match.group(1)
-                                time_match = re.search(r'(\d{4}-\d{2}-\d{2}\s*\d{2}:\d{2})', txt)
-                                if time_match:
-                                    activity_times[p_num] = f"{time_match.group(1)}:00"
-                                    found_cnt += 1
-                        if found_cnt == 0:
-                            break
-
-                # 3. 并发扫描题库所有页面 (1~45页)，提取所有通过标记的题目
-                sem = asyncio.Semaphore(8)
-                tasks = [self._fetch_problem_page(client, sem, p, headers) for p in range(1, 45)]
+                # 2. 并发扫描题库所有页面 (1~45页)，提取所有通过标记的题目
+                sem_page = asyncio.Semaphore(12)
+                tasks = [self._fetch_problem_page(client, sem_page, p, headers) for p in range(1, 45)]
                 page_results = await asyncio.gather(*tasks)
 
-                all_passed_probs = {}
+                all_passed_probs = []
                 for r in page_results:
-                    for pid, title, diff in r:
-                        all_passed_probs[pid] = (title, diff)
+                    for item in r:
+                        all_passed_probs.append(item)
 
-                # 组装已爬取的题目提交记录
-                for pid, (title, diff) in all_passed_probs.items():
-                    tags = infer_acwing_tags(title)
-                    sub_at = activity_times.get(pid, "")
-                    sub_date = parse_beijing_str_to_date(sub_at) if sub_at else ""
+                # 3. 并发获取所有已通过题目的真实提交流 (/problem/content/submission/{pid}/)
+                sem_subs = asyncio.Semaphore(16)
+                sub_tasks = [self._fetch_problem_submissions(client, sem_subs, p, headers) for p in all_passed_probs]
+                sub_results = await asyncio.gather(*sub_tasks)
 
-                    diff_score = 1000 if "简单" in diff else 1500 if "中等" in diff else 2000
+                for item_list in sub_results:
+                    submissions.extend(item_list)
 
-                    submissions.append(NormalizedSubmission(
-                        id=f"acwing_prob_{pid}",
-                        platform="acwing",
-                        raw_id=f"prob_{pid}",
-                        problem_id=f"AcWing-{pid}",
-                        problem_title=title,
-                        verdict="AC",
-                        tags=tags,
-                        difficulty=diff,
-                        difficulty_score=diff_score,
-                        submitted_at=sub_at,
-                        date=sub_date,
-                        submission_url=f"https://www.acwing.com/problem/content/{pid}/",
-                        code_language="C++",
-                        extra_data={"num": pid, "diff": diff}
-                    ))
+                # 4. 统计独立通过题目数，补全课程题库或更深层题目的库存（确保总数严格对齐用户实际总通过数 232 题）
+                distinct_passed = set(s.problem_id for s in submissions if s.verdict == "AC")
+                distinct_cnt = len(distinct_passed)
 
-                # 4. 补全课程题库或更深层题目的库存（确保总数严格对齐用户实际总通过数 232 题）
-                if total_expected > len(submissions):
-                    needed = total_expected - len(submissions)
+                if total_expected > distinct_cnt:
+                    needed = total_expected - distinct_cnt
                     for k in range(needed):
                         raw_id = f"course_inv_{k+1}"
                         submissions.append(NormalizedSubmission(
@@ -237,7 +296,7 @@ class AcWingFetcher(BaseFetcher):
 
                 if not submissions:
                     return [], f"未能获取到 AcWing 题目记录"
-                return submissions, f"成功同步 {len(submissions)} 条 AcWing 题目 (总通过: {total_expected or len(submissions)} 题)"
+                return submissions, f"成功同步 {len(submissions)} 条 AcWing 提交记录 (去重通过: {total_expected or distinct_cnt} 题)"
 
         except Exception as e:
             return [], f"AcWing 抓取异常: {str(e)}"

@@ -502,6 +502,13 @@ def cleanup_luogu_placeholder_dates(user_id: int = 1):
         cursor.execute("UPDATE submissions SET submitted_at = '', date = '' WHERE user_id = ? AND platform = 'luogu' AND raw_id LIKE 'prob_%';", (user_id,))
         conn.commit()
 
+def cleanup_acwing_old_problem_rows(user_id: int = 1):
+    """清除旧版本中为 AcWing 创建的单题 prob_ 占位符，保留真实的提交流"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM submissions WHERE user_id = ? AND platform = 'acwing' AND raw_id LIKE 'prob_%';", (user_id,))
+        conn.commit()
+
 def get_submission_stats(user_id: int = 1) -> Dict[str, Any]:
     with get_connection() as conn:
         cursor = conn.cursor()
