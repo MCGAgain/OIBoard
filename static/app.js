@@ -42,6 +42,8 @@ createApp({
 
     const rawHeatmap = ref([]);
     const heatmapFilter = ref("all");
+    const selectedHeatmapYear = ref(new Date().getFullYear());
+    const availableHeatmapYears = ref([new Date().getFullYear()]);
     const tagStats = ref([]);
     const mistakes = ref([]);
     const submissions = ref([]);
@@ -417,9 +419,15 @@ createApp({
 
     const loadHeatmap = async () => {
       try {
-        const res = await apiFetch(`/api/stats/heatmap?platform=${heatmapFilter.value}`);
+        const res = await apiFetch(`/api/stats/heatmap?platform=${heatmapFilter.value}&year=${selectedHeatmapYear.value}`);
         const data = await res.json();
         rawHeatmap.value = data.heatmap || [];
+        if (data.available_years && data.available_years.length > 0) {
+          availableHeatmapYears.value = data.available_years;
+        }
+        if (data.year) {
+          selectedHeatmapYear.value = data.year;
+        }
         renderHeatmap();
       } catch (e) {
         console.error("加载 Heatmap 失败:", e);
@@ -500,12 +508,13 @@ createApp({
       }
       heatmapChart = chart;
 
-      const today = new Date();
-      const currentYear = today.getFullYear();
-      const startDateStr = `${currentYear}-01-01`;
-      const endDateStr = `${currentYear}-12-31`;
+      const targetYear = selectedHeatmapYear.value || new Date().getFullYear();
+      const startDateStr = `${targetYear}-01-01`;
+      const endDateStr = `${targetYear}-12-31`;
 
-      const heatMapData = (rawHeatmap.value || []).map(item => [item.date, item.count]);
+      const heatMapData = (rawHeatmap.value || [])
+        .filter(item => item.date && item.date.startsWith(`${targetYear}`))
+        .map(item => [item.date, item.count]);
 
       const option = {
         tooltip: {
@@ -694,6 +703,11 @@ createApp({
     // --- Platform & Sync Actions ---
     const setHeatmapFilter = (p) => {
       heatmapFilter.value = p;
+      loadHeatmap();
+    };
+
+    const setHeatmapYear = (yr) => {
+      selectedHeatmapYear.value = yr;
       loadHeatmap();
     };
 
@@ -908,6 +922,9 @@ createApp({
       overview,
       rawHeatmap,
       heatmapFilter,
+      selectedHeatmapYear,
+      availableHeatmapYears,
+      setHeatmapYear,
       tagStats,
       mistakes,
       submissions,

@@ -623,26 +623,51 @@ def get_submission_stats(user_id: int = 1) -> Dict[str, Any]:
             "platforms": platforms_stats
         }
 
-def get_daily_counts(user_id: int = 1, platform: str = "") -> List[Dict[str, Any]]:
+def get_daily_counts(user_id: int = 1, platform: str = "", year: Optional[int] = None) -> List[Dict[str, Any]]:
     with get_connection() as conn:
         cursor = conn.cursor()
+        conditions = ["user_id = ?", "date != ''", "date IS NOT NULL"]
+        params = [user_id]
+        
         if platform and platform != "all":
-            cursor.execute("""
-                SELECT date, COUNT(*) as count 
-                FROM submissions 
-                WHERE user_id = ? AND platform = ? AND date != '' AND date IS NOT NULL
-                GROUP BY date 
-                ORDER BY date ASC;
-            """, (user_id, platform))
-        else:
-            cursor.execute("""
-                SELECT date, COUNT(*) as count 
-                FROM submissions 
-                WHERE user_id = ? AND date != '' AND date IS NOT NULL
-                GROUP BY date 
-                ORDER BY date ASC;
-            """, (user_id,))
+            conditions.append("platform = ?")
+            params.append(platform)
+            
+        if year:
+            conditions.append("strftime('%Y', date) = ?")
+            params.append(str(year))
+            
+        where_clause = " AND ".join(conditions)
+        cursor.execute(f"""
+            SELECT date, COUNT(*) as count 
+            FROM submissions 
+            WHERE {where_clause}
+            GROUP BY date 
+            ORDER BY date ASC;
+        """, tuple(params))
         return [dict(r) for r in cursor.fetchall()]
+
+def get_submission_years(user_id: int = 1) -> List[int]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT strftime('%Y', date) as yr 
+            FROM submissions 
+            WHERE user_id = ? AND date != '' AND date IS NOT NULL AND yr IS NOT NULL
+            ORDER BY yr DESC;
+        """, (user_id,))
+        years = []
+        for r in cursor.fetchall():
+            try:
+                y = int(r["yr"])
+                if 2000 <= y <= 2100:
+                    years.append(y)
+            except Exception:
+                pass
+        curr_yr = get_beijing_now().year
+        if curr_yr not in years:
+            years.append(curr_yr)
+        return sorted(list(set(years)), reverse=True)
 
 def get_tag_statistics(user_id: int = 1) -> List[Dict[str, Any]]:
     with get_connection() as conn:

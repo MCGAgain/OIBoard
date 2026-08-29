@@ -162,10 +162,17 @@ async def get_overview(current_user: Dict[str, Any] = Depends(get_current_user))
     }
 
 @app.get("/api/stats/heatmap")
-async def get_heatmap(platform: str = "all", current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_heatmap(platform: str = "all", year: Optional[int] = None, current_user: Dict[str, Any] = Depends(get_current_user)):
     uid = current_user["id"]
-    data = db.get_daily_counts(user_id=uid, platform=platform)
-    return {"heatmap": data}
+    curr_yr = db.get_beijing_now().year
+    target_year = year if year else curr_yr
+    data = db.get_daily_counts(user_id=uid, platform=platform, year=target_year)
+    available_years = db.get_submission_years(user_id=uid)
+    return {
+        "heatmap": data,
+        "year": target_year,
+        "available_years": available_years
+    }
 
 @app.get("/api/stats/tags")
 async def get_tags(current_user: Dict[str, Any] = Depends(get_current_user)):

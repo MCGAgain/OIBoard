@@ -25,7 +25,7 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
   <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=2.0.8">
+  <link rel="stylesheet" href="/static/style.css?v=2.0.9">
 </head>
 <body class="text-slate-200 min-h-screen antialiased selection:bg-cyan-500 selection:text-white bg-[#06090f] flex overflow-x-hidden">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -400,11 +400,26 @@
                   <span>ACTIVITY HEATMAP</span>
                 </h2>
               </div>
-              <div class="flex items-center space-x-1 text-xs bg-dark-900 p-1 rounded-lg border border-white/10 font-mono">
-                <button @click="setHeatmapFilter('all')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'all' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">ALL</button>
-                <button @click="setHeatmapFilter('codeforces')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'codeforces' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">CF</button>
-                <button @click="setHeatmapFilter('luogu')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'luogu' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">LUOGU</button>
-                <button @click="setHeatmapFilter('acwing')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'acwing' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">ACWING</button>
+              <div class="flex flex-wrap items-center gap-2">
+                <!-- 年份选择器 -->
+                <div v-if="availableHeatmapYears.length > 1" class="flex items-center space-x-1 text-xs bg-dark-900 p-1 rounded-lg border border-white/10 font-mono">
+                  <button v-for="yr in availableHeatmapYears" :key="yr"
+                          @click="setHeatmapYear(yr)"
+                          :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', selectedHeatmapYear === yr ? 'bg-cyan-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200']">
+                    {{ yr }}
+                  </button>
+                </div>
+                <div v-else class="flex items-center px-2.5 py-1 text-[11px] font-mono font-semibold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                  {{ selectedHeatmapYear }} 年
+                </div>
+
+                <!-- 平台过滤 -->
+                <div class="flex items-center space-x-1 text-xs bg-dark-900 p-1 rounded-lg border border-white/10 font-mono">
+                  <button @click="setHeatmapFilter('all')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'all' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">ALL</button>
+                  <button @click="setHeatmapFilter('codeforces')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'codeforces' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">CF</button>
+                  <button @click="setHeatmapFilter('luogu')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'luogu' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">LUOGU</button>
+                  <button @click="setHeatmapFilter('acwing')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'acwing' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">ACWING</button>
+                </div>
               </div>
             </div>
 
@@ -417,7 +432,7 @@
             <div class="flex items-center justify-between pt-2 px-2 text-[11px] font-mono text-slate-400 border-t border-white/5">
               <div class="flex items-center space-x-2 text-slate-500">
                 <span class="inline-block w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                <span>ANNUAL ACTIVITY GRID</span>
+                <span>{{ selectedHeatmapYear }} ANNUAL ACTIVITY GRID</span>
               </div>
               <div class="flex items-center space-x-1.5">
                 <span class="text-slate-500 mr-1 text-[10px]">Less 少</span>
@@ -961,6 +976,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.0.8"></script>
+  <script src="/static/app.js?v=2.0.9"></script>
 </body>
 </html>
