@@ -4,7 +4,7 @@ import httpx
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
-from fetchers.base import BaseFetcher, NormalizedSubmission, parse_beijing_str_to_date
+from fetchers.base import BaseFetcher, NormalizedSubmission, parse_beijing_str_to_date, parse_relative_or_absolute_time
 
 ACWING_PROBLEM_TAGS = {
     "动态规划 DP": ["背包", "DP", "编辑距离", "整数划分", "蒙德里安的梦想", "滑雪", "没有上司的舞会", "计数问题", "最长上升子序列", "石子合并", "方格取数", "数字三角形", "矩阵", "子段和", "最长公共子序列"],
@@ -175,12 +175,11 @@ class AcWingFetcher(BaseFetcher):
                             lang = cols[3]
                             mode = cols[4] if len(cols) >= 5 else ""
 
-                            # 格式化时间 "YYYY-MM-DD HH:MM" -> "YYYY-MM-DD HH:MM:00"
-                            sub_at = f"{sub_time_raw}:00" if len(sub_time_raw) == 16 else sub_time_raw
-                            sub_date = parse_beijing_str_to_date(sub_at)
+                            # 统一解析相对时间 (如 "25分钟前", "刚刚") 与绝对时间为北京时间标准格式
+                            sub_at, sub_date = parse_relative_or_absolute_time(sub_time_raw)
                             verdict = self._normalize_verdict(verdict_raw)
 
-                            clean_ts = sub_time_raw.replace("-", "").replace(":", "").replace(" ", "_")
+                            clean_ts = sub_at[:19].replace("-", "").replace(":", "").replace(" ", "_")
                             raw_id = f"sub_{pid}_{clean_ts}_{idx}"
 
                             prob_subs.append(NormalizedSubmission(

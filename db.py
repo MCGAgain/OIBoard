@@ -5,6 +5,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from auth import hash_password, verify_password, generate_session_token
 
+import re
+
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 def get_beijing_now() -> datetime:
@@ -14,16 +16,74 @@ def get_effective_today() -> str:
     """获取当前生效的统计归属日期（凌晨 4 点前算作昨日打卡）"""
     return (get_beijing_now() - timedelta(hours=4)).strftime("%Y-%m-%d")
 
+def parse_relative_or_absolute_time(time_str: str) -> Tuple[str, str]:
+    if not time_str:
+        return "", ""
+    t_str = time_str.strip()
+    now = get_beijing_now()
+    dt = None
+
+    if t_str in ("刚刚", "刚才"):
+        dt = now
+    elif "秒前" in t_str:
+        m = re.search(r'(\d+)\s*秒前', t_str)
+        sec = int(m.group(1)) if m else 0
+        dt = now - timedelta(seconds=sec)
+    elif "分钟前" in t_str:
+        m = re.search(r'(\d+)\s*分钟前', t_str)
+        mins = int(m.group(1)) if m else 0
+        dt = now - timedelta(minutes=mins)
+    elif "小时前" in t_str:
+        m = re.search(r'(\d+)\s*小时前', t_str)
+        hrs = int(m.group(1)) if m else 0
+        dt = now - timedelta(hours=hrs)
+    elif "天前" in t_str:
+        m = re.search(r'(\d+)\s*天前', t_str)
+        days = int(m.group(1)) if m else 0
+        dt = now - timedelta(days=days)
+    elif "昨天" in t_str:
+        m = re.search(r'昨天\s*(\d{1,2}):(\d{1,2})', t_str)
+        if m:
+            h, mi = int(m.group(1)), int(m.group(2))
+            dt = (now - timedelta(days=1)).replace(hour=h, minute=mi, second=0)
+        else:
+            dt = now - timedelta(days=1)
+    elif "前天" in t_str:
+        m = re.search(r'前天\s*(\d{1,2}):(\d{1,2})', t_str)
+        if m:
+            h, mi = int(m.group(1)), int(m.group(2))
+            dt = (now - timedelta(days=2)).replace(hour=h, minute=mi, second=0)
+        else:
+            dt = now - timedelta(days=2)
+    elif re.match(r'^\d{1,2}-\d{1,2}\s+\d{1,2}:\d{1,2}', t_str):
+        try:
+            full_str = f"{now.year}-{t_str}"
+            dt = datetime.strptime(full_str[:16], "%Y-%m-%d %H:%M").replace(tzinfo=BEIJING_TZ)
+        except Exception:
+            pass
+    elif re.match(r'^\d{4}-\d{1,2}-\d{1,2}', t_str):
+        try:
+            if len(t_str) == 10:
+                dt = datetime.strptime(t_str, "%Y-%m-%d").replace(tzinfo=BEIJING_TZ)
+            elif len(t_str) >= 16:
+                dt = datetime.strptime(t_str[:16], "%Y-%m-%d %H:%M").replace(tzinfo=BEIJING_TZ)
+        except Exception:
+            pass
+
+    if dt:
+        sub_at = dt.strftime("%Y-%m-%d %H:%M:%S")
+        effective_dt = dt - timedelta(hours=4)
+        date_str = effective_dt.strftime("%Y-%m-%d")
+        return sub_at, date_str
+
+    return t_str, t_str[:10]
+
 def parse_beijing_str_to_date(dt_str: str) -> str:
-    """将北京时间字符串转换为熬夜归属统计日期（凌晨 4 点前算作前一日）"""
+    """将北京时间字符串或相对时间转换为熬夜归属统计日期（凌晨 4 点前算作前一日）"""
     if not dt_str:
         return ""
-    try:
-        dt = datetime.strptime(dt_str[:19], "%Y-%m-%d %H:%M:%S")
-        effective_dt = dt - timedelta(hours=4)
-        return effective_dt.strftime("%Y-%m-%d")
-    except Exception:
-        return dt_str[:10]
+    _, date_str = parse_relative_or_absolute_time(dt_str)
+    return date_str
 
 DB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 DB_PATH = os.path.join(DB_DIR, "oiboard.db")
@@ -503,10 +563,10 @@ def cleanup_luogu_placeholder_dates(user_id: int = 1):
         conn.commit()
 
 def cleanup_acwing_old_problem_rows(user_id: int = 1):
-    """清除旧版本中为 AcWing 创建的单题 prob_ 占位符，保留真实的提交流"""
+    """清除旧版本中为 AcWing 创建的单题 prob_ 占位符以及未解析相对时间的脏数据，保留标准的真实提交流"""
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM submissions WHERE user_id = ? AND platform = 'acwing' AND raw_id LIKE 'prob_%';", (user_id,))
+        cursor.execute("DELETE FROM submissions WHERE user_id = ? AND platform = 'acwing' AND (raw_id LIKE 'prob_%' OR date LIKE '%前%' OR date LIKE '%刚刚%');", (user_id,))
         conn.commit()
 
 def get_submission_stats(user_id: int = 1) -> Dict[str, Any]:
