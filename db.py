@@ -563,10 +563,10 @@ def cleanup_luogu_placeholder_dates(user_id: int = 1):
         conn.commit()
 
 def cleanup_acwing_old_problem_rows(user_id: int = 1):
-    """清除旧版本中为 AcWing 创建的单题 prob_ 占位符以及未解析相对时间的脏数据，保留标准的真实提交流"""
+    """清除旧版本中为 AcWing 创建的临时占位符与脏数据，保留官方唯一评测记录"""
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM submissions WHERE user_id = ? AND platform = 'acwing' AND (raw_id LIKE 'prob_%' OR date LIKE '%前%' OR date LIKE '%刚刚%');", (user_id,))
+        cursor.execute("DELETE FROM submissions WHERE user_id = ? AND platform = 'acwing' AND (raw_id LIKE 'prob_%' OR raw_id LIKE 'sub_%' OR date LIKE '%前%' OR date LIKE '%刚刚%');", (user_id,))
         conn.commit()
 
 def get_submission_stats(user_id: int = 1) -> Dict[str, Any]:

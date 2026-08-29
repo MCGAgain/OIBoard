@@ -167,20 +167,46 @@ class AcWingFetcher(BaseFetcher):
                     prob_subs = []
                     idx = 0
                     for tr in rows:
-                        cols = [td.get_text().strip() for td in tr.select("td")]
-                        if len(cols) >= 4:
-                            sub_time_raw = cols[0]
-                            verdict_raw = cols[1]
-                            runtime = cols[2]
-                            lang = cols[3]
-                            mode = cols[4] if len(cols) >= 5 else ""
+                        tds = tr.select("td")
+                        if len(tds) >= 4:
+                            # 1. 优先从 title 属性获取官方精准秒级时间，无 title 时退回文本解析
+                            span_title = tds[0].select_one("span[title]")
+                            if span_title and span_title.get("title"):
+                                time_raw = span_title.get("title").strip()
+                            else:
+                                time_raw = tds[0].get_text().strip()
 
-                            # 统一解析相对时间 (如 "25分钟前", "刚刚") 与绝对时间为北京时间标准格式
-                            sub_at, sub_date = parse_relative_or_absolute_time(sub_time_raw)
+                            sub_at, sub_date = parse_relative_or_absolute_time(time_raw)
+
+                            # 2. 提取 AcWing 官方唯一评测记录 ID (如 45469382)
+                            code_link = tds[1].select_one("a[href*='code_detail'], a[href*='submission']")
+                            sub_record_id = ""
+                            sub_url = prob_url
+                            if code_link and code_link.get("href"):
+                                m = re.search(r"code_detail/(\d+)", code_link.get("href"))
+                                if m:
+                                    sub_record_id = m.group(1)
+                                    sub_url = f"{self.BASE_URL}/problem/content/submission/code_detail/{sub_record_id}/"
+                            if not sub_record_id:
+                                result_span = tds[1].select_one("[id*='submission-result-']")
+                                if result_span and result_span.get("id"):
+                                    m = re.search(r"submission-result-(\d+)", result_span.get("id"))
+                                    if m:
+                                        sub_record_id = m.group(1)
+                                        sub_url = f"{self.BASE_URL}/problem/content/submission/code_detail/{sub_record_id}/"
+
+                            verdict_raw = tds[1].get_text().strip()
                             verdict = self._normalize_verdict(verdict_raw)
+                            runtime = tds[2].get_text().strip()
+                            lang = tds[3].get_text().strip()
+                            mode = tds[4].get_text().strip() if len(tds) >= 5 else ""
 
-                            clean_ts = sub_at[:19].replace("-", "").replace(":", "").replace(" ", "_")
-                            raw_id = f"sub_{pid}_{clean_ts}_{idx}"
+                            # 官方 ID 保证全局唯一且绝对幂等，不会因反复同步而重复插入
+                            if sub_record_id:
+                                raw_id = f"rec_{sub_record_id}"
+                            else:
+                                clean_ts = sub_at[:19].replace("-", "").replace(":", "").replace(" ", "_")
+                                raw_id = f"sub_{pid}_{clean_ts}_{idx}"
 
                             prob_subs.append(NormalizedSubmission(
                                 id=f"acwing_{raw_id}",
@@ -194,9 +220,9 @@ class AcWingFetcher(BaseFetcher):
                                 difficulty_score=diff_score,
                                 submitted_at=sub_at,
                                 date=sub_date,
-                                submission_url=prob_url,
+                                submission_url=sub_url,
                                 code_language=lang,
-                                extra_data={"num": pid, "diff": diff, "runtime": runtime, "mode": mode}
+                                extra_data={"num": pid, "diff": diff, "runtime": runtime, "mode": mode, "sub_id": sub_record_id}
                             ))
                             idx += 1
 
