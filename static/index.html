@@ -25,7 +25,7 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
   <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=2.0.6">
+  <link rel="stylesheet" href="/static/style.css?v=2.0.8">
 </head>
 <body class="text-slate-200 min-h-screen antialiased selection:bg-cyan-500 selection:text-white bg-[#06090f] flex overflow-x-hidden">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -597,7 +597,13 @@
                     </span>
                   </td>
                   <td class="px-4 py-3 font-mono text-slate-400 text-[11px]">{{ sub.code_language || 'C++' }}</td>
-                  <td class="px-4 py-3 text-slate-400 font-mono text-[11px]">{{ sub.submitted_at || sub.date || '历史题库' }}</td>
+                  <td class="px-4 py-3 font-mono text-[11px]" :title="sub.submitted_at || sub.date">
+                    <div v-if="sub.submitted_at">
+                      <span class="text-slate-300">{{ formatTimeAgo(sub.submitted_at) }}</span>
+                      <span v-if="formatTimeAgo(sub.submitted_at) !== sub.submitted_at" class="ml-1.5 text-[10px] text-slate-500 font-sans">({{ sub.submitted_at.slice(11, 16) }})</span>
+                    </div>
+                    <span v-else class="text-slate-500">{{ sub.date || '历史题库' }}</span>
+                  </td>
                   <td class="px-4 py-3 text-right">
                     <a v-if="sub.submission_url" :href="sub.submission_url" target="_blank" 
                        class="inline-flex items-center space-x-1 text-cyan-400 hover:text-cyan-300 hover:underline font-mono text-xs">
@@ -699,7 +705,13 @@
                     </span>
                   </td>
                   <td class="px-4 py-3 font-mono text-slate-400">{{ item.fail_times }}</td>
-                  <td class="px-4 py-3 text-slate-400 font-mono text-[11px]">{{ item.submitted_at || '待攻克' }}</td>
+                  <td class="px-4 py-3 font-mono text-[11px]" :title="item.submitted_at">
+                    <div v-if="item.submitted_at">
+                      <span class="text-slate-300">{{ formatTimeAgo(item.submitted_at) }}</span>
+                      <span v-if="formatTimeAgo(item.submitted_at) !== item.submitted_at" class="ml-1.5 text-[10px] text-slate-500 font-sans">({{ item.submitted_at.slice(11, 16) }})</span>
+                    </div>
+                    <span v-else class="text-slate-500">待攻克</span>
+                  </td>
                   <td class="px-4 py-3 text-right">
                     <a v-if="item.submission_url" :href="item.submission_url" target="_blank" 
                        class="inline-flex items-center space-x-1 text-cyan-400 hover:text-cyan-300 hover:underline font-mono text-xs">
@@ -949,6 +961,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.0.7"></script>
+  <script src="/static/app.js?v=2.0.8"></script>
 </body>
 </html>

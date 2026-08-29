@@ -795,6 +795,37 @@ createApp({
     };
 
     // --- Helpers ---
+    const formatTimeAgo = (timeStr) => {
+      if (!timeStr) return "";
+      try {
+        const parts = timeStr.trim().split(/[\s-:]+/);
+        if (parts.length < 5) return timeStr;
+        
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const hour = parseInt(parts[3], 10);
+        const minute = parseInt(parts[4], 10);
+        const second = parts.length >= 6 ? parseInt(parts[5], 10) : 0;
+        
+        const subDate = new Date(year, month, day, hour, minute, second);
+        const now = new Date();
+        const diffMs = now.getTime() - subDate.getTime();
+        const diffSec = Math.floor(diffMs / 1000);
+        
+        if (diffSec < 0) return timeStr;
+        if (diffSec < 45) return "刚刚";
+        if (diffSec < 3600) return `${Math.floor(diffSec / 60)}分钟前`;
+        if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}小时前`;
+        if (diffSec < 86400 * 2) return `昨天 ${parts[3]}:${parts[4]}`;
+        if (diffSec < 86400 * 3) return `前天 ${parts[3]}:${parts[4]}`;
+        
+        return timeStr;
+      } catch (e) {
+        return timeStr;
+      }
+    };
+
     const getStatusClass = (platform) => {
       const s = platformStatusMap.value[platform]?.status || "unconfigured";
       return s;
@@ -896,6 +927,7 @@ createApp({
       toggleSprintMode,
       verifyPlatform,
       saveSettingsAndSync,
+      formatTimeAgo,
       getStatusClass,
       getPlatformPillClass
     };
