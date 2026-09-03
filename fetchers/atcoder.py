@@ -193,7 +193,7 @@ class AtCoderFetcher(BaseFetcher):
                     from_second = last_sec + 1
 
                 if not all_raw_subs:
-                    return [], f"未找到用户 {handle_clean} 的提交记录"
+                    return [], "同步成功: 0条"
 
                 # 转换为 NormalizedSubmission
                 submissions: List[NormalizedSubmission] = []

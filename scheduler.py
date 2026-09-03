@@ -49,15 +49,19 @@ class TaskScheduler:
                 valid, v_msg, extra = await self.cf_fetcher.verify(handle, proxy=proxy)
                 rating_str = extra.get("rating", "") if valid else ""
                 
+                if not valid:
+                    update_platform_status(user_id, "codeforces", "error", v_msg or "用户不存在", rating=rating_str)
+                    res.update({"success": False, "message": v_msg or "用户不存在"})
+                    return res
+
                 subs, msg = await self.cf_fetcher.fetch_submissions(handle, proxy=proxy)
                 if subs:
                     inserted = save_submissions([s.to_dict() for s in subs], user_id=user_id)
                     update_platform_status(user_id, "codeforces", "ok", f"同步成功: {len(subs)}条", item_count=len(subs), rating=rating_str)
                     res.update({"success": True, "message": f"成功同步 {len(subs)} 条", "count": len(subs)})
                 else:
-                    status = "warning" if valid else "error"
-                    update_platform_status(user_id, "codeforces", status, msg, rating=rating_str)
-                    res.update({"success": valid, "message": msg})
+                    update_platform_status(user_id, "codeforces", "ok", "同步成功: 0条", item_count=0, rating=rating_str)
+                    res.update({"success": True, "message": "同步成功: 0条", "count": 0})
 
             elif platform == "luogu":
                 uid = configs.get("luogu_uid", "").strip()
@@ -70,6 +74,11 @@ class TaskScheduler:
                 valid, v_msg, extra = await self.luogu_fetcher.verify(uid, cookie, proxy=proxy)
                 rating_str = extra.get("ranking", "") if valid else ""
 
+                if not valid:
+                    update_platform_status(user_id, "luogu", "error", v_msg or "验证失败", rating=rating_str)
+                    res.update({"success": False, "message": v_msg or "验证失败"})
+                    return res
+
                 subs, msg = await self.luogu_fetcher.fetch_submissions(uid, cookie, proxy=proxy)
                 if subs:
                     cleanup_luogu_placeholder_dates(user_id)
@@ -77,9 +86,8 @@ class TaskScheduler:
                     update_platform_status(user_id, "luogu", "ok", f"同步成功: {len(subs)}条", item_count=len(subs), rating=rating_str)
                     res.update({"success": True, "message": f"成功同步 {len(subs)} 条", "count": len(subs)})
                 else:
-                    status = "warning" if valid else "error"
-                    update_platform_status(user_id, "luogu", status, msg, rating=rating_str)
-                    res.update({"success": valid, "message": msg})
+                    update_platform_status(user_id, "luogu", "ok", "同步成功: 0条", item_count=0, rating=rating_str)
+                    res.update({"success": True, "message": "同步成功: 0条", "count": 0})
 
             elif platform == "acwing":
                 target_uid = configs.get("acwing_user_id", "").strip()
@@ -90,6 +98,11 @@ class TaskScheduler:
                     return res
 
                 valid, v_msg, extra = await self.acwing_fetcher.verify(target_uid, cookie, proxy=proxy)
+                if not valid:
+                    update_platform_status(user_id, "acwing", "error", v_msg or "验证失败")
+                    res.update({"success": False, "message": v_msg or "验证失败"})
+                    return res
+
                 subs, msg = await self.acwing_fetcher.fetch_submissions(target_uid, cookie, proxy=proxy)
                 if subs:
                     cleanup_acwing_old_problem_rows(user_id)
@@ -97,9 +110,8 @@ class TaskScheduler:
                     update_platform_status(user_id, "acwing", "ok", f"同步成功: {len(subs)}条", item_count=len(subs))
                     res.update({"success": True, "message": f"成功同步 {len(subs)} 条", "count": len(subs)})
                 else:
-                    status = "warning" if valid else "error"
-                    update_platform_status(user_id, "acwing", status, msg)
-                    res.update({"success": valid, "message": msg})
+                    update_platform_status(user_id, "acwing", "ok", "同步成功: 0条", item_count=0)
+                    res.update({"success": True, "message": "同步成功: 0条", "count": 0})
 
             elif platform == "atcoder":
                 handle = configs.get("atcoder_handle", "").strip()
@@ -111,15 +123,20 @@ class TaskScheduler:
                 valid, v_msg, extra = await self.atcoder_fetcher.verify(handle, proxy=proxy)
                 rating_str = extra.get("rating", "") if valid else ""
 
+                if not valid:
+                    update_platform_status(user_id, "atcoder", "error", v_msg or "用户不存在", rating=rating_str)
+                    res.update({"success": False, "message": v_msg or "用户不存在"})
+                    return res
+
                 subs, msg = await self.atcoder_fetcher.fetch_submissions(handle, proxy=proxy)
                 if subs:
                     inserted = save_submissions([s.to_dict() for s in subs], user_id=user_id)
                     update_platform_status(user_id, "atcoder", "ok", f"同步成功: {len(subs)}条", item_count=len(subs), rating=rating_str)
                     res.update({"success": True, "message": f"成功同步 {len(subs)} 条", "count": len(subs)})
                 else:
-                    status = "warning" if valid else "error"
-                    update_platform_status(user_id, "atcoder", status, msg, rating=rating_str)
-                    res.update({"success": valid, "message": msg})
+                    # 用户存在但尚未提交题目，状态判定为正常 ok
+                    update_platform_status(user_id, "atcoder", "ok", "同步成功: 0条", item_count=0, rating=rating_str)
+                    res.update({"success": True, "message": "同步成功: 0条", "count": 0})
 
         except Exception as e:
             logger.error(f"Sync user {user_id} error for {platform}: {str(e)}")
