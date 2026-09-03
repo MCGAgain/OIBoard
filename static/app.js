@@ -49,12 +49,21 @@ createApp({
     const submissions = ref([]);
     const subFilter = ref("all");
 
+    // --- Contests State ---
+    const contests = ref([]);
+    const contestFilter = ref("all"); // 'all', 'codeforces', 'atcoder', 'luogu'
+    const contestStatusFilter = ref("all"); // 'all', 'BEFORE', 'CODING'
+    const contestSearch = ref("");
+    const isSyncingContests = ref(false);
+    const nowTimestamp = ref(Math.floor(Date.now() / 1000));
+
     const configs = ref({
       cf_handle: "",
       luogu_uid: "",
       luogu_cookie: "",
       acwing_user_id: "",
       acwing_cookie: "",
+      atcoder_handle: "",
       poll_interval_minutes: "30",
       sprint_mode: "false",
       last_sync_time: "",
@@ -64,7 +73,7 @@ createApp({
     const platformStatusMap = ref({});
     const isSyncing = ref(false);
     const isSaving = ref(false);
-    const isVerifying = ref({ codeforces: false, luogu: false, acwing: false });
+    const isVerifying = ref({ codeforces: false, luogu: false, acwing: false, atcoder: false });
 
     const settingsForm = ref({
       cf_handle: "",
@@ -72,6 +81,7 @@ createApp({
       luogu_cookie: "",
       acwing_user_id: "",
       acwing_cookie: "",
+      atcoder_handle: "",
       poll_interval_minutes: "30",
       http_proxy: ""
     });
@@ -394,6 +404,82 @@ createApp({
       currentPage.value = 1;
     };
 
+    // --- Contest Computed & Helpers ---
+    const getContestStatus = (c) => {
+      const now = nowTimestamp.value;
+      const st = c.start_timestamp;
+      const dur = c.duration_seconds || 7200;
+      const et = st + dur;
+      if (now < st) return "BEFORE";
+      if (now < et) return "CODING";
+      return "FINISHED";
+    };
+
+    const formatContestCountdown = (c) => {
+      const now = nowTimestamp.value;
+      const st = c.start_timestamp;
+      const dur = c.duration_seconds || 7200;
+      const et = st + dur;
+
+      if (now < st) {
+        const diff = st - now;
+        const days = Math.floor(diff / 86400);
+        const hours = Math.floor((diff % 86400) / 3600);
+        const mins = Math.floor((diff % 3600) / 60);
+        const secs = diff % 60;
+        if (days > 0) {
+          return `还有 ${days} 天 ${hours} 小时 ${mins} 分`;
+        } else if (hours > 0) {
+          return `还有 ${hours} 小时 ${mins} 分 ${secs} 秒`;
+        } else {
+          return `还有 ${mins} 分 ${secs} 秒`;
+        }
+      } else if (now < et) {
+        const remaining = et - now;
+        const hours = Math.floor(remaining / 3600);
+        const mins = Math.floor((remaining % 3600) / 60);
+        const secs = remaining % 60;
+        if (hours > 0) {
+          return `🔥 正在进行中 (剩余 ${hours}小时${mins}分)`;
+        } else {
+          return `🔥 正在进行中 (剩余 ${mins}分${secs}秒)`;
+        }
+      } else {
+        return "已结束";
+      }
+    };
+
+    const filteredContests = computed(() => {
+      let list = contests.value || [];
+      if (contestFilter.value !== "all") {
+        list = list.filter(c => c.platform === contestFilter.value);
+      }
+      if (contestStatusFilter.value !== "all") {
+        list = list.filter(c => getContestStatus(c) === contestStatusFilter.value);
+      }
+      if (contestSearch.value.trim()) {
+        const kw = contestSearch.value.trim().toLowerCase();
+        list = list.filter(c => 
+          (c.name || "").toLowerCase().includes(kw) || 
+          (c.rule_type || "").toLowerCase().includes(kw) || 
+          (c.platform || "").toLowerCase().includes(kw)
+        );
+      }
+      return list;
+    });
+
+    const upcomingContestsCount = computed(() => {
+      const now = nowTimestamp.value;
+      return (contests.value || []).filter(c => (c.start_timestamp + (c.duration_seconds || 7200)) > now).length;
+    });
+
+    const topUpcomingContests = computed(() => {
+      const now = nowTimestamp.value;
+      return (contests.value || [])
+        .filter(c => (c.start_timestamp + (c.duration_seconds || 7200)) > now)
+        .slice(0, 3);
+    });
+
     // --- Data Loaders (绑定当前用户) ---
     const loadOverview = async () => {
       try {
@@ -465,6 +551,34 @@ createApp({
       }
     };
 
+    const loadContests = async () => {
+      try {
+        const res = await apiFetch("/api/contests?platform=all");
+        const data = await res.json();
+        contests.value = data.contests || [];
+      } catch (e) {
+        console.error("加载比赛日程失败:", e);
+      }
+    };
+
+    const syncContestsNow = async () => {
+      isSyncingContests.value = true;
+      try {
+        const res = await apiFetch("/api/contests/sync", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message || "比赛日程刷新成功！", "success");
+          await loadContests();
+        } else {
+          showToast(data.message || "刷新比赛异常", "error");
+        }
+      } catch (e) {
+        showToast("刷新比赛请求失败: " + e.message, "error");
+      } finally {
+        isSyncingContests.value = false;
+      }
+    };
+
     const loadSettings = async () => {
       try {
         const res = await apiFetch("/api/settings");
@@ -478,6 +592,7 @@ createApp({
           luogu_cookie: configs.value.luogu_cookie || "",
           acwing_user_id: configs.value.acwing_user_id || "",
           acwing_cookie: configs.value.acwing_cookie || "",
+          atcoder_handle: configs.value.atcoder_handle || "",
           poll_interval_minutes: configs.value.poll_interval_minutes || "30",
           http_proxy: configs.value.http_proxy || "",
         };
@@ -488,7 +603,7 @@ createApp({
 
     const reloadAllData = async () => {
       if (!isLoggedIn.value) return;
-      await Promise.all([loadOverview(), loadHeatmap(), loadTags(), loadMistakes(), loadSubmissions(), loadSettings()]);
+      await Promise.all([loadOverview(), loadHeatmap(), loadTags(), loadMistakes(), loadSubmissions(), loadSettings(), loadContests()]);
       await nextTick();
       if (currentTab.value === "overview") {
         renderHeatmap();
@@ -767,6 +882,7 @@ createApp({
           luogu_cookie: settingsForm.value.luogu_cookie,
           acwing_user_id: settingsForm.value.acwing_user_id,
           acwing_cookie: settingsForm.value.acwing_cookie,
+          atcoder_handle: settingsForm.value.atcoder_handle,
           http_proxy: settingsForm.value.http_proxy
         };
         const res = await apiFetch("/api/verify", {
@@ -852,6 +968,11 @@ createApp({
 
     // --- Lifecycle ---
     onMounted(async () => {
+      // 启动 1 秒级全局时间戳定时器，保证比赛倒计时实时跳动
+      setInterval(() => {
+        nowTimestamp.value = Math.floor(Date.now() / 1000);
+      }, 1000);
+
       if (token.value) {
         try {
           const res = await apiFetch("/api/auth/me");
@@ -946,7 +1067,20 @@ createApp({
       saveSettingsAndSync,
       formatTimeAgo,
       getStatusClass,
-      getPlatformPillClass
+      getPlatformPillClass,
+      // Contests exports
+      contests,
+      contestFilter,
+      contestStatusFilter,
+      contestSearch,
+      isSyncingContests,
+      filteredContests,
+      upcomingContestsCount,
+      topUpcomingContests,
+      getContestStatus,
+      formatContestCountdown,
+      loadContests,
+      syncContestsNow
     };
   }
 }).mount("#app");

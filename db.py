@@ -272,6 +272,26 @@ def init_db():
             cursor.execute("INSERT OR IGNORE INTO platform_status (user_id, platform, status, message, last_checked_at, item_count, rating, updated_at) SELECT 1, platform, status, message, last_checked_at, item_count, rating, updated_at FROM platform_status_old;")
             cursor.execute("DROP TABLE platform_status_old;")
 
+        # 7. 跨平台比赛表 (Contests)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS contests (
+                id TEXT PRIMARY KEY,
+                platform TEXT NOT NULL,
+                raw_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                start_time TEXT NOT NULL,
+                start_timestamp INTEGER NOT NULL,
+                duration_seconds INTEGER NOT NULL,
+                duration_str TEXT NOT NULL,
+                url TEXT NOT NULL,
+                phase TEXT NOT NULL,
+                rule_type TEXT DEFAULT '',
+                updated_at TEXT NOT NULL
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_contests_start_ts ON contests(start_timestamp);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_contests_platform ON contests(platform);")
+
         # 为主账户填充默认配置（如果缺失）
         default_configs = {
             "cf_handle": "",
@@ -279,6 +299,7 @@ def init_db():
             "luogu_cookie": "",
             "acwing_user_id": "",
             "acwing_cookie": "",
+            "atcoder_handle": "",
             "poll_interval_minutes": "30",
             "sprint_mode": "false",
             "last_sync_time": "",
@@ -287,7 +308,7 @@ def init_db():
         for k, v in default_configs.items():
             cursor.execute("INSERT OR IGNORE INTO user_configs (user_id, key, value) VALUES (1, ?, ?);", (k, v))
             
-        platforms = ["codeforces", "luogu", "acwing"]
+        platforms = ["codeforces", "luogu", "acwing", "atcoder"]
         for p in platforms:
             cursor.execute("""
                 INSERT OR IGNORE INTO platform_status (user_id, platform, status, message, last_checked_at, item_count, rating)
@@ -600,6 +621,9 @@ def get_submission_stats(user_id: int = 1) -> Dict[str, Any]:
             GROUP BY platform;
         """, (user_id,))
         platforms_stats = {r["platform"]: {"ac": r["ac"], "total": r["total"]} for r in cursor.fetchall()}
+        for p in ("codeforces", "luogu", "acwing", "atcoder"):
+            if p not in platforms_stats:
+                platforms_stats[p] = {"ac": 0, "total": 0}
 
         cursor.execute("SELECT DISTINCT date FROM submissions WHERE user_id = ? AND date != '' AND verdict = 'AC' ORDER BY date DESC;", (user_id,))
         dates = [r["date"] for r in cursor.fetchall()]
@@ -760,4 +784,76 @@ def get_recent_submissions(user_id: int = 1, limit: int = 2000, platform: str = 
             item = dict(r)
             item["tags"] = json.loads(item["tags"]) if item["tags"] else []
             rows.append(item)
+        return rows
+
+def save_contests(contests: List[Dict[str, Any]]) -> int:
+    """保存或更新比赛列表"""
+    if not contests:
+        return 0
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        inserted = 0
+        for c in contests:
+            cursor.execute("""
+                INSERT INTO contests (
+                    id, platform, raw_id, name, start_time, start_timestamp,
+                    duration_seconds, duration_str, url, phase, rule_type, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    start_time = excluded.start_time,
+                    start_timestamp = excluded.start_timestamp,
+                    duration_seconds = excluded.duration_seconds,
+                    duration_str = excluded.duration_str,
+                    url = excluded.url,
+                    phase = excluded.phase,
+                    rule_type = excluded.rule_type,
+                    updated_at = excluded.updated_at;
+            """, (
+                c["id"], c["platform"], c["raw_id"], c["name"], c["start_time"],
+                c["start_timestamp"], c["duration_seconds"], c["duration_str"],
+                c["url"], c["phase"], c.get("rule_type", ""), c["updated_at"]
+            ))
+            inserted += 1
+        conn.commit()
+        return inserted
+
+def get_upcoming_contests(platform: str = "all", limit: int = 60) -> List[Dict[str, Any]]:
+    """获取所有未结束的比赛（含即将开始和进行中），按开始时间升序排列"""
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if platform and platform != "all":
+            cursor.execute("""
+                SELECT * FROM contests
+                WHERE platform = ? AND (start_timestamp + duration_seconds) > ?
+                ORDER BY start_timestamp ASC
+                LIMIT ?;
+            """, (platform, now_ts, limit))
+        else:
+            cursor.execute("""
+                SELECT * FROM contests
+                WHERE (start_timestamp + duration_seconds) > ?
+                ORDER BY start_timestamp ASC
+                LIMIT ?;
+            """, (now_ts, limit))
+        
+        rows = [dict(r) for r in cursor.fetchall()]
+        # 动态计算最新的实时状态与倒计时秒数
+        for r in rows:
+            st = r["start_timestamp"]
+            dur = r["duration_seconds"]
+            et = st + dur
+            if now_ts < st:
+                r["phase"] = "BEFORE"
+                r["countdown_seconds"] = st - now_ts
+                r["status_text"] = "未开始"
+            elif now_ts < et:
+                r["phase"] = "CODING"
+                r["countdown_seconds"] = et - now_ts
+                r["status_text"] = "进行中"
+            else:
+                r["phase"] = "FINISHED"
+                r["countdown_seconds"] = 0
+                r["status_text"] = "已结束"
         return rows

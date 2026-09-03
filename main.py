@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, List
 
 import db
 from scheduler import scheduler_instance
-from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher
+from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher, AtCoderFetcher
 
 # --- Lifespan ---
 @asynccontextmanager
@@ -19,6 +19,8 @@ async def lifespan(app: FastAPI):
     db.init_db()
     # 启动后台轮询任务
     bg_task = asyncio.create_task(scheduler_instance.run_loop())
+    # 启动时异步预热一次跨平台比赛列表
+    asyncio.create_task(scheduler_instance.sync_contests())
     yield
     # 关闭时取消任务
     bg_task.cancel()
@@ -67,6 +69,7 @@ class SettingsPayload(BaseModel):
     luogu_cookie: Optional[str] = None
     acwing_user_id: Optional[str] = None
     acwing_cookie: Optional[str] = None
+    atcoder_handle: Optional[str] = None
     poll_interval_minutes: Optional[str] = None
     sprint_mode: Optional[str] = None
     http_proxy: Optional[str] = None
@@ -81,6 +84,7 @@ class VerifyPayload(BaseModel):
     luogu_cookie: Optional[str] = ""
     acwing_user_id: Optional[str] = ""
     acwing_cookie: Optional[str] = ""
+    atcoder_handle: Optional[str] = ""
     http_proxy: Optional[str] = ""
 
 # --- Auth Dependency (安全身份拦截器) ---
@@ -211,11 +215,26 @@ async def update_settings(payload: SettingsPayload, current_user: Dict[str, Any]
             db.set_config(uid, k, v)
     return {"success": True, "message": "配置更新成功"}
 
+@app.get("/api/contests")
+async def get_contests(platform: str = "all", limit: int = 60, current_user: Dict[str, Any] = Depends(get_current_user)):
+    contests = db.get_upcoming_contests(platform=platform, limit=limit)
+    if not contests:
+        asyncio.create_task(scheduler_instance.sync_contests())
+    return {"contests": contests}
+
+@app.post("/api/contests/sync")
+async def sync_contests_api(current_user: Dict[str, Any] = Depends(get_current_user)):
+    res = await scheduler_instance.sync_contests()
+    return res
+
 @app.post("/api/sync")
 async def trigger_sync(payload: SyncPayload, current_user: Dict[str, Any] = Depends(get_current_user)):
     uid = current_user["id"]
     platform = payload.platform or "all"
-    if platform == "all":
+    if platform == "contests":
+        res = await scheduler_instance.sync_contests()
+        return res
+    elif platform == "all":
         res = await scheduler_instance.sync_all(user_id=uid)
         return {"success": True, "data": res}
     else:
@@ -238,6 +257,10 @@ async def verify_credentials(payload: VerifyPayload, current_user: Dict[str, Any
     elif p == "acwing":
         aw = AcWingFetcher()
         valid, msg, extra = await aw.verify(payload.acwing_user_id or "", payload.acwing_cookie or "", proxy=proxy)
+        return {"valid": valid, "message": msg, "extra": extra}
+    elif p == "atcoder":
+        at = AtCoderFetcher()
+        valid, msg, extra = await at.verify(payload.atcoder_handle or "", proxy=proxy)
         return {"valid": valid, "message": msg, "extra": extra}
     else:
         raise HTTPException(status_code=400, detail="未知平台")

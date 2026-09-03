@@ -8,13 +8,14 @@ from db import (
     get_config,
     set_config,
     save_submissions,
+    save_contests,
     update_platform_status,
     get_all_user_ids,
     cleanup_luogu_placeholder_dates,
     cleanup_acwing_old_problem_rows,
     get_beijing_now
 )
-from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher
+from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher, AtCoderFetcher, ContestFetcher
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("OIBoardScheduler")
@@ -24,8 +25,11 @@ class TaskScheduler:
         self.cf_fetcher = CodeforcesFetcher()
         self.luogu_fetcher = LuoguFetcher()
         self.acwing_fetcher = AcWingFetcher()
+        self.atcoder_fetcher = AtCoderFetcher()
+        self.contest_fetcher = ContestFetcher()
         self._is_running = False
         self._sync_lock = asyncio.Lock()
+        self._last_contest_sync = 0
 
     async def sync_platform(self, platform: str, user_id: int = 1) -> Dict[str, Any]:
         """单用户单平台同步逻辑"""
@@ -97,6 +101,26 @@ class TaskScheduler:
                     update_platform_status(user_id, "acwing", status, msg)
                     res.update({"success": valid, "message": msg})
 
+            elif platform == "atcoder":
+                handle = configs.get("atcoder_handle", "").strip()
+                if not handle:
+                    update_platform_status(user_id, "atcoder", "unconfigured", "未配置 Handle")
+                    res["message"] = "未配置 Handle"
+                    return res
+
+                valid, v_msg, extra = await self.atcoder_fetcher.verify(handle, proxy=proxy)
+                rating_str = extra.get("rating", "") if valid else ""
+
+                subs, msg = await self.atcoder_fetcher.fetch_submissions(handle, proxy=proxy)
+                if subs:
+                    inserted = save_submissions([s.to_dict() for s in subs], user_id=user_id)
+                    update_platform_status(user_id, "atcoder", "ok", f"同步成功: {len(subs)}条", item_count=len(subs), rating=rating_str)
+                    res.update({"success": True, "message": f"成功同步 {len(subs)} 条", "count": len(subs)})
+                else:
+                    status = "warning" if valid else "error"
+                    update_platform_status(user_id, "atcoder", status, msg, rating=rating_str)
+                    res.update({"success": valid, "message": msg})
+
         except Exception as e:
             logger.error(f"Sync user {user_id} error for {platform}: {str(e)}")
             update_platform_status(user_id, platform, "error", f"异常: {str(e)}")
@@ -104,14 +128,31 @@ class TaskScheduler:
 
         return res
 
+    async def sync_contests(self) -> Dict[str, Any]:
+        """抓取并保存跨平台比赛列表 (Codeforces, AtCoder, Luogu)"""
+        logger.info("开始同步跨平台比赛列表 (Codeforces, AtCoder, Luogu)...")
+        try:
+            proxy = get_config(1, "http_proxy", default="")
+            contests = await self.contest_fetcher.fetch_all_contests(proxy=proxy)
+            inserted = save_contests(contests)
+            self._last_contest_sync = int(datetime.now().timestamp())
+            logger.info(f"比赛列表同步完成: 共更新 {len(contests)} 场比赛")
+            return {"success": True, "count": len(contests), "message": f"成功更新 {len(contests)} 场比赛"}
+        except Exception as e:
+            logger.exception("同步比赛列表异常")
+            return {"success": False, "count": 0, "message": f"同步比赛异常: {str(e)}"}
+
     async def sync_all(self, user_id: int = 1) -> Dict[str, Any]:
-        """同步指定用户的所有平台数据"""
+        """同步指定用户的所有平台数据及全局比赛列表"""
         async with self._sync_lock:
             logger.info(f"Starting full sync for user {user_id}...")
             results = {}
-            for p in ["codeforces", "luogu", "acwing"]:
+            for p in ["codeforces", "luogu", "acwing", "atcoder"]:
                 results[p] = await self.sync_platform(p, user_id=user_id)
             
+            # 同时触发比赛列表同步
+            await self.sync_contests()
+
             now_str = get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
             set_config(user_id, "last_sync_time", now_str)
             logger.info(f"Full sync finished for user {user_id} at {now_str}")
