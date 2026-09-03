@@ -61,11 +61,11 @@
         <div class="flex p-1 rounded-xl bg-dark-900 border border-white/10 text-xs font-mono">
           <button @click="authMode = 'login'; authError = ''" 
                   :class="['flex-1 py-2 rounded-lg font-semibold transition-all', authMode === 'login' ? 'bg-cyan-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200']">
-            LOGIN 登录
+            登录
           </button>
           <button @click="authMode = 'register'; authError = ''" 
                   :class="['flex-1 py-2 rounded-lg font-semibold transition-all', authMode === 'register' ? 'bg-cyan-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200']">
-            REGISTER 注册
+            注册
           </button>
         </div>
 
@@ -80,34 +80,34 @@
         <!-- 表单区域 -->
         <form @submit.prevent="authMode === 'login' ? handleLogin() : handleRegister()" class="space-y-4 text-xs font-mono">
           <div>
-            <label class="block text-slate-400 mb-1.5">USERNAME / 用户名</label>
+            <label class="block text-slate-400 mb-1.5 font-sans">用户名</label>
             <input v-model="authForm.username" type="text" required placeholder="输入账号用户名 (3-32位)"
                    class="ui-input font-mono">
           </div>
 
           <div>
-            <label class="block text-slate-400 mb-1.5">PASSWORD / 密码</label>
+            <label class="block text-slate-400 mb-1.5 font-sans">密码</label>
             <input v-model="authForm.password" type="password" required placeholder="输入登录密码 (至少6位)"
                    class="ui-input font-mono">
           </div>
 
           <div v-if="authMode === 'register'">
-            <label class="block text-slate-400 mb-1.5">CONFIRM PASSWORD / 确认密码</label>
+            <label class="block text-slate-400 mb-1.5 font-sans">确认密码</label>
             <input v-model="authForm.confirmPassword" type="password" required placeholder="再次确认登录密码"
                    class="ui-input font-mono">
           </div>
 
           <button type="submit" :disabled="isAuthLoading"
-                  class="btn-primary w-full py-2.5 flex items-center justify-center space-x-2 text-xs font-mono mt-2">
+                  class="btn-primary w-full py-2.5 flex items-center justify-center space-x-2 text-xs font-mono mt-2 font-sans font-medium">
             <svg v-if="isAuthLoading" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
-            <span>{{ isAuthLoading ? 'PROCESSING...' : authMode === 'login' ? 'SIGN IN 立即登录' : 'CREATE ACCOUNT 注册账号' }}</span>
+            <span>{{ isAuthLoading ? '处理中...' : authMode === 'login' ? '立即登录' : '注册账号' }}</span>
           </button>
         </form>
 
-        <div class="pt-2 text-center text-[11px] text-slate-500 font-mono">
-          <span>SECURE HASHED AUTH · NO PLAINTEXT STORAGE</span>
+        <div class="pt-2 text-center text-[11px] text-slate-500 font-sans">
+          <span>安全加密认证 · 多用户数据隔离</span>
         </div>
       </div>
     </div>
@@ -131,7 +131,7 @@
                 <span class="text-sm font-bold text-white font-mono tracking-tight">OIBoard</span>
                 <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">3X</span>
               </div>
-              <p class="text-[10px] text-slate-400 font-mono">OI ALGO DASHBOARD</p>
+              <p class="text-[10px] text-slate-400 font-sans">算法训练数据看板</p>
             </div>
           </div>
 
@@ -139,7 +139,7 @@
           <nav class="p-2 space-y-2 mt-3">
             <!-- 1. 数据总览 -->
             <button @click="currentTab = 'overview'" 
-                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-mono font-medium transition-all group/item overflow-hidden',
+                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-medium transition-all group/item overflow-hidden font-sans',
                              currentTab === 'overview' ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]']">
               <svg class="w-5 h-5 flex-shrink-0" :class="currentTab === 'overview' ? 'text-cyan-400' : 'text-slate-400 group-hover/item:text-slate-200'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="4" y="4" width="6" height="6" rx="2"></rect>
@@ -147,12 +147,12 @@
                 <rect x="4" y="14" width="6" height="6" rx="2"></rect>
                 <rect x="14" y="14" width="6" height="6" rx="2"></rect>
               </svg>
-              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">OVERVIEW 总览</span>
+              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">数据总览</span>
             </button>
 
-            <!-- 2. 跨平台比赛日历 (独立页面，位于总览下方) -->
+            <!-- 2. 比赛日历 (独立页面，位于总览下方) -->
             <button @click="currentTab = 'contests'" 
-                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-mono font-medium transition-all group/item overflow-hidden',
+                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-medium transition-all group/item overflow-hidden font-sans',
                              currentTab === 'contests' ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]']">
               <svg class="w-5 h-5 flex-shrink-0" :class="currentTab === 'contests' ? 'text-cyan-400' : 'text-slate-400 group-hover/item:text-slate-200'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -161,14 +161,14 @@
                 <line x1="3" y1="10" x2="21" y2="10"></line>
               </svg>
               <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap flex items-center justify-between flex-1">
-                <span>CONTESTS 比赛</span>
-                <span v-if="upcomingContestsCount > 0" class="px-1.5 py-0.2 rounded text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold">{{ upcomingContestsCount }}</span>
+                <span>比赛日历</span>
+                <span v-if="upcomingContestsCount > 0" class="px-1.5 py-0.2 rounded text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold font-mono">{{ upcomingContestsCount }}</span>
               </span>
             </button>
 
             <!-- 3. 提交记录流 -->
             <button @click="currentTab = 'submissions'" 
-                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-mono font-medium transition-all group/item overflow-hidden',
+                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-medium transition-all group/item overflow-hidden font-sans',
                              currentTab === 'submissions' ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]']">
               <svg class="w-5 h-5 flex-shrink-0" :class="currentTab === 'submissions' ? 'text-cyan-400' : 'text-slate-400 group-hover/item:text-slate-200'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
@@ -178,14 +178,14 @@
                 <line x1="13" y1="16" x2="16" y2="16"></line>
               </svg>
               <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap flex items-center justify-between flex-1">
-                <span>SUBMISSIONS 记录</span>
-                <span class="px-1.5 py-0.2 rounded text-[10px] bg-dark-900 text-slate-400 border border-white/5">{{ overview.stats.total_subs || 0 }}</span>
+                <span>提交记录</span>
+                <span class="px-1.5 py-0.2 rounded text-[10px] bg-dark-900 text-slate-400 border border-white/5 font-mono">{{ overview.stats.total_subs || 0 }}</span>
               </span>
             </button>
 
-            <!-- 3. 待攻克错题集 -->
+            <!-- 4. 待攻克错题集 -->
             <button @click="currentTab = 'mistakes'" 
-                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-mono font-medium transition-all group/item overflow-hidden',
+                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-medium transition-all group/item overflow-hidden font-sans',
                              currentTab === 'mistakes' ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]']">
               <svg class="w-5 h-5 flex-shrink-0" :class="currentTab === 'mistakes' ? 'text-rose-400' : 'text-slate-400 group-hover/item:text-slate-200'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="9"></circle>
@@ -193,14 +193,14 @@
                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
               </svg>
               <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap flex items-center justify-between flex-1">
-                <span>MISTAKES 错题</span>
-                <span v-if="mistakes.length > 0" class="px-1.5 py-0.2 rounded text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30">{{ mistakes.length }}</span>
+                <span>错题集</span>
+                <span v-if="mistakes.length > 0" class="px-1.5 py-0.2 rounded text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono">{{ mistakes.length }}</span>
               </span>
             </button>
 
-            <!-- 4. 平台与系统设置 -->
+            <!-- 5. 平台与系统设置 -->
             <button @click="currentTab = 'settings'" 
-                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-mono font-medium transition-all group/item overflow-hidden',
+                    :class="['w-full flex items-center h-11 px-3 rounded-xl text-xs font-medium transition-all group/item overflow-hidden font-sans',
                              currentTab === 'settings' ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]']">
               <svg class="w-5 h-5 flex-shrink-0" :class="currentTab === 'settings' ? 'text-cyan-400' : 'text-slate-400 group-hover/item:text-slate-200'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="4" y1="21" x2="4" y2="14"></line>
@@ -213,7 +213,7 @@
                 <line x1="9" y1="8" x2="15" y2="8"></line>
                 <line x1="17" y1="16" x2="23" y2="16"></line>
               </svg>
-              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">CONFIG 设置</span>
+              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">系统设置</span>
             </button>
           </nav>
         </div>
@@ -221,19 +221,19 @@
         <!-- 底部系统快捷状态与退出登录 (对齐 3X-UI 侧边栏图标基准线) -->
         <div class="p-2 border-t border-white/5 space-y-2 overflow-hidden">
           <button @click="syncNow('all')" :disabled="isSyncing"
-                  class="w-full flex items-center h-11 px-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 text-xs font-mono transition-all disabled:opacity-50 group/item overflow-hidden">
+                  class="w-full flex items-center h-11 px-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 text-xs transition-all disabled:opacity-50 group/item overflow-hidden font-sans">
             <svg :class="['w-5 h-5 flex-shrink-0', isSyncing ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
-            <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden">{{ isSyncing ? 'SYNCING...' : 'SYNC ALL' }}</span>
+            <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden">{{ isSyncing ? '正在同步...' : '同步全部' }}</span>
           </button>
 
           <button @click="handleLogout" 
-                  class="w-full flex items-center h-11 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-mono transition-all group/item overflow-hidden">
+                  class="w-full flex items-center h-11 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs transition-all group/item overflow-hidden font-sans">
             <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
             </svg>
-            <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden">LOGOUT 退出</span>
+            <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden">退出登录</span>
           </button>
         </div>
       </aside>
@@ -241,17 +241,18 @@
       <!-- 主工作区 (Main Content Area, 左侧预留侧边栏间距) -->
       <main class="flex-1 ml-16 p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto w-full transition-all">
 
-        <!-- 3X-UI 风格顶栏 -->
+        <!-- 顶栏 -->
         <header class="ui-card p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div class="flex items-center space-x-3">
             <div>
               <div class="flex items-center space-x-2">
-                <h1 class="text-base font-bold tracking-tight text-white font-mono uppercase">
-                  {{ currentTab === 'overview' ? 'DASHBOARD 总览' : 
-                     currentTab === 'submissions' ? 'SUBMISSION STREAM 提交记录' : 
-                     currentTab === 'mistakes' ? 'MISTAKE BOOK 待攻克错题' : 'PLATFORM SETTINGS 平台与系统设置' }}
+                <h1 class="text-base font-bold tracking-tight text-white font-sans">
+                  {{ currentTab === 'overview' ? '数据总览' : 
+                     currentTab === 'contests' ? '比赛日历' : 
+                     currentTab === 'submissions' ? '提交记录' : 
+                     currentTab === 'mistakes' ? '错题集' : '系统设置' }}
                 </h1>
-                <span class="px-2 py-0.2 rounded text-[10px] font-mono font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">LIVE</span>
+                <span class="px-2 py-0.2 rounded text-[10px] font-sans font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">实时</span>
               </div>
             </div>
           </div>
@@ -259,10 +260,10 @@
           <!-- 右侧控制与状态区 -->
           <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-between md:justify-end">
             <!-- 当前用户徽章 -->
-            <div class="flex items-center space-x-2 bg-dark-900/90 px-3 py-1.5 rounded-lg border border-white/10 text-xs font-mono">
+            <div class="flex items-center space-x-2 bg-dark-900/90 px-3 py-1.5 rounded-lg border border-white/10 text-xs font-sans">
               <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400"></span>
-              <span class="text-white font-bold">{{ currentUser?.username }}</span>
-              <span v-if="currentUser?.is_admin" class="px-1.5 py-0.2 rounded text-[9px] bg-amber-500/15 text-amber-300 border border-amber-500/30">ADMIN</span>
+              <span class="text-white font-bold font-mono">{{ currentUser?.username }}</span>
+              <span v-if="currentUser?.is_admin" class="px-1.5 py-0.2 rounded text-[9px] bg-amber-500/15 text-amber-300 border border-amber-500/30">管理员</span>
             </div>
 
             <!-- 平台健康指示灯 (CF / AT / LG / AW) -->
@@ -290,123 +291,124 @@
 
             <!-- 冲刺模式开关 -->
             <button @click="toggleSprintMode" 
-                    :class="['px-3 py-1.5 rounded-lg text-xs font-mono font-medium flex items-center space-x-1.5 transition-all border', 
+                    :class="['px-3 py-1.5 rounded-lg text-xs font-sans font-medium flex items-center space-x-1.5 transition-all border', 
                              configs.sprint_mode === 'true' ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-sm' : 'bg-dark-900/80 text-slate-400 hover:text-slate-200 border-white/10']">
               <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
               </svg>
-              <span>{{ configs.sprint_mode === 'true' ? 'SPRINT: 5M' : 'NORMAL: 30M' }}</span>
+              <span>{{ configs.sprint_mode === 'true' ? '冲刺 5分钟' : '常规 30分钟' }}</span>
             </button>
 
             <!-- 一键同步按钮 -->
             <button @click="syncNow('all')" :disabled="isSyncing"
-                    class="btn-primary flex items-center space-x-1.5 disabled:opacity-50 font-mono text-xs">
+                    class="btn-primary flex items-center space-x-1.5 disabled:opacity-50 text-xs font-sans">
               <svg :class="['w-3.5 h-3.5', isSyncing ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
               </svg>
-              <span>{{ isSyncing ? 'SYNCING...' : 'SYNC NOW' }}</span>
+              <span>{{ isSyncing ? '正在同步...' : '立即同步' }}</span>
             </button>
           </div>
         </header>
 
         <!-- 告警提示条 -->
-        <div v-if="warningBanner" class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center justify-between text-xs text-rose-300">
+        <div v-if="warningBanner" class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center justify-between text-xs text-rose-300 font-sans">
           <div class="flex items-center space-x-2">
             <svg class="w-4 h-4 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
             </svg>
             <span>{{ warningBanner }}</span>
           </div>
-          <button @click="currentTab = 'settings'" class="underline hover:text-rose-200">配置账号 / 代理</button>
+          <button @click="currentTab = 'settings'" class="underline hover:text-rose-200 font-sans">前往设置</button>
         </div>
 
         <!-- ================= TAB 1: 数据总览 (OVERVIEW) ================= -->
         <div v-show="currentTab === 'overview'" class="space-y-6">
-          <!-- 3X-UI 极简 KPI 4 卡片 -->
+          <!-- KPI 4 卡片 -->
           <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <!-- 总 AC 题数 -->
             <div class="ui-card p-5">
-              <div class="flex items-center justify-between text-slate-400 text-xs font-mono">
+              <div class="flex items-center justify-between text-slate-400 text-xs font-sans">
                 <span class="flex items-center space-x-1.5">
                   <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                   </svg>
-                  <span>TOTAL AC</span>
+                  <span>通过题目</span>
                 </span>
-                <span class="text-[10px] text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">ALL</span>
+                <span class="text-[10px] text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20 font-mono">全平台</span>
               </div>
               <div class="mt-3 flex items-baseline space-x-2">
                 <span class="text-3xl font-bold text-white mono">{{ overview.stats.total_ac || 0 }}</span>
-                <span class="text-xs text-slate-500 font-mono">problems</span>
+                <span class="text-xs text-slate-500 font-sans">题</span>
               </div>
               <div class="mt-3 pt-3 border-t border-white/5 flex flex-wrap items-center gap-1.5 text-[10px] font-mono text-slate-400">
                 <span class="text-cyan-400">CF:{{ overview.stats.platforms?.codeforces?.ac || 0 }}</span>
                 <span class="text-slate-600">/</span>
-                <span class="text-blue-400">LG:{{ overview.stats.platforms?.luogu?.ac || 0 }}</span>
-                <span class="text-indigo-400">AW:{{ overview.stats.platforms?.acwing?.ac || 0 }}</span>
-                <span class="text-slate-600">/</span>
                 <span class="text-purple-400">AT:{{ overview.stats.platforms?.atcoder?.ac || 0 }}</span>
+                <span class="text-slate-600">/</span>
+                <span class="text-blue-400">LG:{{ overview.stats.platforms?.luogu?.ac || 0 }}</span>
+                <span class="text-slate-600">/</span>
+                <span class="text-indigo-400">AW:{{ overview.stats.platforms?.acwing?.ac || 0 }}</span>
               </div>
             </div>
 
             <!-- 今日战报 -->
             <div class="ui-card p-5">
-              <div class="flex items-center justify-between text-slate-400 text-xs font-mono">
+              <div class="flex items-center justify-between text-slate-400 text-xs font-sans">
                 <span class="flex items-center space-x-1.5">
                   <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                   </svg>
-                  <span>TODAY</span>
+                  <span>今日提交</span>
                 </span>
-                <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">DAILY</span>
+                <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-mono">今日</span>
               </div>
               <div class="mt-3 flex items-baseline space-x-2">
                 <span class="text-3xl font-bold text-emerald-400 mono">{{ overview.stats.today_ac || 0 }}</span>
-                <span class="text-xs text-slate-500 font-mono">/ {{ overview.stats.today_subs || 0 }} subs</span>
+                <span class="text-xs text-slate-500 font-sans">/ {{ overview.stats.today_subs || 0 }} 次提交</span>
               </div>
-              <div class="mt-3 pt-3 border-t border-white/5 text-[11px] font-mono text-slate-400">
-                <span v-if="overview.stats.today_ac > 0" class="text-emerald-400">PASSED TODAY</span>
-                <span v-else class="text-slate-500">NO SUBMISSIONS YET</span>
+              <div class="mt-3 pt-3 border-t border-white/5 text-[11px] font-sans text-slate-400">
+                <span v-if="overview.stats.today_ac > 0" class="text-emerald-400">今日已有题目通过</span>
+                <span v-else class="text-slate-500">今日暂无提交</span>
               </div>
             </div>
 
             <!-- 连续打卡天数 (Streak) -->
             <div class="ui-card p-5">
-              <div class="flex items-center justify-between text-slate-400 text-xs font-mono">
+              <div class="flex items-center justify-between text-slate-400 text-xs font-sans">
                 <span class="flex items-center space-x-1.5">
                   <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"></path>
                   </svg>
-                  <span>STREAK</span>
+                  <span>连续打卡</span>
                 </span>
-                <span class="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">DAYS</span>
+                <span class="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-mono">连续</span>
               </div>
               <div class="mt-3 flex items-baseline space-x-2">
                 <span class="text-3xl font-bold text-amber-400 mono">{{ overview.stats.streak || 0 }}</span>
-                <span class="text-xs text-slate-500 font-mono">days</span>
+                <span class="text-xs text-slate-500 font-sans">天</span>
               </div>
-              <div class="mt-3 pt-3 border-t border-white/5 text-[11px] font-mono text-slate-400">
-                <span>ACTIVE STREAK COUNTER</span>
+              <div class="mt-3 pt-3 border-t border-white/5 text-[11px] font-sans text-slate-400">
+                <span>保持每日做题习惯</span>
               </div>
             </div>
 
             <!-- 总提交记录 -->
             <div class="ui-card p-5">
-              <div class="flex items-center justify-between text-slate-400 text-xs font-mono">
+              <div class="flex items-center justify-between text-slate-400 text-xs font-sans">
                 <span class="flex items-center space-x-1.5">
                   <svg class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
                   </svg>
-                  <span>TOTAL SUBS</span>
+                  <span>累计提交</span>
                 </span>
-                <span class="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">DB</span>
+                <span class="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20 font-mono">记录</span>
               </div>
               <div class="mt-3 flex items-baseline space-x-2">
                 <span class="text-3xl font-bold text-purple-300 mono">{{ overview.stats.total_subs || 0 }}</span>
-                <span class="text-xs text-slate-500 font-mono">records</span>
+                <span class="text-xs text-slate-500 font-sans">条记录</span>
               </div>
-              <div class="mt-3 pt-3 border-t border-white/5 text-[11px] font-mono text-slate-500 truncate" :title="overview.last_sync_time">
-                SYNC: {{ overview.last_sync_time || 'N/A' }}
+              <div class="mt-3 pt-3 border-t border-white/5 text-[11px] font-sans text-slate-500 truncate" :title="overview.last_sync_time">
+                同步于: {{ overview.last_sync_time || '暂无' }}
               </div>
             </div>
           </div>
@@ -416,13 +418,13 @@
             <div class="flex items-center justify-between pb-3 border-b border-white/5">
               <div class="flex items-center space-x-2">
                 <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-                <h3 class="text-xs font-bold text-slate-200 font-mono tracking-tight flex items-center space-x-1.5">
-                  <span>UPCOMING CONTESTS 近期比赛提醒</span>
-                  <span class="text-[10px] text-cyan-400 bg-cyan-500/10 px-1.5 py-0.2 rounded border border-cyan-500/20">{{ upcomingContestsCount }} 场待开赛</span>
+                <h3 class="text-xs font-bold text-slate-200 font-sans tracking-tight flex items-center space-x-1.5">
+                  <span>近期比赛提醒</span>
+                  <span class="text-[10px] text-cyan-400 bg-cyan-500/10 px-1.5 py-0.2 rounded border border-cyan-500/20 font-sans">{{ upcomingContestsCount }} 场待开赛</span>
                 </h3>
               </div>
-              <button @click="currentTab = 'contests'" class="text-xs text-cyan-400 hover:text-cyan-300 font-mono flex items-center space-x-1 hover:underline">
-                <span>进入比赛日历全览</span>
+              <button @click="currentTab = 'contests'" class="text-xs text-cyan-400 hover:text-cyan-300 font-sans flex items-center space-x-1 hover:underline">
+                <span>查看完整日历</span>
                 <span>→</span>
               </button>
             </div>
@@ -457,19 +459,19 @@
           <div class="ui-card p-5 space-y-3">
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
               <div>
-                <h2 class="text-xs font-bold text-slate-200 font-mono flex items-center space-x-2">
+                <h2 class="text-xs font-bold text-slate-200 font-sans flex items-center space-x-2">
                   <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                   </svg>
-                  <span>ACTIVITY HEATMAP</span>
+                  <span>刷题热力图</span>
                 </h2>
               </div>
               <div class="flex flex-wrap items-center gap-2">
                 <!-- 年份选择器 -->
-                <div v-if="availableHeatmapYears.length > 1" class="flex items-center space-x-1 text-xs bg-dark-900 p-1 rounded-lg border border-white/10 font-mono">
+                <div v-if="availableHeatmapYears.length > 1" class="flex items-center space-x-1 text-xs bg-dark-900 p-1 rounded-lg border border-white/10 font-sans">
                   <button v-for="yr in availableHeatmapYears" :key="yr"
                           @click="setHeatmapYear(yr)"
-                          :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', selectedHeatmapYear === yr ? 'bg-cyan-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200']">
+                          :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all font-mono', selectedHeatmapYear === yr ? 'bg-cyan-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200']">
                     {{ yr }}
                   </button>
                 </div>
@@ -478,12 +480,12 @@
                 </div>
 
                 <!-- 平台过滤 -->
-                <div class="flex items-center space-x-1 text-xs bg-dark-900 p-1 rounded-lg border border-white/10 font-mono">
-                  <button @click="setHeatmapFilter('all')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'all' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">ALL</button>
-                  <button @click="setHeatmapFilter('codeforces')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'codeforces' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">CF</button>
-                  <button @click="setHeatmapFilter('luogu')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'luogu' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">LUOGU</button>
-                  <button @click="setHeatmapFilter('acwing')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'acwing' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">ACWING</button>
-                  <button @click="setHeatmapFilter('atcoder')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'atcoder' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">ATCODER</button>
+                <div class="flex items-center space-x-1 text-xs bg-dark-900 p-1 rounded-lg border border-white/10 font-sans">
+                  <button @click="setHeatmapFilter('all')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'all' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">全部</button>
+                  <button @click="setHeatmapFilter('codeforces')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'codeforces' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">Codeforces</button>
+                  <button @click="setHeatmapFilter('atcoder')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'atcoder' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-slate-200']">AtCoder</button>
+                  <button @click="setHeatmapFilter('luogu')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'luogu' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200']">洛谷</button>
+                  <button @click="setHeatmapFilter('acwing')" :class="['px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all', heatmapFilter === 'acwing' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200']">AcWing</button>
                 </div>
               </div>
             </div>
@@ -494,19 +496,19 @@
             </div>
 
             <!-- 洛谷 / GitHub 风格专属小方块图例栏 -->
-            <div class="flex items-center justify-between pt-2 px-2 text-[11px] font-mono text-slate-400 border-t border-white/5">
+            <div class="flex items-center justify-between pt-2 px-2 text-[11px] font-sans text-slate-400 border-t border-white/5">
               <div class="flex items-center space-x-2 text-slate-500">
                 <span class="inline-block w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                <span>{{ selectedHeatmapYear }} ANNUAL ACTIVITY GRID</span>
+                <span>{{ selectedHeatmapYear }} 年度提交贡献</span>
               </div>
               <div class="flex items-center space-x-1.5">
-                <span class="text-slate-500 mr-1 text-[10px]">Less 少</span>
+                <span class="text-slate-500 mr-1 text-[10px]">少</span>
                 <span class="w-3 h-3 rounded-[2px] bg-[#0e131f] border border-white/10 inline-block" title="0 提交"></span>
                 <span class="w-3 h-3 rounded-[2px] bg-[#0e3a47] inline-block" title="1-2 提交"></span>
                 <span class="w-3 h-3 rounded-[2px] bg-[#08738a] inline-block" title="3-4 提交"></span>
                 <span class="w-3 h-3 rounded-[2px] bg-[#06b6d4] inline-block" title="5-9 提交"></span>
                 <span class="w-3 h-3 rounded-[2px] bg-[#38bdf8] inline-block" title="≥10 提交"></span>
-                <span class="text-slate-500 ml-1 text-[10px]">More 多</span>
+                <span class="text-slate-500 ml-1 text-[10px]">多</span>
               </div>
             </div>
           </div>
@@ -516,13 +518,13 @@
             <!-- 算法标签掌握分布 -->
             <div class="ui-card p-5 space-y-3">
               <div class="flex items-center justify-between pb-3 border-b border-white/5">
-                <h2 class="text-xs font-bold text-slate-200 font-mono flex items-center space-x-2">
+                <h2 class="text-xs font-bold text-slate-200 font-sans flex items-center space-x-2">
                   <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                   </svg>
-                  <span>TAGS & ALGORITHMS</span>
+                  <span>算法知识点分布</span>
                 </h2>
-                <span class="text-[11px] text-slate-500 font-mono">BY AC COUNT</span>
+                <span class="text-[11px] text-slate-500 font-sans">按通过题数</span>
               </div>
               <div id="tag-bar-chart" class="w-full h-72"></div>
             </div>
@@ -530,14 +532,14 @@
             <!-- 各平台题量占比 -->
             <div class="ui-card p-5 space-y-3">
               <div class="flex items-center justify-between pb-3 border-b border-white/5">
-                <h2 class="text-xs font-bold text-slate-200 font-mono flex items-center space-x-2">
+                <h2 class="text-xs font-bold text-slate-200 font-sans flex items-center space-x-2">
                   <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
                   </svg>
-                  <span>PLATFORMS DISTRIBUTION</span>
+                  <span>各平台题量占比</span>
                 </h2>
-                <span class="text-[11px] text-slate-500 font-mono">BREAKDOWN</span>
+                <span class="text-[11px] text-slate-500 font-sans">通过题目分布</span>
               </div>
               <div id="platform-pie-chart" class="w-full h-72"></div>
             </div>
@@ -547,7 +549,7 @@
         <!-- ================= TAB: 比赛日历 (CONTESTS) ================= -->
         <div v-show="currentTab === 'contests'" class="space-y-6">
           <!-- 顶部工具栏: 标题、平台过滤、状态过滤、搜索框与一键刷新 -->
-          <div class="p-4 rounded-xl bg-dark-900/80 border border-white/5 space-y-3 font-mono">
+          <div class="p-4 rounded-xl bg-dark-900/80 border border-white/5 space-y-3 font-sans">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-white/5">
               <div>
                 <h2 class="text-sm font-bold text-white flex items-center space-x-2">
@@ -557,29 +559,29 @@
                     <line x1="8" y1="2" x2="8" y2="6"></line>
                     <line x1="3" y1="10" x2="21" y2="10"></line>
                   </svg>
-                  <span>CONTESTS HUB 比赛日历</span>
+                  <span>比赛日历</span>
                 </h2>
-                <p class="text-[11px] text-slate-400 mt-0.5">实时同步 Codeforces · AtCoder · 洛谷 官方赛程与秒级倒计时</p>
+                <p class="text-[11px] text-slate-400 mt-0.5 font-sans">实时同步 Codeforces · AtCoder · 洛谷 官方赛程与实时倒计时</p>
               </div>
 
               <!-- 刷新比赛按钮 -->
               <button @click="syncContestsNow" :disabled="isSyncingContests"
-                      class="btn-primary flex items-center space-x-1.5 disabled:opacity-50 text-xs self-start md:self-auto">
+                      class="btn-primary flex items-center space-x-1.5 disabled:opacity-50 text-xs self-start md:self-auto font-sans">
                 <svg :class="['w-3.5 h-3.5', isSyncingContests ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                 </svg>
-                <span>{{ isSyncingContests ? 'SYNCING...' : 'REFRESH 刷新比赛' }}</span>
+                <span>{{ isSyncingContests ? '正在刷新...' : '刷新比赛' }}</span>
               </button>
             </div>
 
             <!-- 平台与状态过滤器 + 关键词搜索 -->
-            <div class="flex flex-wrap items-center justify-between gap-2.5 pt-1 text-xs">
+            <div class="flex flex-wrap items-center justify-between gap-2.5 pt-1 text-xs font-sans">
               <!-- 平台过滤 -->
               <div class="flex items-center space-x-1 bg-dark-850 p-1 rounded-lg border border-white/5">
-                <button @click="contestFilter = 'all'" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', contestFilter === 'all' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">ALL 全部</button>
-                <button @click="contestFilter = 'codeforces'" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', contestFilter === 'codeforces' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">CODEFORCES</button>
-                <button @click="contestFilter = 'atcoder'" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', contestFilter === 'atcoder' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-slate-200']">ATCODER</button>
-                <button @click="contestFilter = 'luogu'" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', contestFilter === 'luogu' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200']">LUOGU 洛谷</button>
+                <button @click="contestFilter = 'all'" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', contestFilter === 'all' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">全部</button>
+                <button @click="contestFilter = 'codeforces'" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', contestFilter === 'codeforces' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200']">Codeforces</button>
+                <button @click="contestFilter = 'atcoder'" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', contestFilter === 'atcoder' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-slate-200']">AtCoder</button>
+                <button @click="contestFilter = 'luogu'" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', contestFilter === 'luogu' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200']">洛谷</button>
               </div>
 
               <!-- 状态过滤 -->
@@ -592,7 +594,7 @@
               <!-- 搜索框 -->
               <div class="flex-1 min-w-[200px] max-w-xs">
                 <input v-model="contestSearch" type="text" placeholder="搜索比赛名称 / 规则..."
-                       class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                       class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-sans">
               </div>
             </div>
           </div>
@@ -600,15 +602,15 @@
           <!-- 比赛列表卡片/表格 -->
           <div class="overflow-x-auto ui-card p-0">
             <table class="w-full text-left text-xs text-slate-300">
-              <thead class="text-slate-400 bg-dark-900/80 uppercase border-b border-white/5 font-mono text-[11px]">
+              <thead class="text-slate-400 bg-dark-900/80 uppercase border-b border-white/5 font-sans text-[11px]">
                 <tr>
-                  <th class="px-4 py-3.5 w-28">PLATFORM</th>
-                  <th class="px-4 py-3.5">CONTEST NAME 比赛名称</th>
-                  <th class="px-4 py-3.5 w-32">RULE / TYPE</th>
-                  <th class="px-4 py-3.5 w-44">START TIME (北京时间)</th>
-                  <th class="px-4 py-3.5 w-28">DURATION</th>
-                  <th class="px-4 py-3.5 w-52">COUNTDOWN 实时倒计时</th>
-                  <th class="px-4 py-3.5 w-24 text-right">ACTION</th>
+                  <th class="px-4 py-3.5 w-28">平台</th>
+                  <th class="px-4 py-3.5">比赛名称</th>
+                  <th class="px-4 py-3.5 w-32">类型</th>
+                  <th class="px-4 py-3.5 w-44">开赛时间</th>
+                  <th class="px-4 py-3.5 w-28">时长</th>
+                  <th class="px-4 py-3.5 w-52">实时倒计时</th>
+                  <th class="px-4 py-3.5 w-24 text-right">操作</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-white/5">
@@ -627,7 +629,7 @@
                   <!-- 比赛名称与直达链接 -->
                   <td class="px-4 py-3.5 font-medium text-slate-200">
                     <a :href="c.url" target="_blank" class="hover:text-cyan-400 transition-colors flex items-center space-x-1.5 group">
-                      <span class="font-semibold">{{ c.name }}</span>
+                      <span class="font-semibold font-sans">{{ c.name }}</span>
                       <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-400 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
                       </svg>
@@ -662,16 +664,16 @@
                       <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
                       <span>{{ formatContestCountdown(c) }}</span>
                     </div>
-                    <div v-else class="text-slate-600">
+                    <div v-else class="text-slate-600 font-sans">
                       已结束
                     </div>
                   </td>
 
                   <!-- 快速操作 -->
-                  <td class="px-4 py-3.5 text-right font-mono">
+                  <td class="px-4 py-3.5 text-right font-sans">
                     <a :href="c.url" target="_blank" 
                        class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 transition-all inline-flex items-center space-x-1">
-                      <span>ENTER</span>
+                      <span>前往</span>
                       <span>↗</span>
                     </a>
                   </td>
@@ -679,7 +681,7 @@
 
                 <!-- 空数据提示 -->
                 <tr v-if="filteredContests.length === 0">
-                  <td colspan="7" class="px-4 py-12 text-center text-slate-500 font-mono">
+                  <td colspan="7" class="px-4 py-12 text-center text-slate-500 font-sans">
                     <div class="flex flex-col items-center justify-center space-y-2">
                       <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -697,44 +699,44 @@
         </div>
 
         <!-- ================= TAB 2: 全量提交记录流 (SUBMISSIONS STREAM) ================= -->
-        <div v-show="currentTab === 'submissions'" class="ui-card p-5 space-y-4">
+        <div v-show="currentTab === 'submissions'" class="ui-card p-5 space-y-4 font-sans">
           <!-- 顶部标题与快速重置 -->
           <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
             <div>
-              <h2 class="text-xs font-bold text-slate-200 font-mono flex items-center space-x-2">
+              <h2 class="text-xs font-bold text-slate-200 flex items-center space-x-2">
                 <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
                 </svg>
-                <span>SUBMISSION STREAM & LOGS</span>
+                <span>提交记录</span>
               </h2>
-              <p class="text-xs text-slate-400 mt-0.5 font-sans">实时提交记录流（共 {{ filteredSubmissions.length }} 条记录匹配）</p>
+              <p class="text-xs text-slate-400 mt-0.5">实时提交记录流（共 {{ filteredSubmissions.length }} 条记录匹配）</p>
             </div>
             
-            <button @click="resetFilters" class="text-xs text-slate-400 hover:text-cyan-400 font-mono flex items-center space-x-1">
-              <span>↺ RESET FILTERS</span>
+            <button @click="resetFilters" class="text-xs text-slate-400 hover:text-cyan-400 flex items-center space-x-1">
+              <span>↺ 重置筛选</span>
             </button>
           </div>
 
-          <!-- 3X-UI 多维组合筛选工具栏 -->
-          <div class="p-3.5 rounded-xl bg-dark-900/80 border border-white/5 space-y-3 text-xs font-mono">
+          <!-- 多维组合筛选工具栏 -->
+          <div class="p-3.5 rounded-xl bg-dark-900/80 border border-white/5 space-y-3 text-xs">
             <!-- 第一行: 日期快捷预设 + 自定义日期选择器 -->
             <div class="flex flex-wrap items-center justify-between gap-2.5">
               <div class="flex flex-wrap items-center gap-1.5">
-                <span class="text-slate-500 text-[11px]">DATE:</span>
-                <button @click="setDateFilter('all')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === 'all' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">ALL 全部</button>
-                <button @click="setDateFilter('today')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === 'today' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">TODAY 今天</button>
-                <button @click="setDateFilter('7d')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === '7d' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">7 DAYS 最近7天</button>
-                <button @click="setDateFilter('30d')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === '30d' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">30 DAYS 1个月</button>
-                <button @click="setDateFilter('year')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === 'year' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">THIS YEAR 今年</button>
+                <span class="text-slate-500 text-[11px]">日期:</span>
+                <button @click="setDateFilter('all')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === 'all' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">全部</button>
+                <button @click="setDateFilter('today')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === 'today' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">今天</button>
+                <button @click="setDateFilter('7d')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === '7d' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">近7天</button>
+                <button @click="setDateFilter('30d')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === '30d' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">近30天</button>
+                <button @click="setDateFilter('year')" :class="['px-2.5 py-1 rounded text-[11px] font-semibold transition-all', dateFilter === 'year' ? 'bg-cyan-500 text-white' : 'bg-dark-850 text-slate-400 hover:text-slate-200 border border-white/5']">今年</button>
               </div>
 
               <!-- 自定义日期区间 -->
               <div class="flex items-center space-x-1.5 text-xs text-slate-400">
                 <input type="date" v-model="startDate" @change="dateFilter = 'custom'" 
-                       class="bg-dark-850 border border-white/10 rounded px-2 py-0.5 text-slate-200 text-[11px] focus:outline-none focus:border-cyan-500">
+                       class="bg-dark-850 border border-white/10 rounded px-2 py-0.5 text-slate-200 text-[11px] focus:outline-none focus:border-cyan-500 font-mono">
                 <span>至</span>
                 <input type="date" v-model="endDate" @change="dateFilter = 'custom'" 
-                       class="bg-dark-850 border border-white/10 rounded px-2 py-0.5 text-slate-200 text-[11px] focus:outline-none focus:border-cyan-500">
+                       class="bg-dark-850 border border-white/10 rounded px-2 py-0.5 text-slate-200 text-[11px] focus:outline-none focus:border-cyan-500 font-mono">
               </div>
             </div>
 
@@ -742,40 +744,40 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-2 border-t border-white/5">
               <!-- 平台选择 -->
               <div>
-                <label class="block text-slate-500 text-[10px] mb-1">PLATFORM 平台</label>
-                <select v-model="subFilter" class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-slate-300 text-xs focus:outline-none focus:border-cyan-500 font-mono">
-                  <option value="all">ALL 所有平台</option>
+                <label class="block text-slate-500 text-[10px] mb-1">平台</label>
+                <select v-model="subFilter" class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-slate-300 text-xs focus:outline-none focus:border-cyan-500 font-sans">
+                  <option value="all">全部平台</option>
                   <option value="codeforces">Codeforces</option>
                   <option value="atcoder">AtCoder</option>
-                  <option value="luogu">洛谷 (Luogu)</option>
+                  <option value="luogu">洛谷</option>
                   <option value="acwing">AcWing</option>
                 </select>
               </div>
 
               <!-- 状态选择 -->
               <div>
-                <label class="block text-slate-500 text-[10px] mb-1">VERDICT 状态</label>
-                <select v-model="verdictFilter" class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-slate-300 text-xs focus:outline-none focus:border-cyan-500 font-mono">
-                  <option value="all">ALL 所有状态</option>
+                <label class="block text-slate-500 text-[10px] mb-1">状态</label>
+                <select v-model="verdictFilter" class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-slate-300 text-xs focus:outline-none focus:border-cyan-500 font-sans">
+                  <option value="all">全部状态</option>
                   <option value="AC">AC (通过)</option>
-                  <option value="WA">WA / 待攻克 (未通过)</option>
+                  <option value="WA">未通过 (WA/TLE等)</option>
                 </select>
               </div>
 
               <!-- 算法标签 -->
               <div>
-                <label class="block text-slate-500 text-[10px] mb-1">ALGORITHM 算法分类</label>
-                <select v-model="selectedTag" class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-slate-300 text-xs focus:outline-none focus:border-cyan-500 font-mono">
-                  <option value="">ALL 全部算法分类</option>
+                <label class="block text-slate-500 text-[10px] mb-1">算法分类</label>
+                <select v-model="selectedTag" class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-slate-300 text-xs focus:outline-none focus:border-cyan-500 font-sans">
+                  <option value="">全部算法分类</option>
                   <option v-for="t in availableTags" :key="t" :value="t">{{ t }}</option>
                 </select>
               </div>
 
               <!-- 关键词即时搜索 -->
               <div>
-                <label class="block text-slate-500 text-[10px] mb-1">SEARCH 关键词</label>
-                <input v-model="searchKeyword" type="text" placeholder="搜索题号/标题/语言..."
-                       class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono">
+                <label class="block text-slate-500 text-[10px] mb-1">搜索</label>
+                <input v-model="searchKeyword" type="text" placeholder="搜索题号 / 标题 / 语言..."
+                       class="w-full bg-dark-850 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-sans">
               </div>
             </div>
           </div>
@@ -783,16 +785,16 @@
           <!-- 提交记录列表 -->
           <div class="overflow-x-auto">
             <table class="w-full text-left text-xs text-slate-300">
-              <thead class="text-slate-400 bg-dark-900/60 uppercase border-b border-white/5 font-mono">
+              <thead class="text-slate-400 bg-dark-900/60 uppercase border-b border-white/5 font-sans">
                 <tr>
-                  <th class="px-4 py-3">PLATFORM</th>
-                  <th class="px-4 py-3">PROBLEM</th>
-                  <th class="px-4 py-3">DIFF</th>
-                  <th class="px-4 py-3">TAGS</th>
-                  <th class="px-4 py-3">STATUS</th>
-                  <th class="px-4 py-3">LANG</th>
-                  <th class="px-4 py-3">SUBMITTED AT</th>
-                  <th class="px-4 py-3 text-right">ACTION</th>
+                  <th class="px-4 py-3">平台</th>
+                  <th class="px-4 py-3">题目</th>
+                  <th class="px-4 py-3">难度</th>
+                  <th class="px-4 py-3">标签</th>
+                  <th class="px-4 py-3">状态</th>
+                  <th class="px-4 py-3">语言</th>
+                  <th class="px-4 py-3">提交时间</th>
+                  <th class="px-4 py-3 text-right">操作</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-white/5 font-sans">
@@ -812,7 +814,7 @@
                     </div>
                   </td>
                   <td class="px-4 py-3 text-slate-400 font-mono">
-                    <span class="px-2 py-0.5 rounded bg-dark-900 text-slate-300 text-[11px] border border-white/5">{{ sub.difficulty || 'N/A' }}</span>
+                    <span class="px-2 py-0.5 rounded bg-dark-900 text-slate-300 text-[11px] border border-white/5">{{ sub.difficulty || '-' }}</span>
                   </td>
                   <td class="px-4 py-3">
                     <div class="flex flex-wrap gap-1 max-w-xs">
@@ -832,23 +834,23 @@
                     </span>
                   </td>
                   <td class="px-4 py-3 text-slate-400 font-mono text-[11px]">
-                    {{ sub.code_language || 'N/A' }}
+                    {{ sub.code_language || '-' }}
                   </td>
                   <td class="px-4 py-3 text-slate-400 font-mono text-[11px]" :title="sub.submitted_at">
                     {{ formatTimeAgo(sub.submitted_at) }}
                   </td>
-                  <td class="px-4 py-3 text-right font-mono">
+                  <td class="px-4 py-3 text-right font-sans">
                     <a v-if="sub.submission_url" :href="sub.submission_url" target="_blank" 
-                       class="text-cyan-400 hover:text-cyan-300 text-xs hover:underline flex items-center justify-end space-x-1">
-                      <span>VIEW</span>
+                       class="text-cyan-400 hover:text-cyan-300 text-xs hover:underline inline-flex items-center space-x-1">
+                      <span>查看</span>
                       <span>↗</span>
                     </a>
                     <span v-else class="text-slate-600 text-xs">-</span>
                   </td>
                 </tr>
                 <tr v-if="paginatedSubmissions.length === 0">
-                  <td colspan="8" class="px-4 py-12 text-center text-slate-500 font-mono">
-                    NO SUBMISSIONS MATCHING CURRENT FILTERS
+                  <td colspan="8" class="px-4 py-12 text-center text-slate-500 font-sans">
+                    暂无匹配提交记录
                   </td>
                 </tr>
               </tbody>
@@ -856,52 +858,52 @@
           </div>
 
           <!-- 分页器 -->
-          <div class="flex items-center justify-between pt-3 border-t border-white/5 text-xs font-mono">
-            <span class="text-slate-400">PAGE {{ currentPage }} OF {{ totalPages }} ({{ filteredSubmissions.length }} TOTAL)</span>
-            <div class="flex items-center space-x-2">
+          <div class="flex items-center justify-between pt-3 border-t border-white/5 text-xs font-sans">
+            <span class="text-slate-400">第 {{ currentPage }} / {{ totalPages }} 页 (共 {{ filteredSubmissions.length }} 条)</span>
+            <div class="flex items-center space-x-2 font-sans">
               <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage <= 1"
                       class="px-2.5 py-1 rounded bg-dark-900 border border-white/10 text-slate-300 disabled:opacity-30 hover:text-white">
-                ◀ PREV
+                上一页
               </button>
               <button @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage >= totalPages"
                        class="px-2.5 py-1 rounded bg-dark-900 border border-white/10 text-slate-300 disabled:opacity-30 hover:text-white">
-                NEXT ▶
+                下一页
               </button>
             </div>
           </div>
         </div>
 
         <!-- ================= TAB 3: 待攻克错题集 (MISTAKES) ================= -->
-        <div v-show="currentTab === 'mistakes'" class="ui-card p-5 space-y-4">
+        <div v-show="currentTab === 'mistakes'" class="ui-card p-5 space-y-4 font-sans">
           <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-white/5">
             <div>
-              <h2 class="text-xs font-bold text-slate-200 font-mono flex items-center space-x-2">
+              <h2 class="text-xs font-bold text-slate-200 flex items-center space-x-2">
                 <svg class="w-4 h-4 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="12" r="9"></circle>
                   <line x1="12" y1="8" x2="12" y2="12"></line>
                   <line x1="12" y1="16" x2="12.01" y2="16"></line>
                 </svg>
-                <span>MISTAKES & UNRESOLVED</span>
+                <span>待攻克错题</span>
               </h2>
-              <p class="text-xs text-slate-400 mt-0.5 font-sans">曾有 WA / TLE / MLE 记录且至今尚未 AC 的题目清单</p>
+              <p class="text-xs text-slate-400 mt-0.5">曾有 WA / TLE / MLE 记录且至今尚未 AC 的题目清单</p>
             </div>
-            <span class="text-xs font-mono bg-rose-500/10 text-rose-300 font-semibold px-2 py-0.5 rounded border border-rose-500/20">
-              COUNT: {{ mistakes.length }}
+            <span class="text-xs font-sans bg-rose-500/10 text-rose-300 font-semibold px-2 py-0.5 rounded border border-rose-500/20">
+              共 {{ mistakes.length }} 题
             </span>
           </div>
 
           <!-- 错题表格 -->
           <div class="overflow-x-auto">
             <table class="w-full text-left text-xs text-slate-300">
-              <thead class="text-slate-400 bg-dark-900/60 uppercase border-b border-white/5 font-mono">
+              <thead class="text-slate-400 bg-dark-900/60 uppercase border-b border-white/5 font-sans">
                 <tr>
-                  <th class="px-4 py-3">PLATFORM</th>
-                  <th class="px-4 py-3">PROBLEM</th>
-                  <th class="px-4 py-3">DIFF</th>
-                  <th class="px-4 py-3">STATUS</th>
-                  <th class="px-4 py-3">FAILS</th>
-                  <th class="px-4 py-3">LAST ATTEMPT</th>
-                  <th class="px-4 py-3 text-right">ACTION</th>
+                  <th class="px-4 py-3">平台</th>
+                  <th class="px-4 py-3">题目</th>
+                  <th class="px-4 py-3">难度</th>
+                  <th class="px-4 py-3">状态</th>
+                  <th class="px-4 py-3">未通过次数</th>
+                  <th class="px-4 py-3">最后尝试</th>
+                  <th class="px-4 py-3 text-right">操作</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-white/5 font-sans">
@@ -920,8 +922,8 @@
                       <span>{{ item.problem_title }}</span>
                     </div>
                   </td>
-                  <td class="px-4 py-3 text-slate-400">
-                    <span class="px-2 py-0.5 rounded bg-dark-900 text-slate-300 text-[11px] font-mono border border-white/5">{{ item.difficulty || 'N/A' }}</span>
+                  <td class="px-4 py-3 text-slate-400 font-mono">
+                    <span class="px-2 py-0.5 rounded bg-dark-900 text-slate-300 text-[11px] border border-white/5">{{ item.difficulty || '-' }}</span>
                   </td>
                   <td class="px-4 py-3 font-mono">
                     <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
@@ -934,18 +936,18 @@
                   <td class="px-4 py-3 text-slate-400 font-mono text-[11px]" :title="item.submitted_at">
                     {{ formatTimeAgo(item.submitted_at) }}
                   </td>
-                  <td class="px-4 py-3 text-right font-mono">
+                  <td class="px-4 py-3 text-right font-sans">
                     <a v-if="item.submission_url" :href="item.submission_url" target="_blank"
-                       class="text-cyan-400 hover:text-cyan-300 text-xs hover:underline flex items-center justify-end space-x-1">
-                      <span>RETRY</span>
+                       class="text-cyan-400 hover:text-cyan-300 text-xs hover:underline inline-flex items-center space-x-1">
+                      <span>去做题</span>
                       <span>↗</span>
                     </a>
                     <span v-else class="text-slate-600 text-xs">-</span>
                   </td>
                 </tr>
                 <tr v-if="mistakes.length === 0">
-                  <td colspan="7" class="px-4 py-12 text-center text-slate-500 font-mono">
-                    NO PENDING MISTAKES FOUND (ALL SOLVED)
+                  <td colspan="7" class="px-4 py-12 text-center text-slate-500 font-sans">
+                    太棒了！暂无未攻克的错题
                   </td>
                 </tr>
               </tbody>
@@ -954,34 +956,34 @@
         </div>
 
         <!-- ================= TAB 4: 平台设置与配置 (SETTINGS) ================= -->
-        <div v-show="currentTab === 'settings'" class="ui-card p-5 space-y-6">
+        <div v-show="currentTab === 'settings'" class="ui-card p-5 space-y-6 font-sans">
           <div class="space-y-4">
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
               <div>
-                <h2 class="text-xs font-bold text-slate-200 font-mono flex items-center space-x-2">
+                <h2 class="text-xs font-bold text-slate-200 flex items-center space-x-2">
                   <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                   </svg>
-                  <span>PLATFORM CREDENTIALS 平台账号与凭证</span>
+                  <span>平台账号与凭证</span>
                 </h2>
-                <p class="text-xs text-slate-400 mt-0.5 font-sans">配置各算法平台的用户名与凭证，支持按需独立测试连接</p>
+                <p class="text-xs text-slate-400 mt-0.5">配置各算法平台的用户名与凭证，支持按需独立测试连接</p>
               </div>
 
               <!-- 保存所有配置按钮 -->
               <div class="flex items-center space-x-2">
                 <button @click="saveSettingsAndSync" :disabled="isSaving"
-                        class="btn-primary font-mono text-xs flex items-center space-x-1.5 shadow-lg shadow-cyan-950/40">
+                        class="btn-primary text-xs flex items-center space-x-1.5 shadow-lg shadow-cyan-950/40">
                   <svg :class="['w-3.5 h-3.5', isSaving ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
                   </svg>
-                  <span>{{ isSaving ? 'SAVING & SYNCING...' : 'SAVE & SYNC NOW' }}</span>
+                  <span>{{ isSaving ? '正在保存并同步...' : '保存并同步' }}</span>
                 </button>
               </div>
             </div>
 
             <!-- 详细填表指引折叠面板 -->
-            <div class="p-4 rounded-xl bg-cyan-950/20 border border-cyan-500/20 text-xs space-y-2 text-cyan-200 font-mono">
+            <div class="p-4 rounded-xl bg-cyan-950/20 border border-cyan-500/20 text-xs space-y-2 text-cyan-200">
               <div class="font-bold flex items-center justify-between cursor-pointer" @click="showGuide = !showGuide">
                 <span class="flex items-center space-x-2">
                   <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -993,22 +995,18 @@
               </div>
               <div v-if="showGuide" class="space-y-2 pt-2 border-t border-cyan-500/10 text-slate-300 font-sans leading-relaxed text-xs">
                 <div>
-                  <b class="text-cyan-400 font-mono">Codeforces:</b> 填写个人主页 URL 中的用户名 (Handle)，例如 <code class="bg-black/40 px-1 rounded text-cyan-300 font-mono">MCGA_WJJ</code>。
+                  <b class="text-cyan-400 font-sans">Codeforces:</b> 填写个人主页用户名 (Handle)，例如 <code class="bg-black/40 px-1 rounded text-cyan-300 font-mono">MCGA_WJJ</code>。
                 </div>
                 <div>
-                  <b class="text-purple-400 font-mono">AtCoder:</b> 填写个人主页用户名 (Handle)，例如 <code class="bg-black/40 px-1 rounded text-purple-300 font-mono">FarmingWAs</code>。
+                  <b class="text-purple-400 font-sans">AtCoder:</b> 填写个人主页用户名 (Handle)，例如 <code class="bg-black/40 px-1 rounded text-purple-300 font-mono">FarmingWAs</code>。
                 </div>
                 <div>
-                  <b class="text-blue-400 font-mono">洛谷 (Luogu):</b>
+                  <b class="text-blue-400 font-sans">洛谷:</b>
                   <span class="text-slate-300">UID 为个人空间 URL 中的纯数字 (如 <code class="bg-black/40 px-1 rounded text-blue-300 font-mono">1940760</code>)；Cookie 填入 <code class="bg-black/40 px-1 rounded text-blue-300 font-mono">__client_id</code>。</span>
                 </div>
                 <div>
-                  <b class="text-indigo-400 font-mono">AcWing:</b>
-                  <span class="text-slate-300">空间 ID 为个人空间地址栏数字 (如 <code class="bg-black/40 px-1 rounded text-indigo-300 font-mono">10001</code>)；Cookie 填入 <code class="bg-black/40 px-1 rounded text-indigo-300 font-mono">sessionid=xxxx</code>。</span>
-                </div>
-                <div>
-                  <b class="text-purple-400 font-mono">AtCoder:</b>
-                  <span class="text-slate-300">填写个人主页用户名 (Handle)，例如 <code class="bg-black/40 px-1 rounded text-purple-300 font-mono">FarmingWAs</code>。</span>
+                  <b class="text-indigo-400 font-sans">AcWing:</b>
+                  <span class="text-slate-300">空间 ID 为个人空间地址栏数字 (如 <code class="bg-black/40 px-1 rounded text-indigo-300 font-mono">360946</code>)；Cookie 填入 <code class="bg-black/40 px-1 rounded text-indigo-300 font-mono">sessionid=xxxx</code>。</span>
                 </div>
               </div>
             </div>
@@ -1021,21 +1019,21 @@
                   <div class="flex items-center justify-between pb-2 border-b border-white/5">
                     <div class="flex items-center space-x-2">
                       <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400"></span>
-                      <span class="font-bold text-white text-xs font-mono">Codeforces</span>
+                      <span class="font-bold text-white text-xs">Codeforces</span>
                     </div>
-                    <span :class="['status-pill text-[10px] font-mono whitespace-nowrap shrink-0 max-w-[120px] truncate', getPlatformPillClass('codeforces')]" :title="platformStatusMap['codeforces']?.message">
+                    <span :class="['status-pill text-[10px] whitespace-nowrap shrink-0 max-w-[120px] truncate', getPlatformPillClass('codeforces')]" :title="platformStatusMap['codeforces']?.message">
                       {{ platformStatusMap['codeforces']?.message || '未配置' }}
                     </span>
                   </div>
                   <div class="space-y-2.5">
                     <div>
-                      <label class="block text-slate-400 mb-1 font-mono text-[11px]">CF HANDLE / 用户名</label>
+                      <label class="block text-slate-400 mb-1 text-[11px]">用户名 (Handle)</label>
                       <input v-model="settingsForm.cf_handle" type="text" placeholder="输入 CF 用户名 (如 MCGA_WJJ)" 
                              class="ui-input font-mono">
                     </div>
                     <div>
-                      <label class="block text-slate-500 mb-1 font-mono text-[11px]">AUTH 认证方式</label>
-                      <div class="ui-input font-mono text-slate-400 bg-dark-950/50 flex items-center text-xs">
+                      <label class="block text-slate-500 mb-1 text-[11px]">认证方式</label>
+                      <div class="ui-input text-slate-400 bg-dark-950/50 flex items-center text-xs">
                         <span class="text-cyan-400 mr-1.5">✓</span> 公开 API 免 Cookie
                       </div>
                     </div>
@@ -1043,8 +1041,8 @@
                 </div>
                 <div class="pt-3 border-t border-white/5 flex justify-end">
                   <button @click="verifyPlatform('codeforces')" :disabled="isVerifying['codeforces']"
-                          class="btn-secondary text-xs font-mono w-full">
-                    {{ isVerifying['codeforces'] ? 'CHECKING...' : 'TEST CF' }}
+                          class="btn-secondary text-xs w-full">
+                    {{ isVerifying['codeforces'] ? '测试中...' : '测试连接' }}
                   </button>
                 </div>
               </div>
@@ -1055,21 +1053,21 @@
                   <div class="flex items-center justify-between pb-2 border-b border-white/5">
                     <div class="flex items-center space-x-2">
                       <span class="w-2 h-2 rounded-full bg-purple-400 shadow-sm shadow-purple-400"></span>
-                      <span class="font-bold text-white text-xs font-mono">AtCoder</span>
+                      <span class="font-bold text-white text-xs">AtCoder</span>
                     </div>
-                    <span :class="['status-pill text-[10px] font-mono whitespace-nowrap shrink-0 max-w-[120px] truncate', getPlatformPillClass('atcoder')]" :title="platformStatusMap['atcoder']?.message">
+                    <span :class="['status-pill text-[10px] whitespace-nowrap shrink-0 max-w-[120px] truncate', getPlatformPillClass('atcoder')]" :title="platformStatusMap['atcoder']?.message">
                       {{ platformStatusMap['atcoder']?.message || '未配置' }}
                     </span>
                   </div>
                   <div class="space-y-2.5">
                     <div>
-                      <label class="block text-slate-400 mb-1 font-mono text-[11px]">ATCODER HANDLE / 用户名</label>
+                      <label class="block text-slate-400 mb-1 text-[11px]">用户名 (Handle)</label>
                       <input v-model="settingsForm.atcoder_handle" type="text" placeholder="输入 AtCoder 用户名 (如 FarmingWAs)" 
                              class="ui-input font-mono">
                     </div>
                     <div>
-                      <label class="block text-slate-500 mb-1 font-mono text-[11px]">AUTH 认证方式</label>
-                      <div class="ui-input font-mono text-slate-400 bg-dark-950/50 flex items-center text-xs">
+                      <label class="block text-slate-500 mb-1 text-[11px]">认证方式</label>
+                      <div class="ui-input text-slate-400 bg-dark-950/50 flex items-center text-xs">
                         <span class="text-purple-400 mr-1.5">✓</span> 公开 API 免 Cookie
                       </div>
                     </div>
@@ -1077,32 +1075,32 @@
                 </div>
                 <div class="pt-3 border-t border-white/5 flex justify-end">
                   <button @click="verifyPlatform('atcoder')" :disabled="isVerifying['atcoder']"
-                          class="btn-secondary text-xs font-mono w-full">
-                    {{ isVerifying['atcoder'] ? 'CHECKING...' : 'TEST ATCODER' }}
+                          class="btn-secondary text-xs w-full">
+                    {{ isVerifying['atcoder'] ? '测试中...' : '测试连接' }}
                   </button>
                 </div>
               </div>
 
-              <!-- 3. 洛谷 (Luogu) 配置卡片 -->
+              <!-- 3. 洛谷 配置卡片 -->
               <div class="p-4 rounded-xl bg-dark-900/90 border border-white/5 flex flex-col justify-between h-full space-y-4">
                 <div class="space-y-3">
                   <div class="flex items-center justify-between pb-2 border-b border-white/5">
                     <div class="flex items-center space-x-2">
                       <span class="w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400"></span>
-                      <span class="font-bold text-white text-xs font-mono">洛谷 (Luogu)</span>
+                      <span class="font-bold text-white text-xs">洛谷</span>
                     </div>
-                    <span :class="['status-pill text-[10px] font-mono whitespace-nowrap shrink-0 max-w-[120px] truncate', getPlatformPillClass('luogu')]" :title="platformStatusMap['luogu']?.message">
+                    <span :class="['status-pill text-[10px] whitespace-nowrap shrink-0 max-w-[120px] truncate', getPlatformPillClass('luogu')]" :title="platformStatusMap['luogu']?.message">
                       {{ platformStatusMap['luogu']?.message || '未配置' }}
                     </span>
                   </div>
                   <div class="space-y-2.5">
                     <div>
-                      <label class="block text-slate-400 mb-1 font-mono text-[11px]">LUOGU UID (纯数字)</label>
+                      <label class="block text-slate-400 mb-1 text-[11px]">UID (纯数字)</label>
                       <input v-model="settingsForm.luogu_uid" type="text" placeholder="输入 UID 纯数字 (如 1940760)" 
                              class="ui-input font-mono">
                     </div>
                     <div>
-                      <label class="block text-slate-400 mb-1 font-mono text-[11px]">COOKIE (__client_id)</label>
+                      <label class="block text-slate-400 mb-1 text-[11px]">Cookie (__client_id)</label>
                       <input v-model="settingsForm.luogu_cookie" type="text" placeholder="输入 __client_id 字符串" 
                              class="ui-input font-mono">
                     </div>
@@ -1110,8 +1108,8 @@
                 </div>
                 <div class="pt-3 border-t border-white/5 flex justify-end">
                   <button @click="verifyPlatform('luogu')" :disabled="isVerifying['luogu']"
-                          class="btn-secondary text-xs font-mono w-full">
-                    {{ isVerifying['luogu'] ? 'CHECKING...' : 'TEST LUOGU' }}
+                          class="btn-secondary text-xs w-full">
+                    {{ isVerifying['luogu'] ? '测试中...' : '测试连接' }}
                   </button>
                 </div>
               </div>
@@ -1122,20 +1120,20 @@
                   <div class="flex items-center justify-between pb-2 border-b border-white/5">
                     <div class="flex items-center space-x-2">
                       <span class="w-2 h-2 rounded-full bg-indigo-400 shadow-sm shadow-indigo-400"></span>
-                      <span class="font-bold text-white text-xs font-mono">AcWing</span>
+                      <span class="font-bold text-white text-xs">AcWing</span>
                     </div>
-                    <span :class="['status-pill text-[10px] font-mono whitespace-nowrap shrink-0 max-w-[120px] truncate', getPlatformPillClass('acwing')]" :title="platformStatusMap['acwing']?.message">
+                    <span :class="['status-pill text-[10px] whitespace-nowrap shrink-0 max-w-[120px] truncate', getPlatformPillClass('acwing')]" :title="platformStatusMap['acwing']?.message">
                       {{ platformStatusMap['acwing']?.message || '未配置' }}
                     </span>
                   </div>
                   <div class="space-y-2.5">
                     <div>
-                      <label class="block text-slate-400 mb-1 font-mono text-[11px]">SPACE ID (空间ID)</label>
+                      <label class="block text-slate-400 mb-1 text-[11px]">空间 ID (纯数字)</label>
                       <input v-model="settingsForm.acwing_user_id" type="text" placeholder="输入空间 ID 纯数字 (如 360946)" 
                              class="ui-input font-mono">
                     </div>
                     <div>
-                      <label class="block text-slate-400 mb-1 font-mono text-[11px]">COOKIE (sessionid)</label>
+                      <label class="block text-slate-400 mb-1 text-[11px]">Cookie (sessionid)</label>
                       <input v-model="settingsForm.acwing_cookie" type="text" placeholder="输入 sessionid 字符串" 
                              class="ui-input font-mono">
                     </div>
@@ -1143,8 +1141,8 @@
                 </div>
                 <div class="pt-3 border-t border-white/5 flex justify-end">
                   <button @click="verifyPlatform('acwing')" :disabled="isVerifying['acwing']"
-                          class="btn-secondary text-xs font-mono w-full">
-                    {{ isVerifying['acwing'] ? 'CHECKING...' : 'TEST ACWING' }}
+                          class="btn-secondary text-xs w-full">
+                    {{ isVerifying['acwing'] ? '测试中...' : '测试连接' }}
                   </button>
                 </div>
               </div>
@@ -1153,20 +1151,20 @@
             <!-- 系统参数与网络代理 -->
             <div class="p-4 rounded-xl bg-dark-900/90 border border-white/5 space-y-3">
               <div class="flex items-center space-x-2">
-                <span class="font-bold text-white text-xs font-mono">⚙️ SYSTEM & NETWORK PROXY 参数</span>
+                <span class="font-bold text-white text-xs">⚙️ 系统与同步参数</span>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <label class="block text-slate-400 mb-1 font-mono text-[11px]">AUTO POLL INTERVAL (MIN / 分钟)</label>
+                  <label class="block text-slate-400 mb-1 text-[11px]">自动轮询同步间隔 (分钟)</label>
                   <input v-model="settingsForm.poll_interval_minutes" type="number" min="1" max="1440"
                          class="ui-input font-mono">
-                  <p class="text-[10px] text-slate-500 mt-1 font-mono">默认日常 30 分钟轮询，冲刺模式自动为 5 分钟</p>
+                  <p class="text-[10px] text-slate-500 mt-1">默认日常 30 分钟轮询，冲刺模式自动为 5 分钟</p>
                 </div>
                 <div>
-                  <label class="block text-slate-400 mb-1 font-mono text-[11px]">OUTBOUND HTTP PROXY (可选出站代理)</label>
+                  <label class="block text-slate-400 mb-1 text-[11px]">出站 HTTP 代理 (可选)</label>
                   <input v-model="settingsForm.http_proxy" type="text" placeholder="http://127.0.0.1:7890 (国内VPS请留空)" 
                          class="ui-input font-mono text-xs">
-                  <p class="text-[10px] text-slate-500 mt-1 font-mono">用于加速海外 CF 连接，留空则直连</p>
+                  <p class="text-[10px] text-slate-500 mt-1">用于加速海外 Codeforces 连接，留空则直连</p>
                 </div>
               </div>
             </div>
@@ -1174,39 +1172,39 @@
             <!-- 账号密码安全设置卡片 (Password Change) -->
             <div class="p-4 rounded-xl bg-dark-900/90 border border-white/5 space-y-3">
               <div class="flex items-center space-x-2">
-                <span class="font-bold text-white text-xs font-mono">🔒 ACCOUNT PASSWORD SECURITY (修改登录密码)</span>
+                <span class="font-bold text-white text-xs">🔒 修改登录密码</span>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div>
-                  <label class="block text-slate-400 mb-1 font-mono text-[11px]">OLD PASSWORD / 原密码</label>
+                  <label class="block text-slate-400 mb-1 text-[11px]">原密码</label>
                   <input v-model="pwdForm.oldPassword" type="password" placeholder="输入原密码" 
                          class="ui-input font-mono">
                 </div>
                 <div>
-                  <label class="block text-slate-400 mb-1 font-mono text-[11px]">NEW PASSWORD / 新密码</label>
+                  <label class="block text-slate-400 mb-1 text-[11px]">新密码</label>
                   <input v-model="pwdForm.newPassword" type="password" placeholder="输入新密码 (至少6位)" 
                          class="ui-input font-mono">
                 </div>
                 <div>
-                  <label class="block text-slate-400 mb-1 font-mono text-[11px]">CONFIRM / 确认新密码</label>
+                  <label class="block text-slate-400 mb-1 text-[11px]">确认新密码</label>
                   <input v-model="pwdForm.confirmNewPassword" type="password" placeholder="再次输入新密码" 
                          class="ui-input font-mono">
                 </div>
               </div>
               <div class="flex justify-end pt-1">
                 <button @click="handleChangePassword" :disabled="isChangingPwd"
-                        class="btn-secondary text-xs font-mono">
-                  {{ isChangingPwd ? 'UPDATING...' : 'UPDATE PASSWORD 修改密码' }}
+                        class="btn-secondary text-xs">
+                  {{ isChangingPwd ? '正在修改...' : '确认修改密码' }}
                 </button>
               </div>
             </div>
 
             <!-- 底部保存按钮 -->
             <div class="flex items-center justify-end space-x-3 pt-3 border-t border-white/10">
-              <button @click="currentTab = 'overview'" class="btn-secondary font-mono text-xs">BACK TO DASHBOARD</button>
+              <button @click="currentTab = 'overview'" class="btn-secondary text-xs">返回总览</button>
               <button @click="saveSettingsAndSync" :disabled="isSaving"
-                      class="btn-primary font-mono text-xs">
-                {{ isSaving ? 'SAVING...' : 'SAVE & SYNC NOW' }}
+                      class="btn-primary text-xs">
+                {{ isSaving ? '正在保存...' : '保存并同步' }}
               </button>
             </div>
           </div>
@@ -1217,7 +1215,7 @@
     </template>
 
     <!-- 全局浮动提示 (Toast) -->
-    <div v-if="toast.show" class="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl text-xs font-mono font-semibold border flex items-center space-x-2 transition-all"
+    <div v-if="toast.show" class="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl text-xs font-semibold border flex items-center space-x-2 transition-all font-sans"
          :class="toast.type === 'success' ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/40 shadow-emerald-950/50' : 'bg-rose-950/90 text-rose-300 border-rose-500/40 shadow-rose-950/50'">
       <span>{{ toast.type === 'success' ? '✓' : '✕' }}</span>
       <span>{{ toast.message }}</span>
@@ -1225,6 +1223,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.1.1"></script>
+  <script src="/static/app.js?v=2.1.2"></script>
 </body>
 </html>

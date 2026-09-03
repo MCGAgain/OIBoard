@@ -771,8 +771,9 @@ createApp({
 
       const pData = overview.value.stats.platforms || {};
       const data = [
-        { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: "#3b82f6" } },
-        { value: pData.luogu?.ac || 0, name: "洛谷 (Luogu)", itemStyle: { color: "#f59e0b" } },
+        { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: "#06b6d4" } },
+        { value: pData.atcoder?.ac || 0, name: "AtCoder", itemStyle: { color: "#a855f7" } },
+        { value: pData.luogu?.ac || 0, name: "洛谷", itemStyle: { color: "#3b82f6" } },
         { value: pData.acwing?.ac || 0, name: "AcWing", itemStyle: { color: "#6366f1" } }
       ].filter(d => d.value > 0);
 
