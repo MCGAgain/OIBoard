@@ -243,24 +243,41 @@ async def trigger_sync(payload: SyncPayload, current_user: Dict[str, Any] = Depe
 
 @app.post("/api/verify")
 async def verify_credentials(payload: VerifyPayload, current_user: Dict[str, Any] = Depends(get_current_user)):
+    uid = current_user["id"]
     p = payload.platform.lower()
     proxy = payload.http_proxy or ""
 
     if p == "codeforces":
         cf = CodeforcesFetcher()
         valid, msg, extra = await cf.verify(payload.cf_handle or "", proxy=proxy)
+        if valid:
+            db.update_platform_status(uid, "codeforces", "ok", msg, rating=extra.get("rating", ""))
+        else:
+            db.update_platform_status(uid, "codeforces", "error", msg)
         return {"valid": valid, "message": msg, "extra": extra}
     elif p == "luogu":
         lg = LuoguFetcher()
         valid, msg, extra = await lg.verify(payload.luogu_uid or "", payload.luogu_cookie or "", proxy=proxy)
+        if valid:
+            db.update_platform_status(uid, "luogu", "ok", msg, rating=extra.get("ranking", ""))
+        else:
+            db.update_platform_status(uid, "luogu", "error", msg)
         return {"valid": valid, "message": msg, "extra": extra}
     elif p == "acwing":
         aw = AcWingFetcher()
         valid, msg, extra = await aw.verify(payload.acwing_user_id or "", payload.acwing_cookie or "", proxy=proxy)
+        if valid:
+            db.update_platform_status(uid, "acwing", "ok", msg)
+        else:
+            db.update_platform_status(uid, "acwing", "error", msg)
         return {"valid": valid, "message": msg, "extra": extra}
     elif p == "atcoder":
         at = AtCoderFetcher()
         valid, msg, extra = await at.verify(payload.atcoder_handle or "", proxy=proxy)
+        if valid:
+            db.update_platform_status(uid, "atcoder", "ok", msg, rating=extra.get("rating", ""))
+        else:
+            db.update_platform_status(uid, "atcoder", "error", msg)
         return {"valid": valid, "message": msg, "extra": extra}
     else:
         raise HTTPException(status_code=400, detail="未知平台")

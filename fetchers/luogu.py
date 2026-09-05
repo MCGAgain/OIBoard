@@ -1,5 +1,6 @@
 import re
 import json
+import asyncio
 import httpx
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone, timedelta

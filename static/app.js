@@ -921,6 +921,7 @@ createApp({
         } else {
           showToast(data.message || "连接测试失败", "error");
         }
+        await Promise.all([loadSettings(), loadOverview()]);
       } catch (e) {
         showToast("测试异常: " + e.message, "error");
       } finally {
