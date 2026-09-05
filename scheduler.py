@@ -32,7 +32,7 @@ class TaskScheduler:
         self._last_contest_sync = 0
 
     async def sync_platform(self, platform: str, user_id: int = 1) -> Dict[str, Any]:
-        """单用户单平台同步逻辑"""
+        """单用户单平台同步逻辑 (精简极速版)"""
         configs = get_all_configs(user_id)
         proxy = configs.get("http_proxy", "").strip()
         res = {"platform": platform, "success": False, "message": "", "count": 0}
@@ -44,24 +44,19 @@ class TaskScheduler:
                     update_platform_status(user_id, "codeforces", "unconfigured", "未配置 Handle")
                     res["message"] = "未配置 Handle"
                     return res
-                
-                # 先验证/获取 rating
-                valid, v_msg, extra = await self.cf_fetcher.verify(handle, proxy=proxy)
-                rating_str = extra.get("rating", "") if valid else ""
-                
-                if not valid:
-                    update_platform_status(user_id, "codeforces", "error", v_msg or "用户不存在", rating=rating_str)
-                    res.update({"success": False, "message": v_msg or "用户不存在"})
-                    return res
 
                 subs, msg = await self.cf_fetcher.fetch_submissions(handle, proxy=proxy)
                 if subs:
                     inserted = save_submissions([s.to_dict() for s in subs], user_id=user_id)
-                    update_platform_status(user_id, "codeforces", "ok", f"同步成功: {len(subs)}条", item_count=len(subs), rating=rating_str)
+                    update_platform_status(user_id, "codeforces", "ok", f"同步成功: {len(subs)}条", item_count=len(subs))
                     res.update({"success": True, "message": f"成功同步 {len(subs)} 条", "count": len(subs)})
                 else:
-                    update_platform_status(user_id, "codeforces", "ok", "同步成功: 0条", item_count=0, rating=rating_str)
-                    res.update({"success": True, "message": "同步成功: 0条", "count": 0})
+                    if "失败" in msg or "错误" in msg:
+                        update_platform_status(user_id, "codeforces", "error", msg)
+                        res.update({"success": False, "message": msg})
+                    else:
+                        update_platform_status(user_id, "codeforces", "ok", "同步成功: 0条", item_count=0)
+                        res.update({"success": True, "message": "同步成功: 0条", "count": 0})
 
             elif platform == "luogu":
                 uid = configs.get("luogu_uid", "").strip()
@@ -71,23 +66,19 @@ class TaskScheduler:
                     res["message"] = "未配置 UID"
                     return res
 
-                valid, v_msg, extra = await self.luogu_fetcher.verify(uid, cookie, proxy=proxy)
-                rating_str = extra.get("ranking", "") if valid else ""
-
-                if not valid:
-                    update_platform_status(user_id, "luogu", "error", v_msg or "验证失败", rating=rating_str)
-                    res.update({"success": False, "message": v_msg or "验证失败"})
-                    return res
-
                 subs, msg = await self.luogu_fetcher.fetch_submissions(uid, cookie, proxy=proxy)
                 if subs:
                     cleanup_luogu_placeholder_dates(user_id)
                     inserted = save_submissions([s.to_dict() for s in subs], user_id=user_id)
-                    update_platform_status(user_id, "luogu", "ok", f"同步成功: {len(subs)}条", item_count=len(subs), rating=rating_str)
+                    update_platform_status(user_id, "luogu", "ok", f"同步成功: {len(subs)}条", item_count=len(subs))
                     res.update({"success": True, "message": f"成功同步 {len(subs)} 条", "count": len(subs)})
                 else:
-                    update_platform_status(user_id, "luogu", "ok", "同步成功: 0条", item_count=0, rating=rating_str)
-                    res.update({"success": True, "message": "同步成功: 0条", "count": 0})
+                    if "失败" in msg or "异常" in msg:
+                        update_platform_status(user_id, "luogu", "error", msg)
+                        res.update({"success": False, "message": msg})
+                    else:
+                        update_platform_status(user_id, "luogu", "ok", "同步成功: 0条", item_count=0)
+                        res.update({"success": True, "message": "同步成功: 0条", "count": 0})
 
             elif platform == "acwing":
                 target_uid = configs.get("acwing_user_id", "").strip()
@@ -97,12 +88,6 @@ class TaskScheduler:
                     res["message"] = "未配置用户ID或Cookie"
                     return res
 
-                valid, v_msg, extra = await self.acwing_fetcher.verify(target_uid, cookie, proxy=proxy)
-                if not valid:
-                    update_platform_status(user_id, "acwing", "error", v_msg or "验证失败")
-                    res.update({"success": False, "message": v_msg or "验证失败"})
-                    return res
-
                 subs, msg = await self.acwing_fetcher.fetch_submissions(target_uid, cookie, proxy=proxy)
                 if subs:
                     cleanup_acwing_old_problem_rows(user_id)
@@ -110,8 +95,12 @@ class TaskScheduler:
                     update_platform_status(user_id, "acwing", "ok", f"同步成功: {len(subs)}条", item_count=len(subs))
                     res.update({"success": True, "message": f"成功同步 {len(subs)} 条", "count": len(subs)})
                 else:
-                    update_platform_status(user_id, "acwing", "ok", "同步成功: 0条", item_count=0)
-                    res.update({"success": True, "message": "同步成功: 0条", "count": 0})
+                    if "失败" in msg or "异常" in msg:
+                        update_platform_status(user_id, "acwing", "error", msg)
+                        res.update({"success": False, "message": msg})
+                    else:
+                        update_platform_status(user_id, "acwing", "ok", "同步成功: 0条", item_count=0)
+                        res.update({"success": True, "message": "同步成功: 0条", "count": 0})
 
             elif platform == "atcoder":
                 handle = configs.get("atcoder_handle", "").strip()
@@ -120,23 +109,18 @@ class TaskScheduler:
                     res["message"] = "未配置 Handle"
                     return res
 
-                valid, v_msg, extra = await self.atcoder_fetcher.verify(handle, proxy=proxy)
-                rating_str = extra.get("rating", "") if valid else ""
-
-                if not valid:
-                    update_platform_status(user_id, "atcoder", "error", v_msg or "用户不存在", rating=rating_str)
-                    res.update({"success": False, "message": v_msg or "用户不存在"})
-                    return res
-
                 subs, msg = await self.atcoder_fetcher.fetch_submissions(handle, proxy=proxy)
                 if subs:
                     inserted = save_submissions([s.to_dict() for s in subs], user_id=user_id)
-                    update_platform_status(user_id, "atcoder", "ok", f"同步成功: {len(subs)}条", item_count=len(subs), rating=rating_str)
+                    update_platform_status(user_id, "atcoder", "ok", f"同步成功: {len(subs)}条", item_count=len(subs))
                     res.update({"success": True, "message": f"成功同步 {len(subs)} 条", "count": len(subs)})
                 else:
-                    # 用户存在但尚未提交题目，状态判定为正常 ok
-                    update_platform_status(user_id, "atcoder", "ok", "同步成功: 0条", item_count=0, rating=rating_str)
-                    res.update({"success": True, "message": "同步成功: 0条", "count": 0})
+                    if "失败" in msg or "错误" in msg:
+                        update_platform_status(user_id, "atcoder", "error", msg)
+                        res.update({"success": False, "message": msg})
+                    else:
+                        update_platform_status(user_id, "atcoder", "ok", "同步成功: 0条", item_count=0)
+                        res.update({"success": True, "message": "同步成功: 0条", "count": 0})
 
         except Exception as e:
             logger.error(f"Sync user {user_id} error for {platform}: {str(e)}")
@@ -160,19 +144,32 @@ class TaskScheduler:
             return {"success": False, "count": 0, "message": f"同步比赛异常: {str(e)}"}
 
     async def sync_all(self, user_id: int = 1) -> Dict[str, Any]:
-        """同步指定用户的所有平台数据及全局比赛列表"""
+        """全并发同步指定用户的所有平台数据及全局比赛列表"""
         async with self._sync_lock:
-            logger.info(f"Starting full sync for user {user_id}...")
-            results = {}
-            for p in ["codeforces", "luogu", "acwing", "atcoder"]:
-                results[p] = await self.sync_platform(p, user_id=user_id)
+            logger.info(f"Starting concurrent full sync for user {user_id}...")
             
-            # 同时触发比赛列表同步
-            await self.sync_contests()
+            p_tasks = [
+                self.sync_platform("codeforces", user_id=user_id),
+                self.sync_platform("luogu", user_id=user_id),
+                self.sync_platform("acwing", user_id=user_id),
+                self.sync_platform("atcoder", user_id=user_id),
+                self.sync_contests(),
+            ]
+            
+            p_results = await asyncio.gather(*p_tasks, return_exceptions=True)
+            
+            results = {}
+            for i, p in enumerate(["codeforces", "luogu", "acwing", "atcoder"]):
+                res = p_results[i]
+                if isinstance(res, Exception):
+                    logger.error(f"Sync platform {p} exception: {res}")
+                    results[p] = {"platform": p, "success": False, "message": str(res), "count": 0}
+                else:
+                    results[p] = res
 
             now_str = get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
             set_config(user_id, "last_sync_time", now_str)
-            logger.info(f"Full sync finished for user {user_id} at {now_str}")
+            logger.info(f"Concurrent full sync finished for user {user_id} at {now_str}")
             return {"results": results, "synced_at": now_str}
 
     async def run_loop(self):

@@ -269,14 +269,14 @@ async def verify_credentials(payload: VerifyPayload, current_user: Dict[str, Any
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def serve_index():
     index_file = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_file):
         return FileResponse(index_file)
     return {"message": "OIBoard API Running. static/index.html not found."}
 
-@app.get("/favicon.ico")
+@app.api_route("/favicon.ico", methods=["GET", "HEAD"])
 async def serve_favicon():
     fav_file = os.path.join(STATIC_DIR, "favicon.svg")
     if os.path.exists(fav_file):

@@ -836,6 +836,9 @@ createApp({
           body: JSON.stringify({ platform })
         });
         const data = await res.json();
+        if (data.data?.synced_at) {
+          overview.value.last_sync_time = data.data.synced_at;
+        }
         if (data.success) {
           showToast("全平台数据同步完成！", "success");
         } else {
@@ -999,6 +1002,15 @@ createApp({
         tagBarChart && tagBarChart.resize();
         platformPieChart && platformPieChart.resize();
       });
+
+      // 实时后台状态轮询 (每 15 秒静默刷新数据总览与比赛日历倒计时)
+      setInterval(async () => {
+        if (isLoggedIn.value && !document.hidden && !isSyncing.value && !isSaving.value) {
+          try {
+            await loadOverview();
+          } catch (e) {}
+        }
+      }, 15000);
     });
 
     watch(currentTab, (tab) => {

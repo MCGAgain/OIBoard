@@ -298,52 +298,77 @@ class LuoguFetcher(BaseFetcher):
         try:
             proxy_url = proxy.strip() if proxy else None
             async with httpx.AsyncClient(cookies=cookies_dict, timeout=20.0, proxy=proxy_url, trust_env=bool(proxy_url), follow_redirects=True) as client:
-                # 1. 抓取 /record/list 真实提交流 (前 5 页，包含每条提交的精准秒级时间、真实提交题号如 P1734、真实评测状态)
-                max_pages = 5
-                for page in range(1, max_pages + 1):
-                    rec_url = f"{self.BASE_URL}/record/list?user={uid}&page={page}"
-                    res = await client.get(rec_url, headers=web_headers)
-                    if res.status_code != 200:
-                        break
-                    
-                    data = self._extract_decode_data(res.text)
+                # 1. 先抓取 page 1 获得首批记录与判断是否有更多页
+                rec_url_1 = f"{self.BASE_URL}/record/list?user={uid}&page=1"
+                practice_url = f"{self.BASE_URL}/user/{uid}/practice"
+                p_headers = {
+                    "User-Agent": web_headers["User-Agent"],
+                    "x-lentille-request": "content-only",
+                    "Accept": "application/json, text/html, */*",
+                }
+
+                # 并发抓取 page 1 与 practice 题库
+                res_1, p_res = await asyncio.gather(
+                    client.get(rec_url_1, headers=web_headers),
+                    client.get(practice_url, headers=p_headers),
+                    return_exceptions=True
+                )
+
+                all_page_texts = []
+                if isinstance(res_1, httpx.Response) and res_1.status_code == 200:
+                    all_page_texts.append(res_1.text)
+                    data_1 = self._extract_decode_data(res_1.text) or {}
+                    curr_1 = data_1.get("currentData", {}) if "currentData" in data_1 else data_1.get("data", {})
+                    rec_wrap_1 = curr_1.get("records", {})
+                    rec_list_1 = rec_wrap_1.get("result", []) if isinstance(rec_wrap_1, dict) else []
+
+                    # 若第一页满 20 条，并发抓取第 2~5 页
+                    if len(rec_list_1) >= 20:
+                        more_page_tasks = [
+                            client.get(f"{self.BASE_URL}/record/list?user={uid}&page={pg}", headers=web_headers)
+                            for pg in range(2, 6)
+                        ]
+                        more_res = await asyncio.gather(*more_page_tasks, return_exceptions=True)
+                        for r_item in more_res:
+                            if isinstance(r_item, httpx.Response) and r_item.status_code == 200:
+                                all_page_texts.append(r_item.text)
+
+                for page_text in all_page_texts:
+                    data = self._extract_decode_data(page_text)
                     if not data:
                         try:
-                            data = res.json()
+                            data = json.loads(page_text)
                         except Exception:
                             data = {}
-                    
+
                     curr_data = data.get("currentData", {}) if "currentData" in data else data.get("data", {})
                     records_wrap = curr_data.get("records", {})
                     records_list = records_wrap.get("result", []) if isinstance(records_wrap, dict) else []
-                    
-                    if not records_list:
-                        break
-                    
+
                     for r in records_list:
                         rec_id = r.get("id")
                         if not rec_id or rec_id in seen_rec_ids:
                             continue
                         seen_rec_ids.add(rec_id)
-                        
+
                         prob = r.get("problem", {})
                         pid = prob.get("pid", f"P_{rec_id}")
                         title = prob.get("title") or prob.get("name") or pid
                         diff_num = prob.get("difficulty", 0)
                         diff_label, diff_score = LUOGU_DIFFICULTY_MAP.get(diff_num, ("未知", 0))
                         tags = infer_luogu_tags(title, pid, diff_num)
-                        
+
                         status_code = r.get("status", 0)
                         verdict = LUOGU_STATUS_MAP.get(status_code, "AC" if status_code == 12 else "WA")
                         if status_code == 12:
                             seen_ac_pids.add(pid)
-                        
+
                         lang_code = r.get("language", 3)
                         lang_str = LUOGU_LANG_MAP.get(lang_code, "C++")
-                        
+
                         stime = r.get("submitTime", 0)
                         sub_at, sub_date = format_beijing_time_and_date(stime)
-                        
+
                         submissions.append(NormalizedSubmission(
                             id=f"luogu_rec_{rec_id}",
                             platform="luogu",
@@ -360,22 +385,10 @@ class LuoguFetcher(BaseFetcher):
                             code_language=lang_str,
                             extra_data={"rec_id": rec_id, "pid": pid, "diff_num": diff_num, "status_code": status_code}
                         ))
-                    
-                    if len(records_list) < 20:
-                        break
 
-                # 2. 抓取 /user/{uid}/practice (获取全量 300 道已通过题目与未解决错题归档)
-                practice_url = f"{self.BASE_URL}/user/{uid}/practice"
-                p_headers = {
-                    "User-Agent": web_headers["User-Agent"],
-                    "x-lentille-request": "content-only",
-                    "Accept": "application/json, text/html, */*",
-                }
-                p_res = await client.get(practice_url, headers=p_headers)
-                
                 passed_list = []
                 submitted_list = []
-                if p_res.status_code == 200:
+                if isinstance(p_res, httpx.Response) and p_res.status_code == 200:
                     try:
                         p_json = p_res.json()
                     except Exception:

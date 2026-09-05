@@ -42,8 +42,7 @@ class AtCoderFetcher(BaseFetcher):
     KENKOOOO_RESOURCE_URL = "https://kenkoooo.com/atcoder/resources"
 
     def __init__(self):
-        self._problems_cache: Dict[str, Dict[str, Any]] = {}
-        self._models_cache: Dict[str, Dict[str, Any]] = {}
+        pass
 
     def _normalize_verdict(self, raw_verdict: str) -> str:
         v = (raw_verdict or "").strip().upper()
@@ -66,21 +65,22 @@ class AtCoderFetcher(BaseFetcher):
 
     async def _load_problem_resources(self, client: httpx.AsyncClient):
         """预加载 Kenkoooo 题库与难度元数据"""
-        if self._problems_cache and self._models_cache:
+        global _GLOBAL_PROBLEMS_CACHE, _GLOBAL_MODELS_CACHE
+        if _GLOBAL_PROBLEMS_CACHE and _GLOBAL_MODELS_CACHE:
             return
 
         try:
             r_probs = await client.get(f"{self.KENKOOOO_RESOURCE_URL}/problems.json", timeout=15.0)
             if r_probs.status_code == 200:
                 for p in r_probs.json():
-                    self._problems_cache[p.get("id")] = p
+                    _GLOBAL_PROBLEMS_CACHE[p.get("id")] = p
         except Exception as e:
             logger.warning(f"加载 AtCoder 题库元数据失败: {e}")
 
         try:
             r_models = await client.get(f"{self.KENKOOOO_RESOURCE_URL}/problem-models.json", timeout=15.0)
             if r_models.status_code == 200:
-                self._models_cache = r_models.json()
+                _GLOBAL_MODELS_CACHE = r_models.json()
         except Exception as e:
             logger.warning(f"加载 AtCoder 难度元数据失败: {e}")
 
@@ -164,8 +164,6 @@ class AtCoderFetcher(BaseFetcher):
 
         try:
             async with httpx.AsyncClient(timeout=25.0, proxy=proxy_url, follow_redirects=True, headers=headers) as client:
-                await self._load_problem_resources(client)
-
                 all_raw_subs: List[Dict[str, Any]] = []
                 from_second = 0
 
@@ -194,6 +192,8 @@ class AtCoderFetcher(BaseFetcher):
 
                 if not all_raw_subs:
                     return [], "同步成功: 0条"
+
+                await self._load_problem_resources(client)
 
                 # 转换为 NormalizedSubmission
                 submissions: List[NormalizedSubmission] = []
