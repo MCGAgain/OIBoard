@@ -485,7 +485,28 @@ createApp({
       try {
         const res = await apiFetch("/api/stats/overview");
         const data = await res.json();
-        overview.value = data;
+        if (data && data.stats) {
+          overview.value = {
+            stats: {
+              total_ac: data.stats.total_ac || 0,
+              total_subs: data.stats.total_subs || 0,
+              today_ac: data.stats.today_ac || 0,
+              today_subs: data.stats.today_subs || 0,
+              streak: data.stats.streak || 0,
+              platforms: data.stats.platforms || {}
+            },
+            platforms_status: data.platforms_status || [],
+            last_sync_time: data.last_sync_time || overview.value.last_sync_time || ""
+          };
+        }
+
+        if (data.platforms_status && Array.isArray(data.platforms_status)) {
+          const newStatusMap = { ...platformStatusMap.value };
+          data.platforms_status.forEach(p => {
+            newStatusMap[p.platform] = p;
+          });
+          platformStatusMap.value = newStatusMap;
+        }
         
         let hasWarning = false;
         (data.platforms_status || []).forEach(p => {
