@@ -1,10 +1,10 @@
-# 🚀 OIBoard (OI 算法刷题聚合看板)
+# OIBoard
 
 <div align="center">
 
 ![OIBoard Favicon](static/favicon.svg)
 
-**跨平台算法训练与数据看板 · 多租户数据隔离 · 3X-UI 极简暗黑科技美学**
+**跨平台算法训练与数据看板 · 多租户数据隔离 · 3X-UI 极简暗黑设计**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com/)
@@ -18,53 +18,39 @@
 
 ---
 
-## 🌟 项目亮点 (Highlights)
-
-OIBoard 是专为算法竞赛选手（OI / ACM / 考研机试 / LeetCode 进阶）打造的**跨平台刷题聚合与能力分析看板**。告别在多个 OJ 平台反复切换与手动统计的繁琐，实现全平台做题数据的自动流转与直观可视化。
-
-- 🏢 **三大主流平台无缝聚合**：支持 **Codeforces**、**洛谷 (Luogu)**、**AcWing** 的做题记录自动拉取与状态同步。
-- 📊 **全量数据流与多维筛选**：支持 2000+ 提交记录全量检索，提供日期区间（今天 / 7天 / 30天 / 今年 / 自定义）、平台、AC/WA 状态、算法标签、搜索关键词与分页控制。
-- 🟩 **GitHub 风格年度贡献热力图**：全年度 365 天刷题足迹分段式离散方块展示，每日提交量阶梯式高亮，连续打卡（Streak）天数实时统计。
-- 🏷️ **经典算法掌握度画像**：内置动态算法分类器，精准识别 动态规划 (DP)、图论、搜索 (DFS/BFS)、贪心、数论数学、数据结构、基础算法 等多维知识图谱。
-- ⚠️ **待攻克错题本 (Mistake Book)**：智能汇聚历史曾有 WA/TLE/MLE 且至今尚未 AC 的题目清单，标记失败次数与最近尝试时间，助力精准查漏补缺。
-- 🔒 **多租户安全数据隔离体系**：
-  - 密码采用标准 **PBKDF2-HMAC-SHA256**（260,000 次高强度迭代 + 32 字节 CSPRNG 独立随机 Salt）；
-  - 256 位高熵 Session 令牌，接口统一接入 `FastAPI Depends` 身份鉴权拦截；
-  - 各注册用户拥有独立的账号配置、做题记录与热力图，用户之间数据 100% 物理隔离。
-- ⚡ **超轻量资源占用**：原生无重型依赖，常驻内存仅 **38MB**，完美契合 1核1G 内存的海外廉价 VPS。
-- 🎨 **3X-UI 黑曜石科技美学**：左侧悬浮伸缩侧边栏、全屏独立配置中心、暗夜黑底色与青色呼吸灯状态设计。
-
----
-
-## 🏗️ 系统架构 (Architecture)
+## 系统架构
 
 ```mermaid
 flowchart TB
     subgraph Frontend [前端界面 (Vue 3 + ECharts + Tailwind)]
-        UI[3X-UI 科技黑曜石看板]
+        UI[3X-UI 极简看板]
         Nav[左侧悬浮伸缩侧边栏]
         HMap[年度贡献热力图]
         Charts[算法标签画像 & 平台占比]
         Stream[全量提交流 & 错题集]
+        ContestUI[跨平台比赛日历 & 实时倒计时]
     end
 
     subgraph API_Layer [API 鉴权与业务层 (FastAPI)]
         Auth[Auth 模块 (PBKDF2-HMAC-SHA256)]
         Dep[Depends 身份拦截器]
-        Router[统计 & 设置 & 认证路由]
+        Router[统计 / 比赛 / 设置 / 认证路由]
     end
 
     subgraph Scheduler_Engine [异步调度与同步引擎]
-        Loop[后台自动轮询 (日常 30m / 冲刺 5m)]
+        Loop[后台自动轮询 (日常自定义 / 冲刺 5m)]
         CF[Codeforces Fetcher]
-        LG[Luogu Fetcher (CSRF/Cookie/分类器)]
+        AT[AtCoder Fetcher (Kenkoooo API)]
+        LG[Luogu Fetcher (异步分页 / 练习库)]
         AW[AcWing Fetcher (HTML5 解析)]
+        Contests[Contest Fetcher (CF / AT / 洛谷赛程)]
     end
 
     subgraph Storage [持久化存储 (SQLite WAL)]
         Users[(users 用户表)]
         Sessions[(sessions 会话表)]
         Submissions[(submissions 提交记录 - user_id 隔离)]
+        ContestsDB[(contests 比赛表)]
         Configs[(user_configs 配置 - user_id 隔离)]
         Status[(platform_status 状态 - user_id 隔离)]
     end
@@ -74,33 +60,33 @@ flowchart TB
     Dep --> Router
     Router --> Storage
     Scheduler_Engine -->|异步并发拉取| Storage
-    Loop --> CF & LG & AW
+    Loop --> CF & AT & LG & AW & Contests
 ```
 
 ---
 
-## 🛠️ 技术栈 (Tech Stack)
+## 技术栈
 
 | 层次 | 技术选型 | 说明 |
 | :--- | :--- | :--- |
 | **后端框架** | **FastAPI** (Python 3.10+) | 高性能异步 ASGI 接口框架 |
-| **数据存储** | **SQLite 3 (WAL Mode)** | 零配置轻量嵌入式数据库，外键完整约束 |
+| **数据存储** | **SQLite 3 (WAL Mode)** | 零配置轻量嵌入式数据库，高并发读写分离与外键完整约束 |
 | **安全加密** | **PBKDF2-HMAC-SHA256** | 260,000 次加盐哈希，抗彩虹表攻击与时序攻击 |
-| **爬虫/同步** | **HTTPX + BeautifulSoup4** | 异步非阻塞 HTTP 请求与 DOM 解析 |
+| **爬虫/同步** | **HTTPX + BeautifulSoup4** | 异步非阻塞 HTTP 协程请求与 DOM 解析 |
 | **前端框架** | **Vue 3 (Composition API)** | 响应式数据绑定与状态管理 |
 | **数据可视化** | **Apache ECharts 5.5** | 热力图、横向柱状图、环形分布图 |
-| **样式体系** | **Tailwind CSS + Glassmorphism** | 3X-UI 暗黑毛玻璃科技风排版 |
+| **样式体系** | **Tailwind CSS** | 3X-UI 极简暗黑排版，轻量低 GPU 开销 |
 | **进程守护** | **Systemd Service** | 开机自启、崩溃重启、日志管理 |
 
 ---
 
-## 🚀 快速开始 (Quick Start)
+## 快速开始
 
-### 1. 本地运行 (Local Development)
+### 1. 本地运行
 
 ```bash
 # 1. 克隆代码仓库
-git clone https://github.com/your-username/OIBoard.git
+git clone https://github.com/MCGAgain/OIBoard.git
 cd OIBoard
 
 # 2. 创建 Python 虚拟环境并激活
@@ -114,16 +100,15 @@ pip install -r requirements.txt
 python run.py
 ```
 
-启动后在浏览器打开：👉 **`http://127.0.0.1:8888`**
+启动后在浏览器打开：`http://127.0.0.1:8888`
 
 ---
 
-### 2. 服务器部署 (VPS Deployment - 运行在 2053 端口)
+### 2. 服务器部署 (VPS - 运行在 2053 端口)
 
 #### 一键脚本部署：
 
 ```bash
-# 进入项目目录执行部署脚本
 chmod +x deploy.sh
 ./deploy.sh
 ```
@@ -132,7 +117,7 @@ chmod +x deploy.sh
 
 ```ini
 [Unit]
-Description=OIBoard Algorithm Dashboard (CF / Luogu / AcWing)
+Description=OIBoard Algorithm Dashboard (CF / AtCoder / Luogu / AcWing)
 After=network.target
 
 [Service]
@@ -156,9 +141,9 @@ systemctl start oiboard
 
 ---
 
-## 🌐 Nginx 反向代理配置 (支持 Cloudflare 免端口访问)
+## Nginx 反向代理配置
 
-为实现纯域名（如 `http://oi.yourdomain.top`）免端口直接访问，可在 Nginx 中添加以下反向代理配置：
+为实现域名免端口直接访问，可在 Nginx 中添加以下反向代理配置：
 
 ```nginx
 server {
@@ -180,17 +165,17 @@ server {
 
 ---
 
-## 🔒 初始管理员与安全说明
+## 初始管理员与安全说明
 
 - **默认主账户**：
   - **用户名**：`admin`
   - **初始密码**：`admin123`
 - **安全建议**：
-  首次登录后，请立即进入 **`CONFIG 设置`** 页面底部的 **`ACCOUNT PASSWORD SECURITY`** 区域将初始密码修改为自定义强密码。系统支持多用户注册，新注册用户数据完全独立隔离。
+  首次登录后，请进入系统设置页面的修改密码区域将初始密码修改为自定义强密码。系统支持多用户注册，新注册用户数据完全独立隔离。
 
 ---
 
-## 📁 目录结构 (Directory Structure)
+## 目录结构
 
 ```text
 OIBoard/
@@ -203,21 +188,23 @@ OIBoard/
 ├── oiboard.service      # Systemd 守护进程单元文件
 ├── requirements.txt     # Python 依赖清单
 ├── fetchers/            # 各 OJ 平台爬取与同步解析器
-│   ├── base.py
-│   ├── codeforces.py
-│   ├── luogu.py
-│   └── acwing.py
+│   ├── base.py          # 基础抽象类与统一数据结构
+│   ├── cf.py            # Codeforces API 数据源
+│   ├── atcoder.py       # AtCoder 官方与 Kenkoooo 数据源
+│   ├── luogu.py         # 洛谷 API 与练习题库数据源
+│   ├── acwing.py        # AcWing 题库与提交数据源
+│   └── contests.py      # 跨平台比赛日历抓取与倒计时
 ├── static/              # 前端单页面应用资源
 │   ├── index.html       # 3X-UI 风格单页应用模版
 │   ├── app.js           # Vue 3 响应式业务与 ECharts 渲染逻辑
-│   ├── style.css        # 自定义动画、毛玻璃与暗黑主题样式
-│   └── favicon.svg      # 3X-UI 青色柱状图标
+│   ├── style.css        # 自定义极简暗黑主题样式
+│   └── favicon.svg      # 3X-UI 柱状图标
 └── data/                # SQLite 数据持久化目录 (自动生成)
     └── oiboard.db
 ```
 
 ---
 
-## 📄 开源许可证 (License)
+## 开源许可证
 
-本项目采用 [MIT License](LICENSE) 开源协议。欢迎提交 PR 与 Issue！
+本项目采用 [MIT License](LICENSE) 开源协议。
