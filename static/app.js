@@ -73,6 +73,7 @@ createApp({
     const platformStatusMap = ref({});
     const isSyncing = ref(false);
     const isSaving = ref(false);
+    const isSavingSystem = ref(false);
     const isVerifying = ref({ codeforces: false, luogu: false, acwing: false, atcoder: false });
 
     const settingsForm = ref({
@@ -891,7 +892,8 @@ createApp({
           body: JSON.stringify({ sprint_mode: next })
         });
         configs.value.sprint_mode = next;
-        showToast(next === "true" ? "已开启刷题冲刺模式 (5min轮询)" : "已切换为日常模式", "success");
+        const regularMins = configs.value.poll_interval_minutes || "30";
+        showToast(next === "true" ? "已开启刷题冲刺模式 (5分钟轮询)" : `已切换为日常模式 (${regularMins}分钟轮询)`, "success");
       } catch (e) {
         showToast("切换模式失败", "error");
       }
@@ -929,16 +931,51 @@ createApp({
       }
     };
 
-    const saveSettingsAndSync = async () => {
-      isSaving.value = true;
+    const saveSystemSettingsOnly = async () => {
+      isSavingSystem.value = true;
       try {
+        const minsStr = String(settingsForm.value.poll_interval_minutes || "30");
+        const payload = {
+          poll_interval_minutes: minsStr,
+          http_proxy: settingsForm.value.http_proxy || ""
+        };
         const res = await apiFetch("/api/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(settingsForm.value)
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (data.success) {
+          configs.value.poll_interval_minutes = minsStr;
+          configs.value.http_proxy = payload.http_proxy;
+          showToast(`系统参数保存成功！日常同步间隔已更新为 ${minsStr} 分钟`, "success");
+        } else {
+          showToast(data.message || "保存失败", "error");
+        }
+      } catch (e) {
+        showToast("保存失败: " + e.message, "error");
+      } finally {
+        isSavingSystem.value = false;
+      }
+    };
+
+    const saveSettingsAndSync = async () => {
+      isSaving.value = true;
+      try {
+        const minsStr = String(settingsForm.value.poll_interval_minutes || "30");
+        const payload = {
+          ...settingsForm.value,
+          poll_interval_minutes: minsStr
+        };
+        const res = await apiFetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          configs.value.poll_interval_minutes = minsStr;
+          configs.value.http_proxy = payload.http_proxy || "";
           showToast("配置保存成功，正在同步最新数据...", "success");
           currentTab.value = "overview"; // 自动平滑切回总览看板
           await syncNow("all");
@@ -994,9 +1031,11 @@ createApp({
 
     // --- Lifecycle ---
     onMounted(async () => {
-      // 启动 1 秒级全局时间戳定时器，保证比赛倒计时实时跳动
+      // 1 秒级时间戳定时器 (仅在需要倒计时的页面跳动，后台标签页自动休眠省电)
       setInterval(() => {
-        nowTimestamp.value = Math.floor(Date.now() / 1000);
+        if (!document.hidden && (currentTab.value === 'contests' || currentTab.value === 'overview')) {
+          nowTimestamp.value = Math.floor(Date.now() / 1000);
+        }
       }, 1000);
 
       if (token.value) {
@@ -1020,28 +1059,48 @@ createApp({
       }
 
       window.addEventListener("resize", () => {
-        heatmapChart && heatmapChart.resize();
-        tagBarChart && tagBarChart.resize();
-        platformPieChart && platformPieChart.resize();
+        if (currentTab.value === "overview") {
+          heatmapChart && heatmapChart.resize();
+          tagBarChart && tagBarChart.resize();
+          platformPieChart && platformPieChart.resize();
+        }
       });
 
-      // 实时后台状态轮询 (每 15 秒静默刷新数据总览与比赛日历倒计时)
+      // 实时后台状态轮询 (每 15 秒静默刷新当前活跃标签页数据)
       setInterval(async () => {
         if (isLoggedIn.value && !document.hidden && !isSyncing.value && !isSaving.value) {
           try {
-            await loadOverview();
+            if (currentTab.value === "overview") {
+              await loadOverview();
+            } else if (currentTab.value === "submissions") {
+              await loadSubmissions();
+            } else if (currentTab.value === "mistakes") {
+              await loadMistakes();
+            } else if (currentTab.value === "contests") {
+              await loadContests();
+            }
           } catch (e) {}
         }
       }, 15000);
     });
 
-    watch(currentTab, (tab) => {
+    // 标签页切换自动静默拉取最新数据，彻底告别手动硬刷新
+    watch(currentTab, async (tab) => {
       if (tab === "overview") {
+        await loadOverview();
         nextTick(() => {
           renderHeatmap();
           renderTagBarChart();
           renderPlatformPie();
         });
+      } else if (tab === "submissions") {
+        await loadSubmissions();
+      } else if (tab === "mistakes") {
+        await loadMistakes();
+      } else if (tab === "contests") {
+        await loadContests();
+      } else if (tab === "settings") {
+        await loadSettings();
       }
     });
 
@@ -1090,6 +1149,7 @@ createApp({
       platformStatusMap,
       isSyncing,
       isSaving,
+      isSavingSystem,
       isVerifying,
       settingsForm,
       showGuide,
@@ -1100,6 +1160,7 @@ createApp({
       toggleSprintMode,
       verifyPlatform,
       saveSettingsAndSync,
+      saveSystemSettingsOnly,
       formatTimeAgo,
       getStatusClass,
       getPlatformPillClass,

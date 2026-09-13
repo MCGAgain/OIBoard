@@ -23,12 +23,7 @@
 
 body {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  background-color: var(--bg-base);
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.08) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
-  background-attachment: fixed;
+  background-color: #06090f;
   color: #f1f5f9;
   min-height: 100vh;
 }
@@ -37,22 +32,19 @@ body {
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* 3X-UI Glassmorphism Cards */
+/* 3X-UI High Performance Solid Surface Cards (Ultra Low GPU Overhead) */
 .ui-card {
-  background: var(--bg-card);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: #0c111e;
   border: 1px solid var(--border-subtle);
   border-radius: 1rem;
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.2s ease;
   position: relative;
   overflow: hidden;
 }
 
 .ui-card:hover {
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.6), 0 0 15px -3px rgba(56, 189, 248, 0.12);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 /* Glowing Top Accent Bar for Cards */
@@ -73,38 +65,26 @@ body {
   height: 7px;
   border-radius: 50%;
   position: relative;
+  display: inline-block;
 }
 
 .pulse-dot.ok {
   background-color: #10b981;
-  box-shadow: 0 0 10px #10b981, 0 0 4px #34d399;
-}
-.pulse-dot.ok::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  background-color: rgba(16, 185, 129, 0.3);
-  animation: pulse-ring 2s infinite cubic-bezier(0.45, 0, 0.55, 1);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
 }
 
 .pulse-dot.warning {
   background-color: #f59e0b;
-  box-shadow: 0 0 10px #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
 }
 
 .pulse-dot.error {
   background-color: #f43f5e;
-  box-shadow: 0 0 10px #f43f5e;
+  box-shadow: 0 0 6px rgba(244, 63, 94, 0.7);
 }
 
 .pulse-dot.unconfigured {
   background-color: #64748b;
-}
-
-@keyframes pulse-ring {
-  0% { transform: scale(0.9); opacity: 0.8; }
-  100% { transform: scale(2.2); opacity: 0; }
 }
 
 /* Status Pills */
@@ -218,11 +198,9 @@ body {
   background: #334155;
 }
 
-/* ECharts Custom Dark Glassmorphism Tooltip */
+/* ECharts Custom Dark Tooltip (Low GPU Overhead) */
 .echarts-tooltip-dark {
-  background: rgba(14, 19, 31, 0.95) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  background: #0e131f !important;
   border: 1px solid rgba(56, 189, 248, 0.35) !important;
   border-radius: 8px !important;
   padding: 8px 12px !important;

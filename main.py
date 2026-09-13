@@ -212,7 +212,14 @@ async def update_settings(payload: SettingsPayload, current_user: Dict[str, Any]
     data = payload.model_dump(exclude_unset=True)
     for k, v in data.items():
         if v is not None:
-            db.set_config(uid, k, v)
+            val_str = str(v).strip()
+            if k == "poll_interval_minutes":
+                try:
+                    m = max(1, min(1440, int(val_str)))
+                    val_str = str(m)
+                except Exception:
+                    val_str = "30"
+            db.set_config(uid, k, val_str)
     return {"success": True, "message": "配置更新成功"}
 
 @app.get("/api/contests")

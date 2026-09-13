@@ -1,10 +1,14 @@
 import re
 import httpx
 import logging
+import asyncio
 from typing import Any, Dict, List, Optional, Tuple
 from fetchers.base import BaseFetcher, NormalizedSubmission, format_beijing_time_and_date, parse_beijing_str_to_date
 
 logger = logging.getLogger("AtCoderFetcher")
+
+_GLOBAL_PROBLEMS_CACHE: Dict[str, Any] = {}
+_GLOBAL_MODELS_CACHE: Dict[str, Any] = {}
 
 # AtCoder 题目算法标签推断词表
 ATCODER_PROBLEM_TAGS = {
@@ -163,17 +167,27 @@ class AtCoderFetcher(BaseFetcher):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=25.0, proxy=proxy_url, follow_redirects=True, headers=headers) as client:
+            async with httpx.AsyncClient(timeout=45.0, proxy=proxy_url, follow_redirects=True, headers=headers) as client:
                 all_raw_subs: List[Dict[str, Any]] = []
                 from_second = 0
 
-                # 循环分页拉取（Kenkoooo API 单次上限 500 条）
+                # 循环分页拉取（Kenkoooo API 单次上限 500 条，附带超时重试）
                 while True:
                     url = f"{self.KENKOOOO_API_URL}/user/submissions?user={handle_clean}&from_second={from_second}"
-                    res = await client.get(url)
-                    if res.status_code != 200:
+                    res = None
+                    for attempt in range(2):
+                        try:
+                            res = await client.get(url)
+                            if res.status_code == 200:
+                                break
+                        except Exception:
+                            if attempt == 1:
+                                raise
+                            await asyncio.sleep(1)
+
+                    if not res or res.status_code != 200:
                         if not all_raw_subs:
-                            return [], f"API 请求失败: HTTP {res.status_code}"
+                            return [], f"API 请求失败: HTTP {res.status_code if res else 'Timeout'}"
                         break
 
                     data = res.json()
@@ -215,11 +229,11 @@ class AtCoderFetcher(BaseFetcher):
                     runtime = f"{exec_time} ms" if exec_time is not None else ""
 
                     # 题目标题与元数据
-                    prob_meta = self._problems_cache.get(prob_id_raw, {})
+                    prob_meta = _GLOBAL_PROBLEMS_CACHE.get(prob_id_raw, {})
                     title = prob_meta.get("title") or prob_meta.get("name") or prob_id_raw
                     
                     # 难度分计算
-                    model_meta = self._models_cache.get(prob_id_raw, {})
+                    model_meta = _GLOBAL_MODELS_CACHE.get(prob_id_raw, {})
                     raw_diff = model_meta.get("difficulty")
                     if raw_diff is not None:
                         diff_score = max(0, int(raw_diff))

@@ -74,7 +74,7 @@ class ContestFetcher:
                             "start_timestamp": start_ts,
                             "duration_seconds": dur_sec,
                             "duration_str": format_duration_seconds(dur_sec),
-                            "url": f"https://codeforces.com/contest/{cid}",
+                            "url": f"https://codeforces.com/contests/{cid}",
                             "phase": phase,
                             "rule_type": c.get("type", "CF"),
                             "updated_at": get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")

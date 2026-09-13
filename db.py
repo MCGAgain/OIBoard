@@ -90,7 +90,7 @@ DB_PATH = os.path.join(DB_DIR, "oiboard.db")
 
 def get_connection() -> sqlite3.Connection:
     os.makedirs(DB_DIR, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
@@ -344,6 +344,7 @@ def create_user(username: str, password: str, is_admin: bool = False) -> Tuple[b
                 "luogu_cookie": "",
                 "acwing_user_id": "",
                 "acwing_cookie": "",
+                "atcoder_handle": "",
                 "poll_interval_minutes": "30",
                 "sprint_mode": "false",
                 "last_sync_time": "",
@@ -351,7 +352,7 @@ def create_user(username: str, password: str, is_admin: bool = False) -> Tuple[b
             }
             for k, v in default_configs.items():
                 cursor.execute("INSERT OR IGNORE INTO user_configs (user_id, key, value) VALUES (?, ?, ?);", (new_id, k, v))
-            for p in ["codeforces", "luogu", "acwing"]:
+            for p in ["codeforces", "luogu", "acwing", "atcoder"]:
                 cursor.execute("""
                     INSERT OR IGNORE INTO platform_status (user_id, platform, status, message, last_checked_at, item_count, rating)
                     VALUES (?, ?, 'unconfigured', '未配置账号', '', 0, '');
