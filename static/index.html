@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OIBoard - 算法训练与数据看板</title>
-  <!-- 网站 Favicon 对齐 3X-UI 经典升起柱状图标 -->
+  <title>OIBoard - 算法刷题数据看板</title>
+  <!-- 网站 Favicon -->
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -40,7 +40,7 @@
       <div class="text-xs font-mono text-slate-400 tracking-wider animate-pulse">CONNECTING...</div>
     </div>
 
-    <!-- ================= 未登录界面 (3X-UI 极简暗黑登录/注册卡片) ================= -->
+    <!-- ================= 未登录界面 ================= -->
     <div v-else-if="!isLoggedIn" class="min-h-screen w-full flex items-center justify-center p-4">
       <div class="ui-card w-full max-w-md p-7 space-y-6 relative border border-white/10 shadow-2xl">
         <!-- Logo & 系统名称 -->
@@ -52,9 +52,8 @@
           </div>
           <h1 class="text-xl font-bold text-white font-mono tracking-tight flex items-center justify-center space-x-1.5 pt-1">
             <span>OIBoard</span>
-            <span class="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">3X</span>
           </h1>
-          <p class="text-xs text-slate-400 font-sans">算法训练看板 · 独立多用户数据隔离</p>
+          <p class="text-xs text-slate-400 font-sans">算法刷题数据看板</p>
         </div>
 
         <!-- 登录 / 注册 Tab 切换 -->
@@ -107,7 +106,7 @@
         </form>
 
         <div class="pt-2 text-center text-[11px] text-slate-500 font-sans">
-          <span>安全加密认证 · 多用户数据隔离</span>
+          <span>算法刷题数据看板</span>
         </div>
       </div>
     </div>
@@ -115,7 +114,7 @@
     <!-- ================= 已登录看板主界面 (Authenticated View) ================= -->
     <template v-if="isLoggedIn">
 
-      <!-- 3X-UI 左侧悬浮/自动伸缩侧边栏 (Ultra Low GPU Overhead) -->
+      <!-- 左侧悬浮/自动伸缩侧边栏 -->
       <aside class="sidebar group fixed top-0 left-0 bottom-0 z-40 w-16 hover:w-60 bg-[#090d16] border-r border-white/10 flex flex-col justify-between transition-all duration-300 ease-in-out shadow-2xl overflow-hidden select-none">
         
         <!-- 顶部 Logo 与系统名 -->
@@ -129,13 +128,12 @@
             <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden">
               <div class="flex items-center space-x-1.5">
                 <span class="text-sm font-bold text-white font-mono tracking-tight">OIBoard</span>
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">3X</span>
               </div>
-              <p class="text-[10px] text-slate-400 font-sans">算法训练数据看板</p>
+              <p class="text-[10px] text-slate-400 font-sans">算法刷题数据看板</p>
             </div>
           </div>
 
-          <!-- 侧边栏主菜单项 (严格对齐 3X-UI 线条图标形态) -->
+          <!-- 侧边栏主菜单项 -->
           <nav class="p-2 space-y-2 mt-3">
             <!-- 1. 数据总览 -->
             <button @click="currentTab = 'overview'" 

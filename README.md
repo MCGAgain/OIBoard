@@ -4,7 +4,7 @@
 
 ![OIBoard Favicon](static/favicon.svg)
 
-**跨平台算法训练与数据看板 · 多租户数据隔离 · 3X-UI 极简暗黑设计**
+**算法刷题与比赛数据看板**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com/)
@@ -23,43 +23,43 @@
 ```mermaid
 flowchart TB
     subgraph Frontend [前端界面 (Vue 3 + ECharts + Tailwind)]
-        UI[3X-UI 极简看板]
-        Nav[左侧悬浮伸缩侧边栏]
+        UI[数据看板]
+        Nav[侧边栏导航]
         HMap[年度贡献热力图]
         Charts[算法标签画像 & 平台占比]
         Stream[全量提交流 & 错题集]
-        ContestUI[跨平台比赛日历 & 实时倒计时]
+        ContestUI[比赛日历 & 实时倒计时]
     end
 
-    subgraph API_Layer [API 鉴权与业务层 (FastAPI)]
-        Auth[Auth 模块 (PBKDF2-HMAC-SHA256)]
-        Dep[Depends 身份拦截器]
+    subgraph API_Layer [API 业务层 (FastAPI)]
+        Auth[用户认证与鉴权]
+        Dep[请求拦截器]
         Router[统计 / 比赛 / 设置 / 认证路由]
     end
 
     subgraph Scheduler_Engine [异步调度与同步引擎]
-        Loop[后台自动轮询 (日常自定义 / 冲刺 5m)]
+        Loop[后台自动轮询]
         CF[Codeforces Fetcher]
-        AT[AtCoder Fetcher (Kenkoooo API)]
-        LG[Luogu Fetcher (异步分页 / 练习库)]
-        AW[AcWing Fetcher (HTML5 解析)]
-        Contests[Contest Fetcher (CF / AT / 洛谷赛程)]
+        AT[AtCoder Fetcher]
+        LG[Luogu Fetcher]
+        AW[AcWing Fetcher]
+        Contests[Contest Fetcher]
     end
 
-    subgraph Storage [持久化存储 (SQLite WAL)]
+    subgraph Storage [持久化存储 (SQLite)]
         Users[(users 用户表)]
         Sessions[(sessions 会话表)]
-        Submissions[(submissions 提交记录 - user_id 隔离)]
+        Submissions[(submissions 提交记录表)]
         ContestsDB[(contests 比赛表)]
-        Configs[(user_configs 配置 - user_id 隔离)]
-        Status[(platform_status 状态 - user_id 隔离)]
+        Configs[(user_configs 配置表)]
+        Status[(platform_status 状态表)]
     end
 
-    UI -->|Bearer Token API| Dep
+    UI -->|API 请求| Dep
     Dep --> Auth
     Dep --> Router
     Router --> Storage
-    Scheduler_Engine -->|异步并发拉取| Storage
+    Scheduler_Engine -->|数据同步| Storage
     Loop --> CF & AT & LG & AW & Contests
 ```
 
@@ -75,7 +75,7 @@ flowchart TB
 | **爬虫/同步** | **HTTPX + BeautifulSoup4** | 异步非阻塞 HTTP 协程请求与 DOM 解析 |
 | **前端框架** | **Vue 3 (Composition API)** | 响应式数据绑定与状态管理 |
 | **数据可视化** | **Apache ECharts 5.5** | 热力图、横向柱状图、环形分布图 |
-| **样式体系** | **Tailwind CSS** | 3X-UI 极简暗黑排版，轻量低 GPU 开销 |
+| **样式体系** | **Tailwind CSS** | 暗色主题与现代化界面排版 |
 | **进程守护** | **Systemd Service** | 开机自启、崩溃重启、日志管理 |
 
 ---
@@ -171,7 +171,7 @@ server {
   - **用户名**：`admin`
   - **初始密码**：`admin123`
 - **安全建议**：
-  首次登录后，请进入系统设置页面的修改密码区域将初始密码修改为自定义强密码。系统支持多用户注册，新注册用户数据完全独立隔离。
+  首次登录后，请进入系统设置修改密码。系统支持多用户注册，各用户数据相互独立。
 
 ---
 
@@ -179,27 +179,27 @@ server {
 
 ```text
 OIBoard/
-├── auth.py              # PBKDF2 安全密码加盐哈希与会话令牌模块
-├── db.py                # SQLite WAL 多租户数据隔离模型与查询接口
-├── main.py              # FastAPI 核心路由与 Depends 鉴权拦截器
+├── auth.py              # 用户认证与密码哈希模块
+├── db.py                # SQLite 数据库模型与数据接口
+├── main.py              # FastAPI 路由与鉴权中间件
 ├── scheduler.py         # 异步定时轮询调度引擎
-├── run.py               # 启动入口与端口参数管理
-├── deploy.sh            # 一键 VPS 部署与 Systemd 配置脚本
-├── oiboard.service      # Systemd 守护进程单元文件
+├── run.py               # 服务启动入口
+├── deploy.sh            # VPS 一键部署脚本
+├── oiboard.service      # Systemd 服务配置文件
 ├── requirements.txt     # Python 依赖清单
-├── fetchers/            # 各 OJ 平台爬取与同步解析器
+├── fetchers/            # 各 OJ 平台数据同步模块
 │   ├── base.py          # 基础抽象类与统一数据结构
-│   ├── cf.py            # Codeforces API 数据源
-│   ├── atcoder.py       # AtCoder 官方与 Kenkoooo 数据源
-│   ├── luogu.py         # 洛谷 API 与练习题库数据源
-│   ├── acwing.py        # AcWing 题库与提交数据源
-│   └── contests.py      # 跨平台比赛日历抓取与倒计时
-├── static/              # 前端单页面应用资源
-│   ├── index.html       # 3X-UI 风格单页应用模版
-│   ├── app.js           # Vue 3 响应式业务与 ECharts 渲染逻辑
-│   ├── style.css        # 自定义极简暗黑主题样式
-│   └── favicon.svg      # 3X-UI 柱状图标
-└── data/                # SQLite 数据持久化目录 (自动生成)
+│   ├── cf.py            # Codeforces 数据源
+│   ├── atcoder.py       # AtCoder 与 Kenkoooo 数据源
+│   ├── luogu.py         # 洛谷数据源
+│   ├── acwing.py        # AcWing 数据源
+│   └── contests.py      # 比赛日历与倒计时抓取
+├── static/              # 前端静态资源
+│   ├── index.html       # 前端页面模版
+│   ├── app.js           # Vue 3 业务逻辑与图表渲染
+│   ├── style.css        # 主题样式
+│   └── favicon.svg      # 网站图标
+└── data/                # SQLite 数据目录 (自动生成)
     └── oiboard.db
 ```
 
