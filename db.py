@@ -676,7 +676,7 @@ def get_daily_counts(user_id: int = 1, platform: str = "", year: Optional[int] =
         """, tuple(params))
         return [dict(r) for r in cursor.fetchall()]
 
-def get_climbing_curve(user_id: int = 1) -> List[Dict[str, Any]]:
+def get_climbing_curve(user_id: int = 1, days: int = 365) -> List[Dict[str, Any]]:
     with get_connection() as conn:
         cursor = conn.cursor()
         # 1. 查询该用户全平台唯一的 AC 题目总数 (作为终点校准)
@@ -688,8 +688,12 @@ def get_climbing_curve(user_id: int = 1) -> List[Dict[str, Any]]:
         total_ac = cursor.fetchone()[0] or 0
         if total_ac == 0:
             return []
+
+        today_str = get_effective_today()
+        today_dt = datetime.strptime(today_str, "%Y-%m-%d")
+        start_date = (today_dt - timedelta(days=days)).strftime("%Y-%m-%d")
             
-        # 2. 查询每道 AC 题目的首次解决日期
+        # 2. 查询每道 AC 题目的首次解决日期 (最近一年内首次 AC 的题目)
         cursor.execute("""
             WITH first_ac AS (
                 SELECT 
@@ -704,31 +708,32 @@ def get_climbing_curve(user_id: int = 1) -> List[Dict[str, Any]]:
                 first_ac_date as date, 
                 COUNT(*) as daily_new_ac
             FROM first_ac
+            WHERE first_ac_date >= ?
             GROUP BY first_ac_date
             ORDER BY first_ac_date ASC;
-        """, (user_id,))
+        """, (user_id, start_date))
         rows = cursor.fetchall()
         
-        dated_sum = sum(r["daily_new_ac"] for r in rows)
-        base_ac = max(0, total_ac - dated_sum)
+        recent_sum = sum(r["daily_new_ac"] for r in rows)
+        base_ac = max(0, total_ac - recent_sum)
         
-        points = []
+        points = [{"date": start_date, "ac": base_ac, "new_ac": 0}]
         cum = base_ac
         for r in rows:
             cum += r["daily_new_ac"]
             points.append({"date": r["date"], "ac": cum, "new_ac": r["daily_new_ac"]})
             
-        today_str = get_effective_today()
-        if not points:
-            points.append({"date": today_str, "ac": total_ac, "new_ac": 0})
-        elif points[-1]["date"] != today_str:
+        if points[-1]["date"] != today_str:
             points.append({"date": today_str, "ac": total_ac, "new_ac": 0})
         else:
             points[-1]["ac"] = total_ac
             
         return points
 
-def get_recent_daily_effort(user_id: int = 1, days: int = 90) -> List[Dict[str, Any]]:
+def get_recent_daily_effort(user_id: int = 1, days: int = 365) -> List[Dict[str, Any]]:
+    today_str = get_effective_today()
+    today_dt = datetime.strptime(today_str, "%Y-%m-%d")
+    start_date = (today_dt - timedelta(days=days)).strftime("%Y-%m-%d")
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -737,13 +742,12 @@ def get_recent_daily_effort(user_id: int = 1, days: int = 90) -> List[Dict[str, 
                 COUNT(*) as total_subs,
                 COUNT(DISTINCT CASE WHEN verdict = 'AC' THEN platform || ':' || problem_id END) as unique_ac
             FROM submissions 
-            WHERE user_id = ? AND date != '' AND date IS NOT NULL
+            WHERE user_id = ? AND date >= ? AND date != '' AND date IS NOT NULL
             GROUP BY date 
-            ORDER BY date DESC 
-            LIMIT ?;
-        """, (user_id, days))
+            ORDER BY date ASC;
+        """, (user_id, start_date))
         rows = [dict(r) for r in cursor.fetchall()]
-        return list(reversed(rows))
+        return rows
 
 def get_submission_years(user_id: int = 1) -> List[int]:
     with get_connection() as conn:

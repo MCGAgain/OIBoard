@@ -25,7 +25,7 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
   <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=2.5.1">
+  <link rel="stylesheet" href="/static/style.css?v=2.5.2">
 </head>
 <body :class="[isDark ? 'dark text-[#f5f5f7]' : 'text-[#1d1d1f]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white transition-colors duration-300">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -411,12 +411,40 @@
                 </span>
                 <span class="status-pill status-ok">今日</span>
               </div>
-              <div class="mt-3 flex items-baseline space-x-2">
-                <span class="text-3xl lg:text-4xl font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums mono">{{ overview.stats.today_ac || 0 }}</span>
-                <span class="text-xs text-[var(--text-tertiary)] font-sans">题</span>
+              <div class="mt-3 flex items-center justify-between">
+                <div class="flex items-baseline space-x-1.5 flex-wrap">
+                  <span class="text-3xl lg:text-4xl font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums mono">{{ overview.stats.today_ac || 0 }}</span>
+                  <span class="text-xs text-[var(--text-tertiary)] font-sans">题</span>
+                  <span class="text-xs text-[var(--text-muted)] font-mono pl-1">/ {{ overview.stats.today_subs || 0 }} 提交</span>
+                </div>
+                <!-- 今日 AC 率圆环指示器 -->
+                <div class="relative flex items-center justify-center shrink-0" :title="'今日通过率: ' + todayAcRate + '%'">
+                  <svg class="w-10 h-10 transform -rotate-90" viewBox="0 0 36 36">
+                    <circle
+                      cx="18" cy="18" r="15.9155"
+                      fill="none"
+                      class="stroke-[var(--border-subtle)]"
+                      stroke-width="3"
+                    />
+                    <circle
+                      cx="18" cy="18" r="15.9155"
+                      fill="none"
+                      stroke="currentColor"
+                      class="text-emerald-500 transition-all duration-700 ease-out"
+                      stroke-width="3"
+                      stroke-dasharray="100, 100"
+                      :stroke-dashoffset="100 - todayAcRate"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                  <span class="absolute text-[9px] font-mono font-bold text-[var(--text-secondary)]">
+                    {{ todayAcRate }}%
+                  </span>
+                </div>
               </div>
-              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] font-sans text-[var(--text-muted)]">
+              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] font-sans text-[var(--text-muted)] flex items-center justify-between">
                 <span>今日提交 {{ overview.stats.today_subs || 0 }} 次</span>
+                <span class="font-mono text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">{{ todayAcRate }}% AC率</span>
               </div>
             </div>
 
@@ -1367,6 +1395,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.5.1"></script>
+  <script src="/static/app.js?v=2.5.2"></script>
 </body>
 </html>

@@ -557,6 +557,13 @@ createApp({
         .slice(0, 3);
     });
 
+    const todayAcRate = computed(() => {
+      const subs = overview.value.stats?.today_subs || 0;
+      const ac = overview.value.stats?.today_ac || 0;
+      if (subs <= 0) return 0;
+      return Math.min(100, Math.round((ac / subs) * 100));
+    });
+
     // --- Data Loaders (绑定当前用户) ---
     let lastKnownTotalSubs = -1;
     let lastKnownSyncTime = "";
@@ -1610,7 +1617,8 @@ createApp({
       // Analytics Workbench & Segmented Control
       chartView,
       renderActiveChart,
-      syncSegmentedThumbs
+      syncSegmentedThumbs,
+      todayAcRate
     };
   }
 }).mount("#app");

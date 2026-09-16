@@ -159,8 +159,8 @@ async def get_overview(current_user: Dict[str, Any] = Depends(get_current_user))
     stats = db.get_submission_stats(user_id=uid)
     status_list = db.get_all_platform_status(user_id=uid)
     last_sync = db.get_config(uid, "last_sync_time", "")
-    climbing = db.get_climbing_curve(user_id=uid)
-    daily_effort = db.get_recent_daily_effort(user_id=uid, days=90)
+    climbing = db.get_climbing_curve(user_id=uid, days=365)
+    daily_effort = db.get_recent_daily_effort(user_id=uid, days=365)
     return {
         "stats": stats,
         "platforms_status": status_list,
