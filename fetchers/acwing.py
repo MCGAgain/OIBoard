@@ -31,9 +31,9 @@ class AcWingFetcher(BaseFetcher):
 
     def _get_headers(self, cookie: str = "") -> Dict[str, str]:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
             "Referer": "https://www.acwing.com/problem/",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
         }
         if cookie:
@@ -73,6 +73,9 @@ class AcWingFetcher(BaseFetcher):
 
                 # 获取题库通过总数
                 prob_res = await client.get(f"{self.BASE_URL}/problem/", headers=self._get_headers(cookie))
+                if prob_res.status_code == 403:
+                    return False, "AcWing 防火墙拦截 (HTTP 403: 平台限制了境外服务器 IP 直连访问，请在系统设置配置国内 HTTP/SOCKS 代理)", {}
+
                 passed_count = 0
                 if prob_res.status_code == 200:
                     prob_soup = BeautifulSoup(prob_res.text, "html.parser")
@@ -97,9 +100,11 @@ class AcWingFetcher(BaseFetcher):
                     else:
                         if "登录" not in res.text:
                             return True, f"Cookie 有效 (已通过: {passed_count} 题)", {"passed": passed_count}
-                        return False, "未检测到有效登录态，请检查 Cookie", {}
-                elif res.status_code in (401, 403):
-                    return False, "AcWing 访问被拒绝或 Cookie 已失效 (403/401)", {}
+                        return False, "Cookie 未包含有效登录态，请检查 sessionid", {}
+                elif res.status_code == 403:
+                    return False, "AcWing 防火墙拦截 (HTTP 403: 平台限制了境外服务器 IP 直连访问，请在系统设置配置国内 HTTP/SOCKS 代理)", {}
+                elif res.status_code == 401:
+                    return False, "Cookie 认证失败 (HTTP 401: 请重新获取并填写 sessionid)", {}
                 else:
                     return False, f"请求失败: HTTP {res.status_code}", {}
         except Exception as e:
@@ -268,6 +273,8 @@ class AcWingFetcher(BaseFetcher):
 
                 # 1. 获取题库首页的总通过数 (如 232 题)
                 res_main = await client.get(f"{self.BASE_URL}/problem/", headers=headers)
+                if res_main.status_code == 403:
+                    return [], "AcWing 访问被拦截 (HTTP 403: 平台限制境外服务器 IP 直连，需配置国内 HTTP/SOCKS 代理)"
                 total_expected = 0
                 if res_main.status_code == 200:
                     prob_soup = BeautifulSoup(res_main.text, "html.parser")

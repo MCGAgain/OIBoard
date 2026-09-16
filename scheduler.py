@@ -95,7 +95,7 @@ class TaskScheduler:
                     update_platform_status(user_id, "acwing", "ok", f"同步成功: {len(subs)}条", item_count=len(subs))
                     res.update({"success": True, "message": f"成功同步 {len(subs)} 条", "count": len(subs)})
                 else:
-                    if "失败" in msg or "异常" in msg:
+                    if "失败" in msg or "异常" in msg or "拦截" in msg or "拒绝" in msg:
                         update_platform_status(user_id, "acwing", "error", msg)
                         res.update({"success": False, "message": msg})
                     else:

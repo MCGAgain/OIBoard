@@ -25,7 +25,7 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
   <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=2.5.2">
+  <link rel="stylesheet" href="/static/style.css?v=2.5.3">
 </head>
 <body :class="[isDark ? 'dark text-[#f5f5f7]' : 'text-[#1d1d1f]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white transition-colors duration-300">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -1323,10 +1323,10 @@
                   <p class="text-[10px] text-[var(--text-muted)] mt-1.5 font-mono">每 {{ settingsForm.poll_interval_minutes || 30 }} 分钟自动同步</p>
                 </div>
                 <div>
-                  <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">出站 HTTP 代理 (可选)</label>
-                  <input v-model="settingsForm.http_proxy" type="text" placeholder="http://127.0.0.1:7890 (国内VPS请留空)" 
+                  <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">出站代理 (支持 HTTP / SOCKS5，可选)</label>
+                  <input v-model="settingsForm.http_proxy" type="text" placeholder="http://ip:port 或 socks5://ip:port" 
                          class="ui-input font-mono text-xs">
-                  <p class="text-[10px] text-[var(--text-muted)] mt-2">海外平台代理加速，留空则由服务器直连</p>
+                  <p class="text-[10px] text-[var(--text-muted)] mt-2">海外 VPS 访问限制境外机房 IP 的国内平台（如 AcWing）时使用，国内服务器可留空</p>
                 </div>
               </div>
             </div>
@@ -1395,6 +1395,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.5.2"></script>
+  <script src="/static/app.js?v=2.5.3"></script>
 </body>
 </html>

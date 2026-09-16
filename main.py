@@ -256,7 +256,9 @@ async def trigger_sync(payload: SyncPayload, current_user: Dict[str, Any] = Depe
 async def verify_credentials(payload: VerifyPayload, current_user: Dict[str, Any] = Depends(get_current_user)):
     uid = current_user["id"]
     p = payload.platform.lower()
-    proxy = payload.http_proxy or ""
+    proxy = (payload.http_proxy or "").strip()
+    if not proxy:
+        proxy = (db.get_config(uid, "http_proxy", "") or "").strip()
 
     if p == "codeforces":
         cf = CodeforcesFetcher()
