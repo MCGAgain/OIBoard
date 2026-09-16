@@ -25,7 +25,7 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
   <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=2.3.0">
+  <link rel="stylesheet" href="/static/style.css?v=2.4.0">
 </head>
 <body :class="[isDark ? 'dark text-[#f5f5f7]' : 'text-[#1d1d1f]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white transition-colors duration-300">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -46,13 +46,24 @@
       <div class="absolute top-6 right-6">
         <div class="segmented-control" title="外观切换">
           <button @click="setThemePref('auto')" :class="['segmented-item text-xs', themePref === 'auto' ? 'active' : '']">
-            <span>🌓 自动</span>
+            <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor"></path>
+            </svg>
+            <span>自动</span>
           </button>
           <button @click="setThemePref('light')" :class="['segmented-item text-xs', themePref === 'light' ? 'active' : '']">
-            <span>☀️ 浅色</span>
+            <svg class="w-3.5 h-3.5 mr-1 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"></circle>
+              <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+            </svg>
+            <span>浅色</span>
           </button>
           <button @click="setThemePref('dark')" :class="['segmented-item text-xs', themePref === 'dark' ? 'active' : '']">
-            <span>🌙 深色</span>
+            <svg class="w-3.5 h-3.5 mr-1 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <span>深色</span>
           </button>
         </div>
       </div>
@@ -541,58 +552,95 @@
               </div>
             </div>
 
-            <!-- Heatmap ECharts 容器 -->
-            <div class="w-full overflow-x-auto pt-1">
-              <div id="heatmap-chart" class="w-full min-w-[750px] h-40"></div>
+            <!-- Heatmap ECharts 容器 (1:1 绝对正方形单元格保障) -->
+            <div class="heatmap-container-outer">
+              <div id="heatmap-chart" class="heatmap-container-inner"></div>
             </div>
 
             <!-- 图例栏 -->
             <div class="flex items-center justify-between pt-2 px-1 text-[11px] font-sans text-[var(--text-secondary)] border-t border-[var(--border-subtle)]">
               <div class="flex items-center space-x-2 text-[var(--text-muted)]">
                 <span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                <span>{{ selectedHeatmapYear }} 年度提交贡献</span>
+                <span>{{ selectedHeatmapYear }} 年度提交贡献 (保持 1:1 像素级方块)</span>
               </div>
               <div class="flex items-center space-x-1.5">
                 <span class="text-[var(--text-muted)] mr-1 text-[10px]">少</span>
-                <span class="w-3 h-3 rounded-[3px] border border-[var(--border-subtle)] inline-block" :style="{ backgroundColor: isDark ? '#161b22' : '#ebedf0' }" title="0 提交"></span>
-                <span class="w-3 h-3 rounded-[3px] inline-block" :style="{ backgroundColor: isDark ? '#0e3a47' : '#bae6fd' }" title="1-2 提交"></span>
-                <span class="w-3 h-3 rounded-[3px] inline-block" :style="{ backgroundColor: isDark ? '#08738a' : '#38bdf8' }" title="3-4 提交"></span>
-                <span class="w-3 h-3 rounded-[3px] inline-block" :style="{ backgroundColor: isDark ? '#06b6d4' : '#0284c7' }" title="5-9 提交"></span>
-                <span class="w-3 h-3 rounded-[3px] inline-block" :style="{ backgroundColor: isDark ? '#38bdf8' : '#0369a1' }" title="≥10 提交"></span>
+                <span class="w-3 h-3 rounded-[3px] border border-[var(--border-subtle)] inline-block" :style="{ backgroundColor: isDark ? '#161618' : '#ebedf0' }" title="0 提交"></span>
+                <span class="w-3 h-3 rounded-[3px] inline-block" :style="{ backgroundColor: isDark ? '#0a2e4a' : '#bae6fd' }" title="1-2 提交"></span>
+                <span class="w-3 h-3 rounded-[3px] inline-block" :style="{ backgroundColor: isDark ? '#0f5a8a' : '#38bdf8' }" title="3-4 提交"></span>
+                <span class="w-3 h-3 rounded-[3px] inline-block" :style="{ backgroundColor: isDark ? '#1a85cc' : '#0284c7' }" title="5-9 提交"></span>
+                <span class="w-3 h-3 rounded-[3px] inline-block" :style="{ backgroundColor: isDark ? '#2997ff' : '#0071e3' }" title="≥10 提交"></span>
                 <span class="text-[var(--text-muted)] ml-1 text-[10px]">多</span>
               </div>
             </div>
           </div>
 
-          <!-- 知识点分析与图表栏 (2列布局) -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- 算法标签掌握分布 -->
-            <div class="ui-card p-5 space-y-3">
-              <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
-                <h2 class="text-xs font-bold text-[var(--text-primary)] font-sans flex items-center space-x-2">
-                  <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+          <!-- 多维训练演进与统计分析工作台 (Apple Pro Analytics Workbench) -->
+          <div class="ui-card p-5 space-y-4">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
+              <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                   </svg>
-                  <span>算法知识点分布</span>
-                </h2>
-                <span class="text-[11px] text-[var(--text-muted)] font-sans">按通过题数</span>
+                </div>
+                <div>
+                  <h2 class="text-xs font-bold text-[var(--text-primary)] font-sans">训练演进与统计分析</h2>
+                  <p class="text-[10px] text-[var(--text-muted)] font-sans">AtCoder 进阶曲线 · 活跃强度 · 算法分类 · 平台比重</p>
+                </div>
               </div>
-              <div id="tag-bar-chart" class="w-full h-72"></div>
+
+              <!-- 核心滑块切换控制器 (Kenkoooo AtCoder 风格) -->
+              <div class="segmented-control">
+                <button @click="chartView = 'climbing'" :class="['segmented-item', chartView === 'climbing' ? 'active' : '']">
+                  <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                    <polyline points="17 6 23 6 23 12"></polyline>
+                  </svg>
+                  <span>爬坡成长曲线</span>
+                </button>
+                <button @click="chartView = 'daily'" :class="['segmented-item', chartView === 'daily' ? 'active' : '']">
+                  <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                  </svg>
+                  <span>每日刷题分布</span>
+                </button>
+                <button @click="chartView = 'tags'" :class="['segmented-item', chartView === 'tags' ? 'active' : '']">
+                  <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                    <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                  </svg>
+                  <span>算法分类掌握</span>
+                </button>
+                <button @click="chartView = 'platforms'" :class="['segmented-item', chartView === 'platforms' ? 'active' : '']">
+                  <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                    <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+                  </svg>
+                  <span>平台题量占比</span>
+                </button>
+              </div>
             </div>
 
-            <!-- 各平台题量占比 -->
-            <div class="ui-card p-5 space-y-3">
-              <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
-                <h2 class="text-xs font-bold text-[var(--text-primary)] font-sans flex items-center space-x-2">
-                  <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
-                  </svg>
-                  <span>各平台题量占比</span>
-                </h2>
-                <span class="text-[11px] text-[var(--text-muted)] font-sans">通过题目分布</span>
+            <!-- ECharts 动态图表主容器 -->
+            <div class="w-full pt-1">
+              <div id="analytics-chart" class="w-full h-80"></div>
+            </div>
+
+            <!-- 底部图表说明与洞察 -->
+            <div class="flex items-center justify-between pt-2 px-1 text-[11px] font-sans text-[var(--text-secondary)] border-t border-[var(--border-subtle)]">
+              <div class="flex items-center space-x-2 text-[var(--text-muted)]">
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                <span v-if="chartView === 'climbing'">累计 AC 爬坡曲线: 记录算法水平成长轨迹与里程碑 (Kenkoooo AtCoder 风格)</span>
+                <span v-else-if="chartView === 'daily'">近 90 天每日刷题强度分布柱状图，实时呈现练习热度</span>
+                <span v-else-if="chartView === 'tags'">各大算法知识点题型攻克量分布 (Top 15)</span>
+                <span v-else>Codeforces / AtCoder / 洛谷 / AcWing 题量配比圆环图</span>
               </div>
-              <div id="platform-pie-chart" class="w-full h-72"></div>
+              <div class="text-[10px] text-[var(--text-muted)] font-mono">
+                OI-BOARD ANALYTICS
+              </div>
             </div>
           </div>
         </div>
@@ -638,8 +686,12 @@
               <!-- 状态过滤 -->
               <div class="segmented-control">
                 <button @click="contestStatusFilter = 'all'" :class="['segmented-item', contestStatusFilter === 'all' ? 'active' : '']">全部</button>
-                <button @click="contestStatusFilter = 'BEFORE'" :class="['segmented-item', contestStatusFilter === 'BEFORE' ? 'active' : '']">即将开始</button>
-                <button @click="contestStatusFilter = 'CODING'" :class="['segmented-item', contestStatusFilter === 'CODING' ? 'active' : '']">🔥 正在进行</button>
+                <button @click="contestStatusFilter = 'CODING'" :class="['segmented-item', contestStatusFilter === 'CODING' ? 'active' : '']">
+                  <span class="inline-flex items-center">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                    <span>进行中</span>
+                  </span>
+                </button>
               </div>
 
               <!-- 搜索框 -->
@@ -725,7 +777,11 @@
                     <a :href="c.url" target="_blank" 
                        class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 transition-all inline-flex items-center space-x-1">
                        <span>前往</span>
-                       <span>↗</span>
+                       <svg class="w-3 h-3 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                         <polyline points="15 3 21 3 21 9"></polyline>
+                         <line x1="10" y1="14" x2="21" y2="3"></line>
+                       </svg>
                     </a>
                   </td>
                 </tr>
@@ -896,7 +952,11 @@
                     <a v-if="sub.submission_url" :href="sub.submission_url" target="_blank" 
                        class="text-blue-600 dark:text-blue-400 hover:opacity-80 text-xs hover:underline inline-flex items-center space-x-1 font-medium">
                       <span>查看</span>
-                      <span>↗</span>
+                      <svg class="w-3 h-3 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                      </svg>
                     </a>
                     <span v-else class="text-[var(--text-muted)] text-xs">-</span>
                   </td>
@@ -993,7 +1053,11 @@
                     <a v-if="item.submission_url" :href="item.submission_url" target="_blank"
                        class="text-blue-600 dark:text-blue-400 hover:opacity-80 text-xs hover:underline inline-flex items-center space-x-1 font-medium">
                       <span>去做题</span>
-                      <span>↗</span>
+                      <svg class="w-3 h-3 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                      </svg>
                     </a>
                     <span v-else class="text-[var(--text-muted)] text-xs">-</span>
                   </td>
@@ -1044,7 +1108,9 @@
                   </svg>
                   <span>平台配置与获取指南 (点击{{ showGuide ? '收起' : '展开' }})</span>
                 </span>
-                <span class="text-blue-500 text-xs">{{ showGuide ? '▲' : '▼' }}</span>
+                <svg class="w-4 h-4 text-blue-500 transition-transform duration-200" :class="{ 'rotate-180': showGuide }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
               </div>
               <div v-if="showGuide" class="space-y-2 pt-2 border-t border-blue-500/15 text-[var(--text-secondary)] font-sans leading-relaxed text-xs">
                 <div>
@@ -1087,7 +1153,10 @@
                     <div>
                       <label class="block text-[var(--text-tertiary)] mb-1 text-[11px] font-medium">认证方式</label>
                       <div class="ui-input text-[var(--text-secondary)] bg-[var(--bg-surface)] flex items-center text-xs">
-                        <span class="text-blue-500 mr-1.5">✓</span> 公开 API 免 Cookie
+                        <svg class="w-3.5 h-3.5 text-blue-500 mr-1.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span>公开 API 免 Cookie</span>
                       </div>
                     </div>
                   </div>
@@ -1121,7 +1190,10 @@
                     <div>
                       <label class="block text-[var(--text-tertiary)] mb-1 text-[11px] font-medium">认证方式</label>
                       <div class="ui-input text-[var(--text-secondary)] bg-[var(--bg-surface)] flex items-center text-xs">
-                        <span class="text-purple-500 mr-1.5">✓</span> 公开 API 免 Cookie
+                        <svg class="w-3.5 h-3.5 text-purple-500 mr-1.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span>公开 API 免 Cookie</span>
                       </div>
                     </div>
                   </div>
@@ -1205,7 +1277,11 @@
             <div class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-4 shadow-sm">
               <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
                 <div class="flex items-center space-x-2">
-                  <span class="font-bold text-[var(--text-primary)] text-xs">⚙️ 系统轮询与网络参数</span>
+                  <svg class="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                  </svg>
+                  <span class="font-bold text-[var(--text-primary)] text-xs">系统轮询与网络参数</span>
                 </div>
                 <button @click="saveSystemSettingsOnly" :disabled="isSavingSystem"
                         class="btn-primary text-xs px-3.5 py-1.5 flex items-center space-x-1.5 shadow-sm">
@@ -1250,7 +1326,11 @@
             <!-- 账号密码安全设置卡片 (Password Change) -->
             <div class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-4 shadow-sm">
               <div class="flex items-center space-x-2 pb-3 border-b border-[var(--border-subtle)]">
-                <span class="font-bold text-[var(--text-primary)] text-xs">🔒 修改登录密码</span>
+                <svg class="w-4 h-4 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <span class="font-bold text-[var(--text-primary)] text-xs">修改登录密码</span>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div>
@@ -1295,12 +1375,18 @@
     <!-- 全局浮动提示 (Toast - Apple Frosted Pill) -->
     <div v-if="toast.show" class="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-xl text-xs font-semibold border flex items-center space-x-2.5 backdrop-blur-xl transition-all font-sans"
          :class="toast.type === 'success' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'">
-      <span>{{ toast.type === 'success' ? '✓' : '✕' }}</span>
+      <svg v-if="toast.type === 'success'" class="w-4 h-4 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      <svg v-else class="w-4 h-4 text-rose-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
       <span>{{ toast.message }}</span>
     </div>
 
   </div>
 
-  <script src="/static/app.js?v=2.3.0"></script>
+  <script src="/static/app.js?v=2.4.0"></script>
 </body>
 </html>

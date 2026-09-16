@@ -93,8 +93,34 @@ createApp({
 
     // ECharts 实例引用
     let heatmapChart = null;
+    let analyticsChart = null;
     let tagBarChart = null;
     let platformPieChart = null;
+    const chartView = ref("climbing"); // 'climbing' | 'daily' | 'tags' | 'platforms'
+
+    // --- Apple Segmented Control 物理级滑动指示器同步引擎 ---
+    const syncSegmentedThumbs = () => {
+      nextTick(() => {
+        const controls = document.querySelectorAll(".segmented-control");
+        controls.forEach(ctrl => {
+          let thumb = ctrl.querySelector(".segmented-thumb");
+          if (!thumb) {
+            thumb = document.createElement("div");
+            thumb.className = "segmented-thumb";
+            ctrl.insertBefore(thumb, ctrl.firstChild);
+          }
+          const active = ctrl.querySelector(".segmented-item.active");
+          if (active && active.offsetParent !== null) {
+            thumb.style.transform = `translateX(${active.offsetLeft}px)`;
+            thumb.style.width = `${active.offsetWidth}px`;
+            thumb.style.height = `${active.offsetHeight}px`;
+            thumb.style.opacity = "1";
+          } else {
+            thumb.style.opacity = "0";
+          }
+        });
+      });
+    };
 
     // --- Theme Engine (Auto Day/Night, Light, Dark) ---
     const themePref = ref(localStorage.getItem("oiboard_theme_pref") || "auto");
@@ -124,10 +150,10 @@ createApp({
       if (currentTab.value === "overview") {
         nextTick(() => {
           renderHeatmap();
-          renderTagBarChart();
-          renderPlatformPie();
+          renderActiveChart();
         });
       }
+      syncSegmentedThumbs();
     };
 
     const setThemePref = (mode) => {
@@ -138,6 +164,7 @@ createApp({
         ? `自动模式 (当前为${isDark.value ? '夜间深色' : '白天浅色'})` 
         : (mode === "dark" ? "深色模式" : "浅色模式");
       showToast(`已切换为 ${desc}`, "info");
+      syncSegmentedThumbs();
     };
 
     // --- Toast 消息提示 ---
@@ -431,11 +458,13 @@ createApp({
     const setSubFilter = (p) => {
       subFilter.value = p;
       currentPage.value = 1;
+      nextTick(syncSegmentedThumbs);
     };
 
     const setDateFilter = (preset) => {
       dateFilter.value = preset;
       currentPage.value = 1;
+      nextTick(syncSegmentedThumbs);
     };
 
     const resetFilters = () => {
@@ -447,6 +476,7 @@ createApp({
       selectedTag.value = "";
       searchKeyword.value = "";
       currentPage.value = 1;
+      nextTick(syncSegmentedThumbs);
     };
 
     // --- Contest Computed & Helpers ---
@@ -485,9 +515,9 @@ createApp({
         const mins = Math.floor((remaining % 3600) / 60);
         const secs = remaining % 60;
         if (hours > 0) {
-          return `🔥 正在进行中 (剩余 ${hours}小时${mins}分)`;
+          return `进行中 (剩余 ${hours}小时${mins}分)`;
         } else {
-          return `🔥 正在进行中 (剩余 ${mins}分${secs}秒)`;
+          return `进行中 (剩余 ${mins}分${secs}秒)`;
         }
       } else {
         return "已结束";
@@ -689,14 +719,14 @@ createApp({
       if (!isLoggedIn.value) return;
       await Promise.all([loadOverview(), loadHeatmap(), loadTags(), loadMistakes(), loadSubmissions(), loadSettings(), loadContests()]);
       await nextTick();
+      syncSegmentedThumbs();
       if (currentTab.value === "overview") {
         renderHeatmap();
-        renderTagBarChart();
-        renderPlatformPie();
+        renderActiveChart();
       }
     };
 
-    // --- ECharts 渲染 ---
+    // --- ECharts 渲染系统 (Apple Pro 调色 + 1:1 纯正方形热力图 + 攀登曲线) ---
     const renderHeatmap = () => {
       const chartDom = document.getElementById("heatmap-chart");
       if (!chartDom) return;
@@ -722,7 +752,7 @@ createApp({
           appendToBody: true,
           confine: false,
           padding: [9, 14],
-          backgroundColor: dark ? "rgba(18, 18, 20, 0.94)" : "rgba(255, 255, 255, 0.94)",
+          backgroundColor: dark ? "rgba(20, 20, 22, 0.96)" : "rgba(255, 255, 255, 0.96)",
           borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
           borderWidth: 1,
           textStyle: {
@@ -730,10 +760,10 @@ createApp({
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
             fontSize: 12
           },
-          extraCssText: "backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15); z-index: 99999;",
+          extraCssText: "backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25); z-index: 99999;",
           formatter: function (p) {
-            const countColor = dark ? "#38bdf8" : "#0071e3";
-            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#e2e8f0' : '#1d1d1f'}">${p.value[0]}</div><div class="text-xs font-semibold mt-1 font-sans" style="color: ${countColor}; font-weight: 700;">${p.value[1]} 题提交通过</div>`;
+            const countColor = dark ? "#2997ff" : "#0071e3";
+            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.value[0]}</div><div class="text-xs font-bold mt-1 font-sans" style="color: ${countColor}; font-weight: 700;">${p.value[1]} 题提交通过</div>`;
           }
         },
         visualMap: {
@@ -742,22 +772,21 @@ createApp({
           max: 10,
           inRange: {
             color: dark 
-              ? ["#0e3a47", "#08738a", "#06b6d4", "#38bdf8"]
-              : ["#bae6fd", "#38bdf8", "#0284c7", "#0369a1"]
+              ? ["#0a2e4a", "#0f5a8a", "#1a85cc", "#2997ff"]
+              : ["#bae6fd", "#38bdf8", "#0284c7", "#0071e3"]
           },
           outOfRange: {
-            color: dark ? "#161b22" : "#ebedf0"
+            color: dark ? "#161618" : "#ebedf0"
           }
         },
         calendar: {
-          top: 26,
-          left: 35,
-          right: 15,
-          cellSize: [13, 13],
+          top: 24,
+          left: 28,
+          cellSize: [13, 13], /* 严格 13x13 黄金正方形，移除 right 限制杜绝拉伸为长方形 */
           range: [startDateStr, endDateStr],
           itemStyle: {
-            color: dark ? "#161b22" : "#ebedf0",
-            borderColor: dark ? "#06090f" : "#ffffff",
+            color: dark ? "#161618" : "#ebedf0",
+            borderColor: dark ? "#000000" : "#ffffff",
             borderWidth: 2,
             borderRadius: 3
           },
@@ -766,12 +795,12 @@ createApp({
           dayLabel: {
             firstDay: 1,
             nameMap: ["日", "一", "二", "三", "四", "五", "六"],
-            color: dark ? "#64748b" : "#86868b",
+            color: dark ? "#6e6e73" : "#86868b",
             fontSize: 10,
             fontFamily: "JetBrains Mono"
           },
           monthLabel: {
-            color: dark ? "#94a3b8" : "#6e6e73",
+            color: dark ? "#a1a1a6" : "#6e6e73",
             fontSize: 11,
             fontFamily: "JetBrains Mono"
           }
@@ -787,15 +816,218 @@ createApp({
       chart.resize();
     };
 
-    const renderTagBarChart = () => {
-      const chartDom = document.getElementById("tag-bar-chart");
+    // 1. AtCoder Problems (kenkoooo) 风格: 累计解题爬坡成长曲线
+    const renderClimbingChart = () => {
+      const chartDom = document.getElementById("analytics-chart");
       if (!chartDom) return;
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
         chart = echarts.init(chartDom);
       }
-      tagBarChart = chart;
+      analyticsChart = chart;
+      chart.clear();
+
+      const dark = isDark.value;
+      const sorted = [...(rawHeatmap.value || [])]
+        .filter(item => item.date)
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      let cumulative = 0;
+      const dates = [];
+      const values = [];
+      sorted.forEach(item => {
+        if (item.count > 0) {
+          cumulative += item.count;
+          dates.push(item.date);
+          values.push(cumulative);
+        }
+      });
+
+      if (dates.length === 0) {
+        dates.push(new Date().toISOString().slice(0, 10));
+        values.push(overview.value.stats?.total_ac || 0);
+      }
+
+      const option = {
+        title: {
+          text: "累计解题爬坡曲线 (Total AC Problems Climbed)",
+          left: 15,
+          top: 10,
+          textStyle: {
+            fontSize: 12,
+            fontWeight: 600,
+            color: dark ? "#f5f5f7" : "#1d1d1f",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+          }
+        },
+        tooltip: {
+          trigger: "axis",
+          padding: [8, 14],
+          backgroundColor: dark ? "rgba(20, 20, 22, 0.95)" : "rgba(255, 255, 255, 0.95)",
+          borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
+          textStyle: {
+            color: dark ? "#f5f5f7" : "#1d1d1f",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+            fontSize: 12
+          },
+          extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);",
+          formatter: function (params) {
+            const p = params[0];
+            const col = dark ? '#2997ff' : '#0071e3';
+            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div><div class="text-xs font-bold mt-1 font-sans" style="color:${col}">累计通过: ${p.value} 题</div>`;
+          }
+        },
+        grid: {
+          left: "3%",
+          right: "4%",
+          bottom: "8%",
+          top: "16%",
+          containLabel: true
+        },
+        xAxis: {
+          type: "category",
+          data: dates,
+          boundaryGap: false,
+          axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)" } },
+          axisLabel: { 
+            color: dark ? "#86868b" : "#86868b", 
+            fontSize: 10, 
+            fontFamily: "JetBrains Mono",
+            formatter: (val) => val.slice(5)
+          }
+        },
+        yAxis: {
+          type: "value",
+          splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)" } },
+          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
+        },
+        series: [{
+          name: "累计解题数",
+          type: "line",
+          smooth: 0.35,
+          symbol: "circle",
+          symbolSize: 5,
+          itemStyle: { color: dark ? "#2997ff" : "#0071e3" },
+          lineStyle: { width: 2.5, color: dark ? "#2997ff" : "#0071e3" },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, dark ? [
+              { offset: 0, color: "rgba(41, 151, 255, 0.35)" },
+              { offset: 1, color: "rgba(41, 151, 255, 0.0)" }
+            ] : [
+              { offset: 0, color: "rgba(0, 113, 227, 0.28)" },
+              { offset: 1, color: "rgba(0, 113, 227, 0.0)" }
+            ])
+          },
+          data: values
+        }]
+      };
+
+      chart.setOption(option, true);
+      chart.resize();
+    };
+
+    // 2. AtCoder Problems (kenkoooo) 风格: 每日刷题强度分布图
+    const renderDailyEffortChart = () => {
+      const chartDom = document.getElementById("analytics-chart");
+      if (!chartDom) return;
+
+      let chart = echarts.getInstanceByDom(chartDom);
+      if (!chart) {
+        chart = echarts.init(chartDom);
+      }
+      analyticsChart = chart;
+      chart.clear();
+
+      const dark = isDark.value;
+      const sorted = [...(rawHeatmap.value || [])]
+        .filter(item => item.count > 0)
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const slice = sorted.slice(-45);
+      const dates = slice.map(item => item.date.slice(5));
+      const counts = slice.map(item => item.count);
+
+      const option = {
+        title: {
+          text: "每日刷题强度分布 (Daily Effort)",
+          left: 15,
+          top: 10,
+          textStyle: {
+            fontSize: 12,
+            fontWeight: 600,
+            color: dark ? "#f5f5f7" : "#1d1d1f",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+          }
+        },
+        tooltip: {
+          trigger: "axis",
+          axisPointer: { type: "shadow" },
+          padding: [8, 14],
+          backgroundColor: dark ? "rgba(20, 20, 22, 0.95)" : "rgba(255, 255, 255, 0.95)",
+          borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
+          textStyle: {
+            color: dark ? "#f5f5f7" : "#1d1d1f",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+          },
+          extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);",
+          formatter: function (params) {
+            const p = params[0];
+            const col = dark ? '#30d158' : '#34c759';
+            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div><div class="text-xs font-bold mt-1 font-sans" style="color:${col}">当日通过: ${p.value} 题</div>`;
+          }
+        },
+        grid: {
+          left: "3%",
+          right: "4%",
+          bottom: "8%",
+          top: "16%",
+          containLabel: true
+        },
+        xAxis: {
+          type: "category",
+          data: dates,
+          axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)" } },
+          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
+        },
+        yAxis: {
+          type: "value",
+          splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)" } },
+          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
+        },
+        series: [{
+          name: "每日刷题量",
+          type: "bar",
+          barMaxWidth: 16,
+          itemStyle: {
+            borderRadius: [4, 4, 0, 0],
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, dark ? [
+              { offset: 0, color: "#30d158" },
+              { offset: 1, color: "rgba(48, 209, 88, 0.25)" }
+            ] : [
+              { offset: 0, color: "#34c759" },
+              { offset: 1, color: "rgba(52, 199, 89, 0.25)" }
+            ])
+          },
+          data: counts
+        }]
+      };
+
+      chart.setOption(option, true);
+      chart.resize();
+    };
+
+    // 3. 算法标签掌握分布
+    const renderTagBarChart = () => {
+      const chartDom = document.getElementById("analytics-chart");
+      if (!chartDom) return;
+
+      let chart = echarts.getInstanceByDom(chartDom);
+      if (!chart) {
+        chart = echarts.init(chartDom);
+      }
+      analyticsChart = chart;
+      chart.clear();
 
       const dark = isDark.value;
       const topTags = (tagStats.value || []).slice(0, 10).reverse();
@@ -803,40 +1035,51 @@ createApp({
       const acData = topTags.map(t => t.ac_count);
 
       const option = {
+        title: {
+          text: "算法知识点掌握分布 (Top Tags Solved)",
+          left: 15,
+          top: 10,
+          textStyle: {
+            fontSize: 12,
+            fontWeight: 600,
+            color: dark ? "#f5f5f7" : "#1d1d1f",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+          }
+        },
         tooltip: {
           trigger: "axis",
           axisPointer: { type: "shadow" },
-          padding: [8, 12],
-          backgroundColor: dark ? "rgba(18, 18, 20, 0.94)" : "rgba(255, 255, 255, 0.94)",
+          padding: [8, 14],
+          backgroundColor: dark ? "rgba(20, 20, 22, 0.95)" : "rgba(255, 255, 255, 0.95)",
           borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
           textStyle: {
             color: dark ? "#f5f5f7" : "#1d1d1f",
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
           },
-          extraCssText: "backdrop-filter: blur(20px); border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);",
+          extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);",
           formatter: function (params) {
             const p = params[0];
-            const col = dark ? '#38bdf8' : '#0071e3';
-            return `<div class="font-sans text-xs font-semibold">${p.name}</div><div class="text-xs font-bold mt-1" style="color:${col}">AC 题数: ${p.value}</div>`;
+            const col = dark ? '#2997ff' : '#0071e3';
+            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div><div class="text-xs font-bold mt-1 font-sans" style="color:${col}">AC 题数: ${p.value} 题</div>`;
           }
         },
         grid: {
           left: "3%",
           right: "6%",
-          bottom: "3%",
-          top: "4%",
+          bottom: "8%",
+          top: "16%",
           containLabel: true
         },
         xAxis: {
           type: "value",
           splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)" } },
-          axisLabel: { color: dark ? "#64748b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
+          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
         },
         yAxis: {
           type: "category",
           data: categories,
           axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)" } },
-          axisLabel: { color: dark ? "#cbd5e1" : "#1d1d1f", fontSize: 11, fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }
+          axisLabel: { color: dark ? "#f5f5f7" : "#1d1d1f", fontSize: 11, fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }
         },
         series: [{
           name: "AC 题数",
@@ -845,8 +1088,8 @@ createApp({
           itemStyle: {
             borderRadius: [0, 6, 6, 0],
             color: new echarts.graphic.LinearGradient(0, 0, 1, 0, dark ? [
-              { offset: 0, color: "rgba(6, 182, 212, 0.3)" },
-              { offset: 1, color: "#06b6d4" }
+              { offset: 0, color: "rgba(41, 151, 255, 0.25)" },
+              { offset: 1, color: "#2997ff" }
             ] : [
               { offset: 0, color: "rgba(0, 113, 227, 0.35)" },
               { offset: 1, color: "#0071e3" }
@@ -859,51 +1102,64 @@ createApp({
       chart.resize();
     };
 
+    // 4. 各平台题量占比分布
     const renderPlatformPie = () => {
-      const chartDom = document.getElementById("platform-pie-chart");
+      const chartDom = document.getElementById("analytics-chart");
       if (!chartDom) return;
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
         chart = echarts.init(chartDom);
       }
-      platformPieChart = chart;
+      analyticsChart = chart;
+      chart.clear();
 
       const dark = isDark.value;
       const pData = overview.value.stats.platforms || {};
       const data = [
-        { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: dark ? "#06b6d4" : "#0071e3" } },
-        { value: pData.atcoder?.ac || 0, name: "AtCoder", itemStyle: { color: "#af52de" } },
-        { value: pData.luogu?.ac || 0, name: "洛谷", itemStyle: { color: "#34c759" } },
-        { value: pData.acwing?.ac || 0, name: "AcWing", itemStyle: { color: "#ff9500" } }
+        { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: dark ? "#2997ff" : "#0071e3" } },
+        { value: pData.atcoder?.ac || 0, name: "AtCoder", itemStyle: { color: dark ? "#bf5af2" : "#af52de" } },
+        { value: pData.luogu?.ac || 0, name: "洛谷", itemStyle: { color: dark ? "#30d158" : "#34c759" } },
+        { value: pData.acwing?.ac || 0, name: "AcWing", itemStyle: { color: dark ? "#ff9f0a" : "#ff9500" } }
       ].filter(d => d.value > 0);
 
       const option = {
+        title: {
+          text: "各平台题量占比 (Platform Proportions)",
+          left: 15,
+          top: 10,
+          textStyle: {
+            fontSize: 12,
+            fontWeight: 600,
+            color: dark ? "#f5f5f7" : "#1d1d1f",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+          }
+        },
         tooltip: {
           trigger: "item",
           formatter: "{b}: {c} 题 ({d}%)",
-          backgroundColor: dark ? "rgba(18, 18, 20, 0.94)" : "rgba(255, 255, 255, 0.94)",
+          backgroundColor: dark ? "rgba(20, 20, 22, 0.95)" : "rgba(255, 255, 255, 0.95)",
           borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
           textStyle: {
             color: dark ? "#f5f5f7" : "#1d1d1f",
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
           },
-          extraCssText: "backdrop-filter: blur(20px); border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);"
+          extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);"
         },
         legend: {
-          bottom: "5%",
+          bottom: "6%",
           left: "center",
-          textStyle: { color: dark ? "#94a3b8" : "#6e6e73", fontSize: 11, fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif' }
+          textStyle: { color: dark ? "#a1a1a6" : "#6e6e73", fontSize: 11, fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif' }
         },
         series: [{
           name: "通过题量分布",
           type: "pie",
           radius: ["45%", "70%"],
-          center: ["50%", "45%"],
+          center: ["50%", "50%"],
           avoidLabelOverlap: false,
           itemStyle: {
             borderRadius: 8,
-            borderColor: dark ? "#0e131f" : "#ffffff",
+            borderColor: dark ? "#000000" : "#ffffff",
             borderWidth: 3
           },
           label: { show: false },
@@ -915,7 +1171,7 @@ createApp({
               color: dark ? "#fff" : "#1d1d1f"
             }
           },
-          data: data.length ? data : [{ value: 0, name: "暂无数据", itemStyle: { color: dark ? "#374151" : "#e2e8f0" } }]
+          data: data.length ? data : [{ value: 0, name: "暂无数据", itemStyle: { color: dark ? "#2c2c2e" : "#e2e8f0" } }]
         }]
       };
 
@@ -923,15 +1179,29 @@ createApp({
       chart.resize();
     };
 
+    const renderActiveChart = () => {
+      if (chartView.value === "climbing") {
+        renderClimbingChart();
+      } else if (chartView.value === "daily") {
+        renderDailyEffortChart();
+      } else if (chartView.value === "tags") {
+        renderTagBarChart();
+      } else if (chartView.value === "platforms") {
+        renderPlatformPie();
+      }
+    };
+
     // --- Platform & Sync Actions ---
     const setHeatmapFilter = (p) => {
       heatmapFilter.value = p;
       loadHeatmap();
+      nextTick(syncSegmentedThumbs);
     };
 
     const setHeatmapYear = (yr) => {
       selectedHeatmapYear.value = yr;
       loadHeatmap();
+      nextTick(syncSegmentedThumbs);
     };
 
     const syncNow = async (platform = "all") => {
@@ -961,8 +1231,8 @@ createApp({
         await nextTick();
         if (currentTab.value === "overview") {
           renderHeatmap();
-          renderTagBarChart();
-          renderPlatformPie();
+          renderActiveChart();
+          syncSegmentedThumbs();
         }
       }
     };
@@ -1159,9 +1429,13 @@ createApp({
       window.addEventListener("resize", () => {
         if (currentTab.value === "overview") {
           heatmapChart && heatmapChart.resize();
-          tagBarChart && tagBarChart.resize();
-          platformPieChart && platformPieChart.resize();
+          analyticsChart && analyticsChart.resize();
         }
+        syncSegmentedThumbs();
+      });
+
+      nextTick(() => {
+        syncSegmentedThumbs();
       });
 
       // 实时后台状态轮询 (每 15 秒静默刷新当前活跃标签页数据，概览页实时更新热力图)
@@ -1182,23 +1456,41 @@ createApp({
       }, 15000);
     });
 
-    // 标签页切换自动静默拉取最新数据，概览页重新加载热力图与标签，彻底告别手动硬刷新
+    // 监控图表类型切换，无缝渲染并对齐滑块
+    watch(chartView, () => {
+      nextTick(() => {
+        syncSegmentedThumbs();
+        renderActiveChart();
+      });
+    });
+
+    // 监控比赛筛选切换
+    watch([contestFilter, contestStatusFilter], () => {
+      nextTick(syncSegmentedThumbs);
+    });
+
+    // 标签页切换自动静默拉取最新数据，概览页重新加载热力图与图表，彻底告别手动硬刷新
     watch(currentTab, async (tab) => {
       if (tab === "overview") {
         await Promise.all([loadOverview(), loadHeatmap(), loadTags()]);
         nextTick(() => {
           renderHeatmap();
-          renderTagBarChart();
-          renderPlatformPie();
+          renderActiveChart();
+          syncSegmentedThumbs();
         });
-      } else if (tab === "submissions") {
-        await loadSubmissions();
-      } else if (tab === "mistakes") {
-        await loadMistakes();
-      } else if (tab === "contests") {
-        await loadContests();
-      } else if (tab === "settings") {
-        await loadSettings();
+      } else {
+        if (tab === "submissions") {
+          await loadSubmissions();
+        } else if (tab === "mistakes") {
+          await loadMistakes();
+        } else if (tab === "contests") {
+          await loadContests();
+        } else if (tab === "settings") {
+          await loadSettings();
+        }
+        nextTick(() => {
+          syncSegmentedThumbs();
+        });
       }
     });
 
@@ -1279,7 +1571,11 @@ createApp({
       getContestStatus,
       formatContestCountdown,
       loadContests,
-      syncContestsNow
+      syncContestsNow,
+      // Analytics Workbench & Segmented Control
+      chartView,
+      renderActiveChart,
+      syncSegmentedThumbs
     };
   }
 }).mount("#app");
