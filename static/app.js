@@ -27,7 +27,9 @@ createApp({
     const overview = ref({
       stats: { total_ac: 0, total_subs: 0, today_ac: 0, today_subs: 0, streak: 0, platforms: {} },
       platforms_status: [],
-      last_sync_time: ""
+      last_sync_time: "",
+      climbing_curve: [],
+      daily_effort: []
     });
 
     const currentTab = ref("overview"); // 'overview', 'submissions', 'mistakes', 'settings'
@@ -579,8 +581,16 @@ createApp({
               platforms: data.stats.platforms || {}
             },
             platforms_status: data.platforms_status || [],
-            last_sync_time: newSync || overview.value.last_sync_time || ""
+            last_sync_time: newSync || overview.value.last_sync_time || "",
+            climbing_curve: data.climbing_curve || [],
+            daily_effort: data.daily_effort || []
           };
+
+          if (currentTab.value === "overview") {
+            nextTick(() => {
+              renderActiveChart();
+            });
+          }
 
           lastKnownTotalSubs = newTotal;
           lastKnownSyncTime = newSync;
@@ -958,11 +968,26 @@ createApp({
       const dark = isDark.value;
       const rawDaily = overview.value.daily_effort || [];
 
-      const dates = rawDaily.map(item => item.date.slice(5)); // MM-DD
-      const fullDates = rawDaily.map(item => item.date);
-      const acList = rawDaily.map(item => item.unique_ac || 0);
-      const nonAcList = rawDaily.map(item => Math.max(0, (item.total_subs || 0) - (item.unique_ac || 0)));
-      const totalList = rawDaily.map(item => item.total_subs || 0);
+      let dates = [];
+      let fullDates = [];
+      let acList = [];
+      let nonAcList = [];
+      let totalList = [];
+
+      if (rawDaily.length > 0) {
+        dates = rawDaily.map(item => item.date ? item.date.slice(2) : "");
+        fullDates = rawDaily.map(item => item.date);
+        acList = rawDaily.map(item => item.unique_ac || 0);
+        nonAcList = rawDaily.map(item => Math.max(0, (item.total_subs || 0) - (item.unique_ac || 0)));
+        totalList = rawDaily.map(item => item.total_subs || 0);
+      } else {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        dates = [todayStr.slice(2)];
+        fullDates = [todayStr];
+        acList = [overview.value.stats?.today_ac || 0];
+        nonAcList = [Math.max(0, (overview.value.stats?.today_subs || 0) - (overview.value.stats?.today_ac || 0))];
+        totalList = [overview.value.stats?.today_subs || 0];
+      }
 
       const option = {
         tooltip: {

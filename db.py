@@ -728,7 +728,7 @@ def get_climbing_curve(user_id: int = 1) -> List[Dict[str, Any]]:
             
         return points
 
-def get_recent_daily_effort(user_id: int = 1, days: int = 60) -> List[Dict[str, Any]]:
+def get_recent_daily_effort(user_id: int = 1, days: int = 90) -> List[Dict[str, Any]]:
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
