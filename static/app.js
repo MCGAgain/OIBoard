@@ -726,25 +726,42 @@ createApp({
       }
     };
 
-    // --- ECharts 渲染系统 (Apple Pro 调色 + 1:1 纯正方形热力图 + 攀登曲线) ---
+    // --- ECharts 渲染系统 (Apple Pro 调色 + 1:1 自适应纯正方形热力图) ---
     const renderHeatmap = () => {
       const chartDom = document.getElementById("heatmap-chart");
       if (!chartDom) return;
+
+      const outer = chartDom.parentElement;
+      const outerWidth = outer ? outer.clientWidth : 900;
+
+      // 根据可用容器宽度自适应计算 1:1 正方形单元格物理尺寸 (13px ~ 22px)
+      let cellSize = Math.floor((outerWidth - 65) / 53.5);
+      if (cellSize < 13) cellSize = 13;
+      if (cellSize > 22) cellSize = 22;
+
+      // 根据计算得到的动态单元格尺寸精确确定图表内容宽高，配合 margin: 0 auto 在宽屏上完美居中，窄屏上平滑滑动
+      const contentWidth = Math.ceil(cellSize * 54 + 48);
+      const contentHeight = cellSize * 7 + 50;
+
+      chartDom.style.width = `${contentWidth}px`;
+      chartDom.style.height = `${contentHeight}px`;
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
         chart = echarts.init(chartDom);
       }
       heatmapChart = chart;
+      chart.clear();
 
       const dark = isDark.value;
       const targetYear = selectedHeatmapYear.value || new Date().getFullYear();
       const startDateStr = `${targetYear}-01-01`;
       const endDateStr = `${targetYear}-12-31`;
 
+      // heatMapData: [date, count (total subs), unique_ac (passed problems)]
       const heatMapData = (rawHeatmap.value || [])
         .filter(item => item.date && item.date.startsWith(`${targetYear}`))
-        .map(item => [item.date, item.count]);
+        .map(item => [item.date, item.count, item.unique_ac || 0]);
 
       const option = {
         tooltip: {
@@ -762,8 +779,15 @@ createApp({
           },
           extraCssText: "backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25); z-index: 99999;",
           formatter: function (p) {
-            const countColor = dark ? "#2997ff" : "#0071e3";
-            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.value[0]}</div><div class="text-xs font-bold mt-1 font-sans" style="color: ${countColor}; font-weight: 700;">${p.value[1]} 题提交通过</div>`;
+            const date = p.value[0];
+            const subs = p.value[1] || 0;
+            const ac = p.value[2] || 0;
+            let html = `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${date}</div>`;
+            html += `<div class="text-xs font-bold mt-1 font-sans" style="color: ${dark ? '#2997ff' : '#0071e3'};">提交: ${subs} 次</div>`;
+            if (ac > 0) {
+              html += `<div class="text-xs font-bold mt-0.5 font-sans" style="color: ${dark ? '#30d158' : '#34c759'};">通过: ${ac} 题</div>`;
+            }
+            return html;
           }
         },
         visualMap: {
@@ -782,13 +806,13 @@ createApp({
         calendar: {
           top: 24,
           left: 28,
-          cellSize: [13, 13], /* 严格 13x13 黄金正方形，移除 right 限制杜绝拉伸为长方形 */
+          cellSize: [cellSize, cellSize], /* 动态正方形单元格 [cellSize, cellSize] 严格 1:1 */
           range: [startDateStr, endDateStr],
           itemStyle: {
             color: dark ? "#161618" : "#ebedf0",
             borderColor: dark ? "#000000" : "#ffffff",
             borderWidth: 2,
-            borderRadius: 3
+            borderRadius: Math.max(2, Math.round(cellSize * 0.18))
           },
           splitLine: { show: false },
           yearLabel: { show: false },
@@ -816,7 +840,7 @@ createApp({
       chart.resize();
     };
 
-    // 1. AtCoder Problems (kenkoooo) 风格: 累计解题爬坡成长曲线
+    // 1. 累计解题成长曲线 (Unique AC Progress Curve) - 数据与顶部 total_ac 严格一致
     const renderClimbingChart = () => {
       const chartDom = document.getElementById("analytics-chart");
       if (!chartDom) return;
@@ -829,38 +853,24 @@ createApp({
       chart.clear();
 
       const dark = isDark.value;
-      const sorted = [...(rawHeatmap.value || [])]
-        .filter(item => item.date)
-        .sort((a, b) => a.date.localeCompare(b.date));
+      const rawCurve = overview.value.climbing_curve || [];
+      
+      let dates = [];
+      let values = [];
+      let newAcs = [];
 
-      let cumulative = 0;
-      const dates = [];
-      const values = [];
-      sorted.forEach(item => {
-        if (item.count > 0) {
-          cumulative += item.count;
-          dates.push(item.date);
-          values.push(cumulative);
-        }
-      });
-
-      if (dates.length === 0) {
-        dates.push(new Date().toISOString().slice(0, 10));
-        values.push(overview.value.stats?.total_ac || 0);
+      if (rawCurve.length > 0) {
+        dates = rawCurve.map(item => item.date);
+        values = rawCurve.map(item => item.ac);
+        newAcs = rawCurve.map(item => item.new_ac || 0);
+      } else {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        dates = [todayStr];
+        values = [overview.value.stats?.total_ac || 0];
+        newAcs = [0];
       }
 
       const option = {
-        title: {
-          text: "累计解题爬坡曲线 (Total AC Problems Climbed)",
-          left: 15,
-          top: 10,
-          textStyle: {
-            fontSize: 12,
-            fontWeight: 600,
-            color: dark ? "#f5f5f7" : "#1d1d1f",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
-          }
-        },
         tooltip: {
           trigger: "axis",
           padding: [8, 14],
@@ -874,15 +884,21 @@ createApp({
           extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);",
           formatter: function (params) {
             const p = params[0];
-            const col = dark ? '#2997ff' : '#0071e3';
-            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div><div class="text-xs font-bold mt-1 font-sans" style="color:${col}">累计通过: ${p.value} 题</div>`;
+            const idx = p.dataIndex;
+            const newCount = newAcs[idx] || 0;
+            let html = `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div>`;
+            html += `<div class="text-xs font-bold mt-1 font-sans" style="color:${dark ? '#2997ff' : '#0071e3'}">累计通过: ${p.value} 题</div>`;
+            if (newCount > 0) {
+              html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color:${dark ? '#30d158' : '#34c759'}">当日新增: +${newCount} 题</div>`;
+            }
+            return html;
           }
         },
         grid: {
           left: "3%",
           right: "4%",
           bottom: "8%",
-          top: "16%",
+          top: "8%",
           containLabel: true
         },
         xAxis: {
@@ -894,7 +910,7 @@ createApp({
             color: dark ? "#86868b" : "#86868b", 
             fontSize: 10, 
             fontFamily: "JetBrains Mono",
-            formatter: (val) => val.slice(5)
+            formatter: (val) => val.slice(2) // YY-MM-DD
           }
         },
         yAxis: {
@@ -903,19 +919,19 @@ createApp({
           axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
         },
         series: [{
-          name: "累计解题数",
+          name: "累计通过题目",
           type: "line",
           smooth: 0.35,
           symbol: "circle",
-          symbolSize: 5,
+          symbolSize: 4,
           itemStyle: { color: dark ? "#2997ff" : "#0071e3" },
           lineStyle: { width: 2.5, color: dark ? "#2997ff" : "#0071e3" },
           areaStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, dark ? [
-              { offset: 0, color: "rgba(41, 151, 255, 0.35)" },
+              { offset: 0, color: "rgba(41, 151, 255, 0.32)" },
               { offset: 1, color: "rgba(41, 151, 255, 0.0)" }
             ] : [
-              { offset: 0, color: "rgba(0, 113, 227, 0.28)" },
+              { offset: 0, color: "rgba(0, 113, 227, 0.25)" },
               { offset: 1, color: "rgba(0, 113, 227, 0.0)" }
             ])
           },
@@ -927,7 +943,7 @@ createApp({
       chart.resize();
     };
 
-    // 2. AtCoder Problems (kenkoooo) 风格: 每日刷题强度分布图
+    // 2. 每日提交与通过分析 (Daily Activity & Solved Distribution)
     const renderDailyEffortChart = () => {
       const chartDom = document.getElementById("analytics-chart");
       if (!chartDom) return;
@@ -940,26 +956,15 @@ createApp({
       chart.clear();
 
       const dark = isDark.value;
-      const sorted = [...(rawHeatmap.value || [])]
-        .filter(item => item.count > 0)
-        .sort((a, b) => a.date.localeCompare(b.date));
+      const rawDaily = overview.value.daily_effort || [];
 
-      const slice = sorted.slice(-45);
-      const dates = slice.map(item => item.date.slice(5));
-      const counts = slice.map(item => item.count);
+      const dates = rawDaily.map(item => item.date.slice(5)); // MM-DD
+      const fullDates = rawDaily.map(item => item.date);
+      const acList = rawDaily.map(item => item.unique_ac || 0);
+      const nonAcList = rawDaily.map(item => Math.max(0, (item.total_subs || 0) - (item.unique_ac || 0)));
+      const totalList = rawDaily.map(item => item.total_subs || 0);
 
       const option = {
-        title: {
-          text: "每日刷题强度分布 (Daily Effort)",
-          left: 15,
-          top: 10,
-          textStyle: {
-            fontSize: 12,
-            fontWeight: 600,
-            color: dark ? "#f5f5f7" : "#1d1d1f",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
-          }
-        },
         tooltip: {
           trigger: "axis",
           axisPointer: { type: "shadow" },
@@ -972,16 +977,35 @@ createApp({
           },
           extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);",
           formatter: function (params) {
-            const p = params[0];
-            const col = dark ? '#30d158' : '#34c759';
-            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div><div class="text-xs font-bold mt-1 font-sans" style="color:${col}">当日通过: ${p.value} 题</div>`;
+            const idx = params[0]?.dataIndex ?? 0;
+            const date = fullDates[idx] || "";
+            const ac = acList[idx] || 0;
+            const total = totalList[idx] || 0;
+            let html = `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${date}</div>`;
+            html += `<div class="text-xs font-bold mt-1 font-sans" style="color: ${dark ? '#2997ff' : '#0071e3'}">通过题目: ${ac} 题</div>`;
+            html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">提交次数: ${total} 次</div>`;
+            if (total > 0) {
+              const rate = Math.round((ac / total) * 100);
+              html += `<div class="text-[11px] font-mono mt-0.5" style="color: ${dark ? '#30d158' : '#34c759'}">通过率: ${rate}%</div>`;
+            }
+            return html;
           }
+        },
+        legend: {
+          top: 8,
+          right: 20,
+          textStyle: {
+            color: dark ? "#a1a1a6" : "#6e6e73",
+            fontSize: 11,
+            fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif'
+          },
+          data: ["通过题目 (AC)", "未通过提交"]
         },
         grid: {
           left: "3%",
           right: "4%",
           bottom: "8%",
-          top: "16%",
+          top: "14%",
           containLabel: true
         },
         xAxis: {
@@ -995,22 +1019,30 @@ createApp({
           splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)" } },
           axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
         },
-        series: [{
-          name: "每日刷题量",
-          type: "bar",
-          barMaxWidth: 16,
-          itemStyle: {
-            borderRadius: [4, 4, 0, 0],
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, dark ? [
-              { offset: 0, color: "#30d158" },
-              { offset: 1, color: "rgba(48, 209, 88, 0.25)" }
-            ] : [
-              { offset: 0, color: "#34c759" },
-              { offset: 1, color: "rgba(52, 199, 89, 0.25)" }
-            ])
+        series: [
+          {
+            name: "通过题目 (AC)",
+            type: "bar",
+            stack: "total",
+            barMaxWidth: 16,
+            itemStyle: {
+              borderRadius: [0, 0, 0, 0],
+              color: dark ? "#2997ff" : "#0071e3"
+            },
+            data: acList
           },
-          data: counts
-        }]
+          {
+            name: "未通过提交",
+            type: "bar",
+            stack: "total",
+            barMaxWidth: 16,
+            itemStyle: {
+              borderRadius: [3, 3, 0, 0],
+              color: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.12)"
+            },
+            data: nonAcList
+          }
+        ]
       };
 
       chart.setOption(option, true);
@@ -1035,17 +1067,6 @@ createApp({
       const acData = topTags.map(t => t.ac_count);
 
       const option = {
-        title: {
-          text: "算法知识点掌握分布 (Top Tags Solved)",
-          left: 15,
-          top: 10,
-          textStyle: {
-            fontSize: 12,
-            fontWeight: 600,
-            color: dark ? "#f5f5f7" : "#1d1d1f",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
-          }
-        },
         tooltip: {
           trigger: "axis",
           axisPointer: { type: "shadow" },
@@ -1060,14 +1081,14 @@ createApp({
           formatter: function (params) {
             const p = params[0];
             const col = dark ? '#2997ff' : '#0071e3';
-            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div><div class="text-xs font-bold mt-1 font-sans" style="color:${col}">AC 题数: ${p.value} 题</div>`;
+            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div><div class="text-xs font-bold mt-1 font-sans" style="color:${col}">通过题数: ${p.value} 题</div>`;
           }
         },
         grid: {
           left: "3%",
           right: "6%",
           bottom: "8%",
-          top: "16%",
+          top: "6%",
           containLabel: true
         },
         xAxis: {
@@ -1082,7 +1103,7 @@ createApp({
           axisLabel: { color: dark ? "#f5f5f7" : "#1d1d1f", fontSize: 11, fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }
         },
         series: [{
-          name: "AC 题数",
+          name: "通过题数",
           type: "bar",
           data: acData,
           itemStyle: {
@@ -1124,17 +1145,6 @@ createApp({
       ].filter(d => d.value > 0);
 
       const option = {
-        title: {
-          text: "各平台题量占比 (Platform Proportions)",
-          left: 15,
-          top: 10,
-          textStyle: {
-            fontSize: 12,
-            fontWeight: 600,
-            color: dark ? "#f5f5f7" : "#1d1d1f",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
-          }
-        },
         tooltip: {
           trigger: "item",
           formatter: "{b}: {c} 题 ({d}%)",
@@ -1155,7 +1165,7 @@ createApp({
           name: "通过题量分布",
           type: "pie",
           radius: ["45%", "70%"],
-          center: ["50%", "50%"],
+          center: ["50%", "48%"],
           avoidLabelOverlap: false,
           itemStyle: {
             borderRadius: 8,
@@ -1428,7 +1438,7 @@ createApp({
 
       window.addEventListener("resize", () => {
         if (currentTab.value === "overview") {
-          heatmapChart && heatmapChart.resize();
+          renderHeatmap();
           analyticsChart && analyticsChart.resize();
         }
         syncSegmentedThumbs();

@@ -25,7 +25,7 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
   <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=2.4.0">
+  <link rel="stylesheet" href="/static/style.css?v=2.5.0">
 </head>
 <body :class="[isDark ? 'dark text-[#f5f5f7]' : 'text-[#1d1d1f]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white transition-colors duration-300">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -44,7 +44,7 @@
     <div v-else-if="!isLoggedIn" class="min-h-screen w-full flex flex-col items-center justify-center p-4 relative">
       <!-- 登录页顶角昼夜外观切换器 -->
       <div class="absolute top-6 right-6">
-        <div class="segmented-control" title="外观切换">
+        <div class="segmented-control" title="外观">
           <button @click="setThemePref('auto')" :class="['segmented-item text-xs', themePref === 'auto' ? 'active' : '']">
             <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
@@ -283,8 +283,8 @@
 
           <!-- 右侧控制与状态区 -->
           <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-between md:justify-end">
-            <!-- Apple 昼夜/浅深色模式切换分段按钮 -->
-            <div class="segmented-control" title="外观切换：自动（06:00~18:00白天浅色，18:00~06:00夜间深色）">
+            <!-- 外观切换分段按钮 -->
+            <div class="segmented-control" title="外观">
               <button @click="setThemePref('auto')" :class="['segmented-item', themePref === 'auto' ? 'active' : '']">
                 <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="12" cy="12" r="10"></circle>
@@ -400,24 +400,23 @@
               </div>
             </div>
 
-            <!-- 今日战报 -->
+            <!-- 今日通过 -->
             <div class="ui-card p-5 flex flex-col justify-between">
               <div class="flex items-center justify-between text-xs font-sans text-[var(--text-secondary)]">
                 <span class="flex items-center space-x-1.5 font-medium">
                   <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                   </svg>
-                  <span>今日提交</span>
+                  <span>今日通过</span>
                 </span>
                 <span class="status-pill status-ok">今日</span>
               </div>
               <div class="mt-3 flex items-baseline space-x-2">
                 <span class="text-3xl lg:text-4xl font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums mono">{{ overview.stats.today_ac || 0 }}</span>
-                <span class="text-xs text-[var(--text-tertiary)] font-sans">/ {{ overview.stats.today_subs || 0 }} 次提交</span>
+                <span class="text-xs text-[var(--text-tertiary)] font-sans">题</span>
               </div>
-              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] font-sans text-[var(--text-secondary)]">
-                <span v-if="overview.stats.today_ac > 0" class="text-emerald-600 dark:text-emerald-400 font-medium">今日已有题目通过</span>
-                <span v-else class="text-[var(--text-muted)]">今日暂无提交</span>
+              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] font-sans text-[var(--text-muted)]">
+                <span>今日提交 {{ overview.stats.today_subs || 0 }} 次</span>
               </div>
             </div>
 
@@ -436,8 +435,8 @@
                 <span class="text-3xl lg:text-4xl font-extrabold text-amber-600 dark:text-amber-400 tabular-nums mono">{{ overview.stats.streak || 0 }}</span>
                 <span class="text-xs text-[var(--text-tertiary)] font-sans">天</span>
               </div>
-              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] font-sans text-[var(--text-secondary)]">
-                <span>保持每日做题习惯</span>
+              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] font-sans text-[var(--text-muted)]">
+                <span>每日坚持做题</span>
               </div>
             </div>
 
@@ -454,7 +453,7 @@
               </div>
               <div class="mt-3 flex items-baseline space-x-2">
                 <span class="text-3xl lg:text-4xl font-extrabold text-purple-600 dark:text-purple-400 tabular-nums mono">{{ overview.stats.total_subs || 0 }}</span>
-                <span class="text-xs text-[var(--text-tertiary)] font-sans">条记录</span>
+                <span class="text-xs text-[var(--text-tertiary)] font-sans">次</span>
               </div>
               <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] font-sans text-[var(--text-muted)] truncate" :title="overview.last_sync_time">
                 同步于: {{ overview.last_sync_time || '暂无' }}
@@ -462,18 +461,18 @@
             </div>
           </div>
 
-          <!-- 近期比赛提醒快捷卡片 (Apple Bento 风格) -->
+          <!-- 近期比赛 -->
           <div v-if="topUpcomingContests.length > 0" class="ui-card p-5 space-y-3">
             <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
               <div class="flex items-center space-x-2">
                 <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
                 <h3 class="text-xs font-bold font-sans tracking-tight flex items-center space-x-1.5 text-[var(--text-primary)]">
-                  <span>近期比赛提醒</span>
+                  <span>近期比赛</span>
                   <span class="text-[10px] text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.2 rounded-full border border-blue-500/20 font-sans">{{ upcomingContestsCount }} 场待开赛</span>
                 </h3>
               </div>
               <button @click="currentTab = 'contests'" class="text-xs text-blue-600 dark:text-blue-400 hover:opacity-80 font-sans flex items-center space-x-1 hover:underline">
-                <span>查看完整日历</span>
+                <span>全部比赛</span>
                 <span>→</span>
               </button>
             </div>
@@ -521,9 +520,7 @@
                 </div>
                 <div>
                   <div class="flex items-center space-x-2">
-                    <h2 class="text-xs font-bold text-[var(--text-primary)] font-sans">刷题热力图</h2>
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="实时更新"></span>
-                    <span class="text-[10px] text-[var(--text-muted)] font-sans">实时同步</span>
+                    <h2 class="text-xs font-bold text-[var(--text-primary)] font-sans">提交热力图</h2>
                   </div>
                 </div>
               </div>
@@ -561,7 +558,7 @@
             <div class="flex items-center justify-between pt-2 px-1 text-[11px] font-sans text-[var(--text-secondary)] border-t border-[var(--border-subtle)]">
               <div class="flex items-center space-x-2 text-[var(--text-muted)]">
                 <span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                <span>{{ selectedHeatmapYear }} 年度提交贡献 (保持 1:1 像素级方块)</span>
+                <span>{{ selectedHeatmapYear }} 年提交分布</span>
               </div>
               <div class="flex items-center space-x-1.5">
                 <span class="text-[var(--text-muted)] mr-1 text-[10px]">少</span>
@@ -575,7 +572,7 @@
             </div>
           </div>
 
-          <!-- 多维训练演进与统计分析工作台 (Apple Pro Analytics Workbench) -->
+          <!-- 统计分析工作台 (Apple Pro Analytics Workbench) -->
           <div class="ui-card p-5 space-y-4">
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
               <div class="flex items-center space-x-2.5">
@@ -584,20 +581,17 @@
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                   </svg>
                 </div>
-                <div>
-                  <h2 class="text-xs font-bold text-[var(--text-primary)] font-sans">训练演进与统计分析</h2>
-                  <p class="text-[10px] text-[var(--text-muted)] font-sans">AtCoder 进阶曲线 · 活跃强度 · 算法分类 · 平台比重</p>
-                </div>
+                <h2 class="text-xs font-bold text-[var(--text-primary)] font-sans">统计分析</h2>
               </div>
 
-              <!-- 核心滑块切换控制器 (Kenkoooo AtCoder 风格) -->
+              <!-- 切换控制器 -->
               <div class="segmented-control">
                 <button @click="chartView = 'climbing'" :class="['segmented-item', chartView === 'climbing' ? 'active' : '']">
                   <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
                     <polyline points="17 6 23 6 23 12"></polyline>
                   </svg>
-                  <span>爬坡成长曲线</span>
+                  <span>累计通过</span>
                 </button>
                 <button @click="chartView = 'daily'" :class="['segmented-item', chartView === 'daily' ? 'active' : '']">
                   <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -605,21 +599,21 @@
                     <line x1="12" y1="20" x2="12" y2="4"></line>
                     <line x1="6" y1="20" x2="6" y2="14"></line>
                   </svg>
-                  <span>每日刷题分布</span>
+                  <span>每日提交</span>
                 </button>
                 <button @click="chartView = 'tags'" :class="['segmented-item', chartView === 'tags' ? 'active' : '']">
                   <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
                     <line x1="7" y1="7" x2="7.01" y2="7"></line>
                   </svg>
-                  <span>算法分类掌握</span>
+                  <span>算法分类</span>
                 </button>
                 <button @click="chartView = 'platforms'" :class="['segmented-item', chartView === 'platforms' ? 'active' : '']">
                   <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
                     <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
                   </svg>
-                  <span>平台题量占比</span>
+                  <span>平台分布</span>
                 </button>
               </div>
             </div>
@@ -627,20 +621,6 @@
             <!-- ECharts 动态图表主容器 -->
             <div class="w-full pt-1">
               <div id="analytics-chart" class="w-full h-80"></div>
-            </div>
-
-            <!-- 底部图表说明与洞察 -->
-            <div class="flex items-center justify-between pt-2 px-1 text-[11px] font-sans text-[var(--text-secondary)] border-t border-[var(--border-subtle)]">
-              <div class="flex items-center space-x-2 text-[var(--text-muted)]">
-                <span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                <span v-if="chartView === 'climbing'">累计 AC 爬坡曲线: 记录算法水平成长轨迹与里程碑 (Kenkoooo AtCoder 风格)</span>
-                <span v-else-if="chartView === 'daily'">近 90 天每日刷题强度分布柱状图，实时呈现练习热度</span>
-                <span v-else-if="chartView === 'tags'">各大算法知识点题型攻克量分布 (Top 15)</span>
-                <span v-else>Codeforces / AtCoder / 洛谷 / AcWing 题量配比圆环图</span>
-              </div>
-              <div class="text-[10px] text-[var(--text-muted)] font-mono">
-                OI-BOARD ANALYTICS
-              </div>
             </div>
           </div>
         </div>
@@ -660,7 +640,6 @@
                   </svg>
                   <span>比赛日历</span>
                 </h2>
-                <p class="text-[11px] text-[var(--text-secondary)] mt-0.5 font-sans">实时同步 Codeforces · AtCoder · 洛谷 官方赛程与实时倒计时</p>
               </div>
 
               <!-- 刷新比赛按钮 -->
@@ -809,18 +788,21 @@
         <div v-show="currentTab === 'submissions'" class="ui-card p-6 space-y-4 font-sans">
           <!-- 顶部标题与快速重置 -->
           <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
-            <div>
+            <div class="flex items-center space-x-2">
               <h2 class="text-xs font-bold text-[var(--text-primary)] flex items-center space-x-2">
                 <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
                 </svg>
                 <span>提交记录</span>
               </h2>
-              <p class="text-xs text-[var(--text-secondary)] mt-0.5">全量提交记录流（共 {{ filteredSubmissions.length }} 条记录匹配）</p>
+              <span class="text-[10px] text-[var(--text-muted)] font-mono">({{ filteredSubmissions.length }})</span>
             </div>
             
             <button @click="resetFilters" class="text-xs text-[var(--text-secondary)] hover:text-blue-500 flex items-center space-x-1 font-medium transition-colors">
-              <span>↺ 重置筛选</span>
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              </svg>
+              <span>重置</span>
             </button>
           </div>
 
@@ -998,7 +980,6 @@
                 </svg>
                 <span>待攻克错题</span>
               </h2>
-              <p class="text-xs text-[var(--text-secondary)] mt-0.5">曾有 WA / TLE / MLE 记录且至今尚未 AC 的题目清单</p>
             </div>
             <span class="text-xs font-sans bg-rose-500/10 text-rose-600 dark:text-rose-400 font-semibold px-2.5 py-0.5 rounded-full border border-rose-500/20">
               共 {{ mistakes.length }} 题
@@ -1084,7 +1065,6 @@
                   </svg>
                   <span>平台账号与凭证</span>
                 </h2>
-                <p class="text-xs text-[var(--text-secondary)] mt-0.5">配置各算法平台的用户名与凭证，支持按需独立测试连接</p>
               </div>
 
               <!-- 保存所有配置按钮 -->
@@ -1312,13 +1292,13 @@
                            class="ui-input font-mono flex-1 text-xs">
                     <span class="text-[var(--text-secondary)] text-xs font-sans">分钟</span>
                   </div>
-                  <p class="text-[10px] text-[var(--text-muted)] mt-1.5">当前设定: 每 <b>{{ settingsForm.poll_interval_minutes || 30 }}</b> 分钟自动在后台拉取各大平台最新提交</p>
+                  <p class="text-[10px] text-[var(--text-muted)] mt-1.5 font-mono">每 {{ settingsForm.poll_interval_minutes || 30 }} 分钟自动同步</p>
                 </div>
                 <div>
                   <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">出站 HTTP 代理 (可选)</label>
                   <input v-model="settingsForm.http_proxy" type="text" placeholder="http://127.0.0.1:7890 (国内VPS请留空)" 
                          class="ui-input font-mono text-xs">
-                  <p class="text-[10px] text-[var(--text-muted)] mt-2">用于加速海外 Codeforces / AtCoder 连接，留空则由服务器直连</p>
+                  <p class="text-[10px] text-[var(--text-muted)] mt-2">海外平台代理加速，留空则由服务器直连</p>
                 </div>
               </div>
             </div>
@@ -1387,6 +1367,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.4.0"></script>
+  <script src="/static/app.js?v=2.5.0"></script>
 </body>
 </html>

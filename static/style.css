@@ -375,22 +375,19 @@ body {
   gap: 1.25rem;
 }
 
-/* ================= 1:1 Square Heatmap Wrapper ================= */
+/* ================= Responsive 1:1 Square Heatmap Wrapper ================= */
 .heatmap-container-outer {
   width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: 0.5rem 0;
-  display: flex;
-  justify-content: center;
+  padding: 0.25rem 0;
+  display: block;
 }
 
 .heatmap-container-inner {
-  width: 860px;
-  min-width: 860px;
-  height: 156px;
   margin: 0 auto;
+  min-height: 140px;
 }
 
 /* Minimal SVG Line Icons */
