@@ -96,6 +96,50 @@ createApp({
     let tagBarChart = null;
     let platformPieChart = null;
 
+    // --- Theme Engine (Auto Day/Night, Light, Dark) ---
+    const themePref = ref(localStorage.getItem("oiboard_theme_pref") || "auto");
+    const isDark = ref(false);
+
+    const isDaylightTime = () => {
+      const h = new Date().getHours();
+      return h >= 6 && h < 18; // 06:00 to 18:00 is Day (Light mode)
+    };
+
+    const computeEffectiveDark = () => {
+      if (themePref.value === "light") return false;
+      if (themePref.value === "dark") return true;
+      return !isDaylightTime(); // auto mode: day = light, night = dark
+    };
+
+    const applyTheme = () => {
+      const dark = computeEffectiveDark();
+      isDark.value = dark;
+      if (dark) {
+        document.documentElement.classList.add("dark");
+        document.body.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        document.body.classList.remove("dark");
+      }
+      if (currentTab.value === "overview") {
+        nextTick(() => {
+          renderHeatmap();
+          renderTagBarChart();
+          renderPlatformPie();
+        });
+      }
+    };
+
+    const setThemePref = (mode) => {
+      themePref.value = mode;
+      localStorage.setItem("oiboard_theme_pref", mode);
+      applyTheme();
+      const desc = mode === "auto" 
+        ? `自动模式 (当前为${isDark.value ? '夜间深色' : '白天浅色'})` 
+        : (mode === "dark" ? "深色模式" : "浅色模式");
+      showToast(`已切换为 ${desc}`, "info");
+    };
+
     // --- Toast 消息提示 ---
     const showToast = (message, type = "success") => {
       toast.value = { show: true, message, type };
@@ -482,11 +526,19 @@ createApp({
     });
 
     // --- Data Loaders (绑定当前用户) ---
+    let lastKnownTotalSubs = -1;
+    let lastKnownSyncTime = "";
+
     const loadOverview = async () => {
       try {
         const res = await apiFetch("/api/stats/overview");
         const data = await res.json();
         if (data && data.stats) {
+          const newTotal = data.stats.total_subs || 0;
+          const newSync = data.last_sync_time || "";
+          const prevTotal = lastKnownTotalSubs;
+          const prevSync = lastKnownSyncTime;
+
           overview.value = {
             stats: {
               total_ac: data.stats.total_ac || 0,
@@ -497,8 +549,17 @@ createApp({
               platforms: data.stats.platforms || {}
             },
             platforms_status: data.platforms_status || [],
-            last_sync_time: data.last_sync_time || overview.value.last_sync_time || ""
+            last_sync_time: newSync || overview.value.last_sync_time || ""
           };
+
+          lastKnownTotalSubs = newTotal;
+          lastKnownSyncTime = newSync;
+
+          // 核心实时联动：若总提交数或同步时间更新（且非首次初始化），即刻静默更新热力图与标签分布
+          if (prevTotal !== -1 && (prevTotal !== newTotal || (newSync && prevSync !== newSync))) {
+            loadHeatmap();
+            loadTags();
+          }
         }
 
         if (data.platforms_status && Array.isArray(data.platforms_status)) {
@@ -536,6 +597,7 @@ createApp({
         if (data.year) {
           selectedHeatmapYear.value = data.year;
         }
+        await nextTick();
         renderHeatmap();
       } catch (e) {
         console.error("加载 Heatmap 失败:", e);
@@ -645,6 +707,7 @@ createApp({
       }
       heatmapChart = chart;
 
+      const dark = isDark.value;
       const targetYear = selectedHeatmapYear.value || new Date().getFullYear();
       const startDateStr = `${targetYear}-01-01`;
       const endDateStr = `${targetYear}-12-31`;
@@ -658,18 +721,19 @@ createApp({
           trigger: "item",
           appendToBody: true,
           confine: false,
-          padding: [8, 12],
-          backgroundColor: "rgba(14, 19, 31, 0.95)",
-          borderColor: "rgba(56, 189, 248, 0.35)",
+          padding: [9, 14],
+          backgroundColor: dark ? "rgba(18, 18, 20, 0.94)" : "rgba(255, 255, 255, 0.94)",
+          borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
           borderWidth: 1,
           textStyle: {
-            color: "#f8fafc",
-            fontFamily: "JetBrains Mono",
-            fontSize: 11
+            color: dark ? "#f5f5f7" : "#1d1d1f",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+            fontSize: 12
           },
-          extraCssText: "backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 8px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 0 15px -3px rgba(6, 182, 212, 0.25); z-index: 99999;",
+          extraCssText: "backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15); z-index: 99999;",
           formatter: function (p) {
-            return `<div class="font-mono text-xs font-semibold text-slate-200">${p.value[0]}</div><div class="text-xs text-cyan-400 font-mono mt-1 font-bold">${p.value[1]} Submissions</div>`;
+            const countColor = dark ? "#38bdf8" : "#0071e3";
+            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#e2e8f0' : '#1d1d1f'}">${p.value[0]}</div><div class="text-xs font-semibold mt-1 font-sans" style="color: ${countColor}; font-weight: 700;">${p.value[1]} 题提交通过</div>`;
           }
         },
         visualMap: {
@@ -677,10 +741,12 @@ createApp({
           min: 1,
           max: 10,
           inRange: {
-            color: ["#0e3a47", "#08738a", "#06b6d4", "#38bdf8"]
+            color: dark 
+              ? ["#0e3a47", "#08738a", "#06b6d4", "#38bdf8"]
+              : ["#bae6fd", "#38bdf8", "#0284c7", "#0369a1"]
           },
           outOfRange: {
-            color: "#0e131f"
+            color: dark ? "#161b22" : "#ebedf0"
           }
         },
         calendar: {
@@ -690,22 +756,22 @@ createApp({
           cellSize: [13, 13],
           range: [startDateStr, endDateStr],
           itemStyle: {
-            color: "#0e131f",
-            borderColor: "rgba(255, 255, 255, 0.05)",
-            borderWidth: 1.5,
-            borderRadius: 2
+            color: dark ? "#161b22" : "#ebedf0",
+            borderColor: dark ? "#06090f" : "#ffffff",
+            borderWidth: 2,
+            borderRadius: 3
           },
           splitLine: { show: false },
           yearLabel: { show: false },
           dayLabel: {
             firstDay: 1,
             nameMap: ["日", "一", "二", "三", "四", "五", "六"],
-            color: "#64748b",
+            color: dark ? "#64748b" : "#86868b",
             fontSize: 10,
             fontFamily: "JetBrains Mono"
           },
           monthLabel: {
-            color: "#94a3b8",
+            color: dark ? "#94a3b8" : "#6e6e73",
             fontSize: 11,
             fontFamily: "JetBrains Mono"
           }
@@ -731,6 +797,7 @@ createApp({
       }
       tagBarChart = chart;
 
+      const dark = isDark.value;
       const topTags = (tagStats.value || []).slice(0, 10).reverse();
       const categories = topTags.map(t => t.tag);
       const acData = topTags.map(t => t.ac_count);
@@ -739,10 +806,18 @@ createApp({
         tooltip: {
           trigger: "axis",
           axisPointer: { type: "shadow" },
-          className: "echarts-tooltip-dark",
+          padding: [8, 12],
+          backgroundColor: dark ? "rgba(18, 18, 20, 0.94)" : "rgba(255, 255, 255, 0.94)",
+          borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
+          textStyle: {
+            color: dark ? "#f5f5f7" : "#1d1d1f",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+          },
+          extraCssText: "backdrop-filter: blur(20px); border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);",
           formatter: function (params) {
             const p = params[0];
-            return `<div class="font-mono text-xs font-semibold">${p.name}</div><div class="text-xs text-cyan-400 mt-1">AC 题数: ${p.value}</div>`;
+            const col = dark ? '#38bdf8' : '#0071e3';
+            return `<div class="font-sans text-xs font-semibold">${p.name}</div><div class="text-xs font-bold mt-1" style="color:${col}">AC 题数: ${p.value}</div>`;
           }
         },
         grid: {
@@ -754,24 +829,27 @@ createApp({
         },
         xAxis: {
           type: "value",
-          splitLine: { lineStyle: { color: "rgba(255, 255, 255, 0.04)" } },
-          axisLabel: { color: "#64748b", fontSize: 10, fontFamily: "JetBrains Mono" }
+          splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)" } },
+          axisLabel: { color: dark ? "#64748b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
         },
         yAxis: {
           type: "category",
           data: categories,
-          axisLine: { lineStyle: { color: "rgba(255, 255, 255, 0.1)" } },
-          axisLabel: { color: "#cbd5e1", fontSize: 11, fontFamily: "Plus Jakarta Sans" }
+          axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)" } },
+          axisLabel: { color: dark ? "#cbd5e1" : "#1d1d1f", fontSize: 11, fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }
         },
         series: [{
           name: "AC 题数",
           type: "bar",
           data: acData,
           itemStyle: {
-            borderRadius: [0, 4, 4, 0],
-            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+            borderRadius: [0, 6, 6, 0],
+            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, dark ? [
               { offset: 0, color: "rgba(6, 182, 212, 0.3)" },
               { offset: 1, color: "#06b6d4" }
+            ] : [
+              { offset: 0, color: "rgba(0, 113, 227, 0.35)" },
+              { offset: 1, color: "#0071e3" }
             ])
           }
         }]
@@ -791,24 +869,31 @@ createApp({
       }
       platformPieChart = chart;
 
+      const dark = isDark.value;
       const pData = overview.value.stats.platforms || {};
       const data = [
-        { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: "#06b6d4" } },
-        { value: pData.atcoder?.ac || 0, name: "AtCoder", itemStyle: { color: "#a855f7" } },
-        { value: pData.luogu?.ac || 0, name: "洛谷", itemStyle: { color: "#3b82f6" } },
-        { value: pData.acwing?.ac || 0, name: "AcWing", itemStyle: { color: "#6366f1" } }
+        { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: dark ? "#06b6d4" : "#0071e3" } },
+        { value: pData.atcoder?.ac || 0, name: "AtCoder", itemStyle: { color: "#af52de" } },
+        { value: pData.luogu?.ac || 0, name: "洛谷", itemStyle: { color: "#34c759" } },
+        { value: pData.acwing?.ac || 0, name: "AcWing", itemStyle: { color: "#ff9500" } }
       ].filter(d => d.value > 0);
 
       const option = {
         tooltip: {
           trigger: "item",
           formatter: "{b}: {c} 题 ({d}%)",
-          className: "echarts-tooltip-dark"
+          backgroundColor: dark ? "rgba(18, 18, 20, 0.94)" : "rgba(255, 255, 255, 0.94)",
+          borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
+          textStyle: {
+            color: dark ? "#f5f5f7" : "#1d1d1f",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+          },
+          extraCssText: "backdrop-filter: blur(20px); border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);"
         },
         legend: {
           bottom: "5%",
           left: "center",
-          textStyle: { color: "#94a3b8", fontSize: 11, fontFamily: "JetBrains Mono" }
+          textStyle: { color: dark ? "#94a3b8" : "#6e6e73", fontSize: 11, fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif' }
         },
         series: [{
           name: "通过题量分布",
@@ -817,8 +902,8 @@ createApp({
           center: ["50%", "45%"],
           avoidLabelOverlap: false,
           itemStyle: {
-            borderRadius: 6,
-            borderColor: "#090d16",
+            borderRadius: 8,
+            borderColor: dark ? "#0e131f" : "#ffffff",
             borderWidth: 3
           },
           label: { show: false },
@@ -827,10 +912,10 @@ createApp({
               show: true,
               fontSize: 14,
               fontWeight: "bold",
-              color: "#fff"
+              color: dark ? "#fff" : "#1d1d1f"
             }
           },
-          data: data.length ? data : [{ value: 0, name: "暂无数据", itemStyle: { color: "#374151" } }]
+          data: data.length ? data : [{ value: 0, name: "暂无数据", itemStyle: { color: dark ? "#374151" : "#e2e8f0" } }]
         }]
       };
 
@@ -1031,6 +1116,19 @@ createApp({
 
     // --- Lifecycle ---
     onMounted(async () => {
+      // 初始化应用主题模式 (根据当前时间自动切换或读取用户设定)
+      applyTheme();
+
+      // 30 秒级自动昼夜检测定时器 (仅在 auto 模式下无感平滑切换)
+      setInterval(() => {
+        if (themePref.value === "auto") {
+          const shouldBeDark = !isDaylightTime();
+          if (isDark.value !== shouldBeDark) {
+            applyTheme();
+          }
+        }
+      }, 30000);
+
       // 1 秒级时间戳定时器 (仅在需要倒计时的页面跳动，后台标签页自动休眠省电)
       setInterval(() => {
         if (!document.hidden && (currentTab.value === 'contests' || currentTab.value === 'overview')) {
@@ -1066,12 +1164,12 @@ createApp({
         }
       });
 
-      // 实时后台状态轮询 (每 15 秒静默刷新当前活跃标签页数据)
+      // 实时后台状态轮询 (每 15 秒静默刷新当前活跃标签页数据，概览页实时更新热力图)
       setInterval(async () => {
         if (isLoggedIn.value && !document.hidden && !isSyncing.value && !isSaving.value) {
           try {
             if (currentTab.value === "overview") {
-              await loadOverview();
+              await Promise.all([loadOverview(), loadHeatmap()]);
             } else if (currentTab.value === "submissions") {
               await loadSubmissions();
             } else if (currentTab.value === "mistakes") {
@@ -1084,10 +1182,10 @@ createApp({
       }, 15000);
     });
 
-    // 标签页切换自动静默拉取最新数据，彻底告别手动硬刷新
+    // 标签页切换自动静默拉取最新数据，概览页重新加载热力图与标签，彻底告别手动硬刷新
     watch(currentTab, async (tab) => {
       if (tab === "overview") {
-        await loadOverview();
+        await Promise.all([loadOverview(), loadHeatmap(), loadTags()]);
         nextTick(() => {
           renderHeatmap();
           renderTagBarChart();
@@ -1164,6 +1262,11 @@ createApp({
       formatTimeAgo,
       getStatusClass,
       getPlatformPillClass,
+      // Theme Engine exports
+      themePref,
+      isDark,
+      setThemePref,
+      isDaylightTime,
       // Contests exports
       contests,
       contestFilter,
