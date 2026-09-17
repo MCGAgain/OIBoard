@@ -25,7 +25,7 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
   <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=2.5.3">
+  <link rel="stylesheet" href="/static/style.css?v=2.5.4">
 </head>
 <body :class="[isDark ? 'dark text-[#f5f5f7]' : 'text-[#1d1d1f]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white transition-colors duration-300">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -120,6 +120,23 @@
             <label class="block text-[var(--text-secondary)] mb-1.5 font-medium">确认密码</label>
             <input v-model="authForm.confirmPassword" type="password" required placeholder="再次确认登录密码"
                    class="ui-input font-mono">
+          </div>
+
+          <div>
+            <label class="block text-[var(--text-secondary)] mb-1.5 font-medium">验证码</label>
+            <div class="flex items-center space-x-2">
+              <input v-model="authForm.captcha_code" type="text" maxlength="6" required placeholder="验证码"
+                     class="ui-input font-mono uppercase tracking-widest text-center flex-1">
+              <div @click="fetchCaptcha" class="relative group cursor-pointer flex-shrink-0 h-[38px] w-[130px] rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-canvas)] flex items-center justify-center select-none shadow-sm transition-all hover:border-[var(--border-strong)]" title="点击刷新验证码">
+                <img v-if="captchaImage" :src="captchaImage" alt="验证码" class="w-full h-full object-cover">
+                <span v-else class="text-[10px] text-[var(--text-muted)] font-mono">加载中...</span>
+                <div class="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white backdrop-blur-[1px]">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                  </svg>
+                </div>
+              </div>
+            </div>
           </div>
 
           <button type="submit" :disabled="isAuthLoading"
@@ -1395,6 +1412,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.5.3"></script>
+  <script src="/static/app.js?v=2.5.4"></script>
 </body>
 </html>

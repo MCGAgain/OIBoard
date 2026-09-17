@@ -16,9 +16,11 @@ createApp({
     const isLoggedIn = computed(() => !!currentUser.value);
     
     const authMode = ref("login"); // 'login' | 'register'
-    const authForm = ref({ username: "", password: "", confirmPassword: "" });
+    const authForm = ref({ username: "", password: "", confirmPassword: "", captcha_code: "" });
     const authError = ref("");
     const isAuthLoading = ref(false);
+    const captchaId = ref("");
+    const captchaImage = ref("");
 
     const pwdForm = ref({ oldPassword: "", newPassword: "", confirmNewPassword: "" });
     const isChangingPwd = ref(false);
@@ -207,11 +209,36 @@ createApp({
       return res;
     };
 
+    // --- Captcha Actions ---
+    const fetchCaptcha = async () => {
+      try {
+        const res = await fetch("/api/auth/captcha?t=" + Date.now());
+        if (res.ok) {
+          const data = await res.json();
+          captchaId.value = data.captcha_id;
+          captchaImage.value = data.captcha_image;
+        }
+      } catch (e) {
+        console.error("获取验证码异常:", e);
+      }
+    };
+
+    // 切换登录/注册模式时，自动刷新验证码
+    watch(authMode, () => {
+      authError.value = "";
+      authForm.value.captcha_code = "";
+      fetchCaptcha();
+    });
+
     // --- Auth Actions ---
     const handleLogin = async () => {
       authError.value = "";
       if (!authForm.value.username.trim() || !authForm.value.password) {
         authError.value = "请完整填写用户名与密码";
+        return;
+      }
+      if (!authForm.value.captcha_code || !authForm.value.captcha_code.trim()) {
+        authError.value = "请输入图片验证码";
         return;
       }
       isAuthLoading.value = true;
@@ -221,7 +248,9 @@ createApp({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             username: authForm.value.username.trim(),
-            password: authForm.value.password
+            password: authForm.value.password,
+            captcha_id: captchaId.value,
+            captcha_code: authForm.value.captcha_code.trim()
           })
         });
         const data = await res.json();
@@ -232,14 +261,18 @@ createApp({
           currentUser.value = data.user;
           isAuthChecking.value = false;
           showToast(`欢迎回来，${data.user.username}！`, "success");
-          authForm.value = { username: "", password: "", confirmPassword: "" };
+          authForm.value = { username: "", password: "", confirmPassword: "", captcha_code: "" };
           await reloadAllData();
         } else {
           authError.value = data.detail || data.message || "登录失败，请检查账号密码";
+          authForm.value.captcha_code = "";
+          await fetchCaptcha();
         }
       } catch (e) {
         if (e.message !== "UNAUTHORIZED") {
           authError.value = "网络请求失败: " + e.message;
+          authForm.value.captcha_code = "";
+          await fetchCaptcha();
         }
       } finally {
         isAuthLoading.value = false;
@@ -268,13 +301,22 @@ createApp({
         authError.value = "两次输入的密码不一致";
         return;
       }
+      if (!authForm.value.captcha_code || !authForm.value.captcha_code.trim()) {
+        authError.value = "请输入图片验证码";
+        return;
+      }
 
       isAuthLoading.value = true;
       try {
         const res = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: uname, password: pwd })
+          body: JSON.stringify({
+            username: uname,
+            password: pwd,
+            captcha_id: captchaId.value,
+            captcha_code: authForm.value.captcha_code.trim()
+          })
         });
         const data = await res.json();
         if (res.ok && data.success) {
@@ -284,14 +326,18 @@ createApp({
           currentUser.value = data.user;
           isAuthChecking.value = false;
           showToast("账户注册成功！", "success");
-          authForm.value = { username: "", password: "", confirmPassword: "" };
+          authForm.value = { username: "", password: "", confirmPassword: "", captcha_code: "" };
           await reloadAllData();
         } else {
           authError.value = data.detail || data.message || "注册失败";
+          authForm.value.captcha_code = "";
+          await fetchCaptcha();
         }
       } catch (e) {
         if (e.message !== "UNAUTHORIZED") {
           authError.value = "网络请求异常: " + e.message;
+          authForm.value.captcha_code = "";
+          await fetchCaptcha();
         }
       } finally {
         isAuthLoading.value = false;
@@ -312,6 +358,7 @@ createApp({
         currentUser.value = null;
         isAuthChecking.value = false;
         showToast("已成功退出登录", "success");
+        fetchCaptcha();
       }
     };
 
@@ -1460,12 +1507,14 @@ createApp({
             currentUser.value = null;
             localStorage.removeItem("oiboard_token");
             localStorage.removeItem("oiboard_user");
+            fetchCaptcha();
           }
         } finally {
           isAuthChecking.value = false;
         }
       } else {
         isAuthChecking.value = false;
+        fetchCaptcha();
       }
 
       window.addEventListener("resize", () => {
@@ -1545,6 +1594,9 @@ createApp({
       authForm,
       authError,
       isAuthLoading,
+      captchaId,
+      captchaImage,
+      fetchCaptcha,
       pwdForm,
       isChangingPwd,
       handleLogin,

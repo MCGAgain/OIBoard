@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 
 import db
+from captcha import captcha_store
 from scheduler import scheduler_instance
 from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher, AtCoderFetcher
 
@@ -54,10 +55,14 @@ async def add_no_cache_headers(request: Request, call_next):
 class RegisterPayload(BaseModel):
     username: str
     password: str
+    captcha_id: Optional[str] = None
+    captcha_code: Optional[str] = None
 
 class LoginPayload(BaseModel):
     username: str
     password: str
+    captcha_id: Optional[str] = None
+    captcha_code: Optional[str] = None
 
 class ChangePasswordPayload(BaseModel):
     old_password: str
@@ -105,8 +110,22 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[
 
 # --- Auth Endpoints ---
 
+@app.get("/api/auth/captcha")
+async def get_captcha():
+    """获取带噪声的图形验证码"""
+    captcha_id, image_data = captcha_store.generate()
+    return {
+        "captcha_id": captcha_id,
+        "captcha_image": image_data
+    }
+
 @app.post("/api/auth/register")
 async def register(payload: RegisterPayload):
+    # 校验图形验证码
+    c_ok, c_msg = captcha_store.verify(payload.captcha_id or "", payload.captcha_code or "")
+    if not c_ok:
+        raise HTTPException(status_code=400, detail=c_msg)
+
     ok, msg, user = db.create_user(payload.username, payload.password)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
@@ -121,6 +140,11 @@ async def register(payload: RegisterPayload):
 
 @app.post("/api/auth/login")
 async def login(payload: LoginPayload):
+    # 校验图形验证码
+    c_ok, c_msg = captcha_store.verify(payload.captcha_id or "", payload.captcha_code or "")
+    if not c_ok:
+        raise HTTPException(status_code=400, detail=c_msg)
+
     ok, msg, user = db.authenticate_user(payload.username, payload.password)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
