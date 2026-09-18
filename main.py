@@ -79,6 +79,25 @@ class SettingsPayload(BaseModel):
     sprint_mode: Optional[str] = None
     http_proxy: Optional[str] = None
 
+class AddAccountPayload(BaseModel):
+    platform: str
+    handle: str
+    cookie: Optional[str] = ""
+    alias: Optional[str] = ""
+    is_primary: Optional[bool] = False
+
+class UpdateAccountPayload(BaseModel):
+    handle: Optional[str] = None
+    cookie: Optional[str] = None
+    alias: Optional[str] = None
+    is_primary: Optional[bool] = None
+
+class VerifyAccountDirectPayload(BaseModel):
+    platform: str
+    handle: str
+    cookie: Optional[str] = ""
+    http_proxy: Optional[str] = ""
+
 class SyncPayload(BaseModel):
     platform: Optional[str] = "all"
 
@@ -261,6 +280,100 @@ async def get_contests(platform: str = "all", limit: int = 60, current_user: Dic
 async def sync_contests_api(current_user: Dict[str, Any] = Depends(get_current_user)):
     res = await scheduler_instance.sync_contests()
     return res
+
+# --- Multi-Account Management Endpoints ---
+
+@app.get("/api/accounts")
+async def get_accounts(platform: Optional[str] = None, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """获取用户绑定的平台账号列表"""
+    uid = current_user["id"]
+    accs = db.get_platform_accounts(uid, platform)
+    return {"accounts": accs}
+
+@app.post("/api/accounts")
+async def add_account(payload: AddAccountPayload, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """添加平台新账号"""
+    uid = current_user["id"]
+    ok, msg, acc = db.add_platform_account(
+        user_id=uid,
+        platform=payload.platform,
+        handle=payload.handle,
+        cookie=payload.cookie or "",
+        alias=payload.alias or "",
+        is_primary=bool(payload.is_primary)
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg, "account": acc}
+
+@app.put("/api/accounts/{account_id}")
+async def update_account(account_id: int, payload: UpdateAccountPayload, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """更新平台账号"""
+    uid = current_user["id"]
+    ok, msg = db.update_platform_account(
+        account_id=account_id,
+        user_id=uid,
+        handle=payload.handle,
+        cookie=payload.cookie,
+        alias=payload.alias,
+        is_primary=payload.is_primary
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg}
+
+@app.delete("/api/accounts/{account_id}")
+async def delete_account(account_id: int, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """移除平台账号 (历史提交题目依然安全保留)"""
+    uid = current_user["id"]
+    ok, msg = db.delete_platform_account(account_id, uid)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg}
+
+@app.post("/api/accounts/{account_id}/primary")
+async def set_primary_account_endpoint(account_id: int, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """设为主账号"""
+    uid = current_user["id"]
+    ok, msg = db.set_primary_account(account_id, uid)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"success": True, "message": msg}
+
+@app.post("/api/accounts/{account_id}/sync")
+async def sync_single_account_endpoint(account_id: int, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """即时同步单个账号"""
+    uid = current_user["id"]
+    res = await scheduler_instance.sync_single_account(account_id, uid)
+    return res
+
+@app.post("/api/accounts/verify")
+async def verify_account_direct(payload: VerifyAccountDirectPayload, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """独立测试平台账号连通性"""
+    uid = current_user["id"]
+    p = payload.platform.lower().strip()
+    proxy = (payload.http_proxy or "").strip()
+    if not proxy:
+        proxy = (db.get_config(uid, "http_proxy", "") or "").strip()
+
+    if p == "codeforces":
+        cf = CodeforcesFetcher()
+        valid, msg, extra = await cf.verify(payload.handle, proxy=proxy)
+        return {"valid": valid, "message": msg, "extra": extra}
+    elif p == "luogu":
+        lg = LuoguFetcher()
+        valid, msg, extra = await lg.verify(payload.handle, payload.cookie or "", proxy=proxy)
+        return {"valid": valid, "message": msg, "extra": extra}
+    elif p == "acwing":
+        aw = AcWingFetcher()
+        valid, msg, extra = await aw.verify(payload.handle, payload.cookie or "", proxy=proxy)
+        return {"valid": valid, "message": msg, "extra": extra}
+    elif p == "atcoder":
+        at = AtCoderFetcher()
+        valid, msg, extra = await at.verify(payload.handle, proxy=proxy)
+        return {"valid": valid, "message": msg, "extra": extra}
+    else:
+        raise HTTPException(status_code=400, detail="不支持的平台")
 
 @app.post("/api/sync")
 async def trigger_sync(payload: SyncPayload, current_user: Dict[str, Any] = Depends(get_current_user)):

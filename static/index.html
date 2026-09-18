@@ -25,7 +25,7 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
   <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=2.5.4">
+  <link rel="stylesheet" href="/static/style.css?v=2.5.5">
 </head>
 <body :class="[isDark ? 'dark text-[#f5f5f7]' : 'text-[#1d1d1f]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white transition-colors duration-300">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -936,12 +936,17 @@
               <tbody class="divide-y divide-[var(--border-subtle)] font-sans">
                 <tr v-for="sub in paginatedSubmissions" :key="sub.id" class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
                   <td class="px-4 py-3 font-mono">
-                    <span :class="['px-2 py-0.5 rounded-full text-[10px] font-bold border', 
-                                   sub.platform === 'codeforces' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' :
-                                   sub.platform === 'atcoder' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' :
-                                   sub.platform === 'luogu' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20']">
-                      {{ sub.platform === 'codeforces' ? 'CF' : sub.platform === 'atcoder' ? 'ATCODER' : sub.platform === 'luogu' ? 'LUOGU' : 'ACWING' }}
-                    </span>
+                    <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                      <span :class="['px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0', 
+                                     sub.platform === 'codeforces' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' :
+                                     sub.platform === 'atcoder' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' :
+                                     sub.platform === 'luogu' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20']">
+                        {{ sub.platform === 'codeforces' ? 'CF' : sub.platform === 'atcoder' ? 'ATCODER' : sub.platform === 'luogu' ? 'LUOGU' : 'ACWING' }}
+                      </span>
+                      <span v-if="sub.account_handle" class="px-1.5 py-0.5 rounded text-[9px] bg-[var(--bg-subtle)] text-[var(--text-tertiary)] border border-[var(--border-subtle)] max-w-[85px] truncate" :title="'账号: ' + sub.account_handle">
+                        {{ sub.account_handle }}
+                      </span>
+                    </div>
                   </td>
                   <td class="px-4 py-3 text-[var(--text-primary)] font-medium">
                     <div class="flex items-center space-x-2">
@@ -1155,144 +1160,127 @@
               </div>
             </div>
 
-            <!-- 平台配置表单网格 (4列严格统一布局) -->
+            <!-- 多账号平台配置看板 (4列 Apple 风格卡片，支持多账号绑定与自动去重) -->
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-stretch">
-              <!-- 1. Codeforces 配置卡片 -->
-              <div class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex flex-col justify-between h-full space-y-4 shadow-sm">
+              <div v-for="p in platformMetaList" :key="p.id" 
+                   class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex flex-col justify-between h-full space-y-4 shadow-sm transition-all hover:border-[var(--border-bold)]">
+                <!-- 卡片头部 -->
                 <div class="space-y-3">
                   <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
                     <div class="flex items-center space-x-2">
-                      <span class="w-2 h-2 rounded-full bg-blue-500 shadow-sm"></span>
-                      <span class="font-bold text-[var(--text-primary)] text-xs">Codeforces</span>
+                      <span :class="['w-2 h-2 rounded-full shadow-sm', p.dotColor]"></span>
+                      <span class="font-bold text-[var(--text-primary)] text-xs">{{ p.name }}</span>
                     </div>
-                    <span :class="['status-pill text-[10px] whitespace-nowrap shrink-0 max-w-[120px] truncate', getPlatformPillClass('codeforces')]" :title="platformStatusMap['codeforces']?.message">
-                      {{ platformStatusMap['codeforces']?.message || '未配置' }}
-                    </span>
+                    <div class="flex items-center space-x-1.5">
+                      <span :class="['status-pill text-[10px] whitespace-nowrap shrink-0 max-w-[110px] truncate', getPlatformPillClass(p.id)]" 
+                            :title="platformStatusMap[p.id]?.message">
+                        {{ platformStatusMap[p.id]?.message || '未配置' }}
+                      </span>
+                    </div>
                   </div>
-                  <div class="space-y-2.5">
-                    <div>
-                      <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">用户名 (Handle)</label>
-                      <input v-model="settingsForm.cf_handle" type="text" placeholder="输入 CF 用户名 (如 MCGA_WJJ)" 
-                             class="ui-input font-mono text-xs">
+
+                  <!-- 账号列表容器 -->
+                  <div class="space-y-2 min-h-[120px]">
+                    <!-- 空状态 -->
+                    <div v-if="!groupedAccounts[p.id] || groupedAccounts[p.id].length === 0" 
+                         class="flex flex-col items-center justify-center py-7 px-3 text-center border border-dashed border-[var(--border-subtle)] rounded-xl bg-[var(--bg-surface)]/50">
+                      <svg class="w-6 h-6 text-[var(--text-muted)] mb-1.5 stroke-[1.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="12" cy="8" r="4"></circle>
+                        <path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"></path>
+                      </svg>
+                      <p class="text-[11px] text-[var(--text-tertiary)]">暂无绑定账号</p>
+                      <p class="text-[10px] text-[var(--text-muted)] mt-0.5">支持主号与多个练习小号</p>
                     </div>
-                    <div>
-                      <label class="block text-[var(--text-tertiary)] mb-1 text-[11px] font-medium">认证方式</label>
-                      <div class="ui-input text-[var(--text-secondary)] bg-[var(--bg-surface)] flex items-center text-xs">
-                        <svg class="w-3.5 h-3.5 text-blue-500 mr-1.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                          <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                        <span>公开 API 免 Cookie</span>
+
+                    <!-- 账号卡片项 -->
+                    <div v-for="acc in (groupedAccounts[p.id] || [])" :key="acc.id"
+                         class="p-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--border-bold)] transition-all space-y-1.5 group">
+                      <div class="flex items-start justify-between">
+                        <div class="min-w-0 pr-1.5">
+                          <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                            <span class="font-mono font-bold text-xs text-[var(--text-primary)] truncate max-w-[110px]" :title="acc.handle">
+                              {{ acc.handle }}
+                            </span>
+                            <span v-if="acc.is_primary" class="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">
+                              主号
+                            </span>
+                            <span v-if="acc.alias" class="px-1.5 py-0.2 rounded text-[9px] bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)] truncate max-w-[65px]" :title="acc.alias">
+                              {{ acc.alias }}
+                            </span>
+                          </div>
+                          <div class="flex items-center space-x-1.5 mt-1">
+                            <span :class="['w-1.5 h-1.5 rounded-full shrink-0', acc.status === 'ok' ? 'bg-emerald-500' : acc.status === 'failed' ? 'bg-rose-500' : 'bg-slate-400']"></span>
+                            <span class="text-[10px] text-[var(--text-muted)] truncate max-w-[130px]" :title="acc.status_message">
+                              {{ acc.status_message || (acc.last_sync_at ? '已抓取: ' + acc.last_sync_at.slice(0, 10) : '未同步') }}
+                            </span>
+                          </div>
+                        </div>
+
+                        <!-- 操作工具条 -->
+                        <div class="flex items-center space-x-0.5 shrink-0">
+                          <!-- 设为主号按钮 -->
+                          <button v-if="!acc.is_primary" @click="handleSetPrimaryAccount(acc)" title="设为主号"
+                                  class="p-1 rounded-md text-[var(--text-tertiary)] hover:text-amber-500 hover:bg-[var(--bg-subtle)] transition-colors">
+                            <svg class="w-3.5 h-3.5 stroke-[1.8]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                            </svg>
+                          </button>
+                          <!-- 测试连接按钮 -->
+                          <button @click="handleVerifySingleAccount(acc)" :disabled="isAccountTesting[acc.id]" title="测试账号连通性"
+                                  class="p-1 rounded-md text-[var(--text-tertiary)] hover:text-blue-500 hover:bg-[var(--bg-subtle)] transition-colors">
+                            <svg :class="['w-3.5 h-3.5 stroke-[1.8]', isAccountTesting[acc.id] ? 'animate-spin text-blue-500' : '']" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+                            </svg>
+                          </button>
+                          <!-- 单独同步按钮 -->
+                          <button @click="handleSyncSingleAccount(acc)" :disabled="isAccountSyncing[acc.id]" title="抓取此账号题目"
+                                  class="p-1 rounded-md text-[var(--text-tertiary)] hover:text-emerald-500 hover:bg-[var(--bg-subtle)] transition-colors">
+                            <svg :class="['w-3.5 h-3.5 stroke-[1.8]', isAccountSyncing[acc.id] ? 'animate-spin text-emerald-500' : '']" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                              <polyline points="23 4 23 10 17 10"></polyline>
+                              <polyline points="1 20 1 14 7 14"></polyline>
+                              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                          </button>
+                          <!-- 编辑按钮 -->
+                          <button @click="openEditAccountModal(acc)" title="编辑账号与凭据"
+                                  class="p-1 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors">
+                            <svg class="w-3.5 h-3.5 stroke-[1.8]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                          </button>
+                          <!-- 删除按钮 -->
+                          <button @click="handleDeleteAccount(acc)" title="移除账号 (做题记录仍将保留)"
+                                  class="p-1 rounded-md text-[var(--text-tertiary)] hover:text-rose-500 hover:bg-[var(--bg-subtle)] transition-colors">
+                            <svg class="w-3.5 h-3.5 stroke-[1.8]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                              <polyline points="3 6 5 6 21 6"></polyline>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div class="pt-3 border-t border-[var(--border-subtle)] flex justify-end">
-                  <button @click="verifyPlatform('codeforces')" :disabled="isVerifying['codeforces']"
-                          class="btn-secondary text-xs w-full">
-                    {{ isVerifying['codeforces'] ? '测试中...' : '测试连接' }}
-                  </button>
-                </div>
-              </div>
 
-              <!-- 2. AtCoder 配置卡片 -->
-              <div class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex flex-col justify-between h-full space-y-4 shadow-sm">
-                <div class="space-y-3">
-                  <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
-                    <div class="flex items-center space-x-2">
-                      <span class="w-2 h-2 rounded-full bg-purple-500 shadow-sm"></span>
-                      <span class="font-bold text-[var(--text-primary)] text-xs">AtCoder</span>
-                    </div>
-                    <span :class="['status-pill text-[10px] whitespace-nowrap shrink-0 max-w-[120px] truncate', getPlatformPillClass('atcoder')]" :title="platformStatusMap['atcoder']?.message">
-                      {{ platformStatusMap['atcoder']?.message || '未配置' }}
-                    </span>
-                  </div>
-                  <div class="space-y-2.5">
-                    <div>
-                      <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">用户名 (Handle)</label>
-                      <input v-model="settingsForm.atcoder_handle" type="text" placeholder="输入 AtCoder 用户名 (如 FarmingWAs)" 
-                             class="ui-input font-mono text-xs">
-                    </div>
-                    <div>
-                      <label class="block text-[var(--text-tertiary)] mb-1 text-[11px] font-medium">认证方式</label>
-                      <div class="ui-input text-[var(--text-secondary)] bg-[var(--bg-surface)] flex items-center text-xs">
-                        <svg class="w-3.5 h-3.5 text-purple-500 mr-1.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                          <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                        <span>公开 API 免 Cookie</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="pt-3 border-t border-[var(--border-subtle)] flex justify-end">
-                  <button @click="verifyPlatform('atcoder')" :disabled="isVerifying['atcoder']"
-                          class="btn-secondary text-xs w-full">
-                    {{ isVerifying['atcoder'] ? '测试中...' : '测试连接' }}
+                <!-- 卡片底部按钮栏 -->
+                <div class="pt-3 border-t border-[var(--border-subtle)] grid grid-cols-2 gap-2">
+                  <button @click="openAddAccountModal(p.id)" 
+                          class="btn-secondary text-xs py-1.5 flex items-center justify-center space-x-1 w-full">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>添加账号</span>
                   </button>
-                </div>
-              </div>
-
-              <!-- 3. 洛谷 配置卡片 -->
-              <div class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex flex-col justify-between h-full space-y-4 shadow-sm">
-                <div class="space-y-3">
-                  <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
-                    <div class="flex items-center space-x-2">
-                      <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-sm"></span>
-                      <span class="font-bold text-[var(--text-primary)] text-xs">洛谷</span>
-                    </div>
-                    <span :class="['status-pill text-[10px] whitespace-nowrap shrink-0 max-w-[120px] truncate', getPlatformPillClass('luogu')]" :title="platformStatusMap['luogu']?.message">
-                      {{ platformStatusMap['luogu']?.message || '未配置' }}
-                    </span>
-                  </div>
-                  <div class="space-y-2.5">
-                    <div>
-                      <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">UID (纯数字)</label>
-                      <input v-model="settingsForm.luogu_uid" type="text" placeholder="输入 UID 纯数字 (如 1940760)" 
-                             class="ui-input font-mono text-xs">
-                    </div>
-                    <div>
-                      <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">Cookie (__client_id)</label>
-                      <input v-model="settingsForm.luogu_cookie" type="text" placeholder="输入 __client_id 字符串" 
-                             class="ui-input font-mono text-xs">
-                    </div>
-                  </div>
-                </div>
-                <div class="pt-3 border-t border-[var(--border-subtle)] flex justify-end">
-                  <button @click="verifyPlatform('luogu')" :disabled="isVerifying['luogu']"
-                          class="btn-secondary text-xs w-full">
-                    {{ isVerifying['luogu'] ? '测试中...' : '测试连接' }}
-                  </button>
-                </div>
-              </div>
-
-              <!-- 4. AcWing 配置卡片 -->
-              <div class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex flex-col justify-between h-full space-y-4 shadow-sm">
-                <div class="space-y-3">
-                  <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
-                    <div class="flex items-center space-x-2">
-                      <span class="w-2 h-2 rounded-full bg-indigo-500 shadow-sm"></span>
-                      <span class="font-bold text-[var(--text-primary)] text-xs">AcWing</span>
-                    </div>
-                    <span :class="['status-pill text-[10px] whitespace-nowrap shrink-0 max-w-[120px] truncate', getPlatformPillClass('acwing')]" :title="platformStatusMap['acwing']?.message">
-                      {{ platformStatusMap['acwing']?.message || '未配置' }}
-                    </span>
-                  </div>
-                  <div class="space-y-2.5">
-                    <div>
-                      <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">空间 ID (纯数字)</label>
-                      <input v-model="settingsForm.acwing_user_id" type="text" placeholder="输入空间 ID 纯数字 (如 360946)" 
-                             class="ui-input font-mono text-xs">
-                    </div>
-                    <div>
-                      <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">Cookie (sessionid)</label>
-                      <input v-model="settingsForm.acwing_cookie" type="text" placeholder="输入 sessionid 字符串" 
-                             class="ui-input font-mono text-xs">
-                    </div>
-                  </div>
-                </div>
-                <div class="pt-3 border-t border-[var(--border-subtle)] flex justify-end">
-                  <button @click="verifyPlatform('acwing')" :disabled="isVerifying['acwing']"
-                          class="btn-secondary text-xs w-full">
-                    {{ isVerifying['acwing'] ? '测试中...' : '测试连接' }}
+                  <button @click="syncPlatformManual(p.id)" :disabled="isVerifying[p.id]"
+                          class="btn-secondary text-xs py-1.5 flex items-center justify-center space-x-1 w-full">
+                    <svg :class="['w-3.5 h-3.5', isVerifying[p.id] ? 'animate-spin' : '']" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="23 4 23 10 17 10"></polyline>
+                      <polyline points="1 20 1 14 7 14"></polyline>
+                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                    <span>{{ isVerifying[p.id] ? '同步中...' : '同步全量' }}</span>
                   </button>
                 </div>
               </div>
@@ -1397,6 +1385,106 @@
 
     </template>
 
+    <!-- 账号添加 / 编辑浮层弹窗 (Apple 极简模态窗) -->
+    <div v-if="accountModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm transition-opacity">
+      <div class="w-full max-w-md bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-6 space-y-5 transform transition-all font-sans">
+        <!-- 弹窗标题 -->
+        <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+            <h3 class="text-sm font-bold text-[var(--text-primary)]">
+              {{ accountModalMode === 'add' ? '添加平台账号' : '编辑平台账号' }}
+            </h3>
+          </div>
+          <button @click="accountModalOpen = false" class="p-1 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors">
+            <svg class="w-4 h-4 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <!-- 表单项 -->
+        <div class="space-y-4 text-xs">
+          <!-- 平台选择 (添加时可选) -->
+          <div>
+            <label class="block text-[var(--text-secondary)] font-medium mb-1.5">目标平台</label>
+            <div class="grid grid-cols-4 gap-2">
+              <button v-for="p in platformMetaList" :key="p.id" type="button"
+                      :disabled="accountModalMode === 'edit'"
+                      @click="accountForm.platform = p.id"
+                      :class="['py-2 px-1 text-center rounded-xl border font-medium text-[11px] transition-all',
+                               accountForm.platform === p.id 
+                               ? 'bg-blue-500/10 border-blue-500 text-blue-600 dark:text-blue-400 shadow-sm' 
+                               : 'border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-bold)]']">
+                {{ p.name }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 账号标识 / 用户名 / UID -->
+          <div>
+            <label class="block text-[var(--text-secondary)] font-medium mb-1.5">
+              {{ accountForm.platform === 'luogu' ? '用户 UID (纯数字)' : accountForm.platform === 'acwing' ? '个人空间 ID (纯数字)' : '账号用户名 (Handle)' }}
+              <span class="text-rose-500">*</span>
+            </label>
+            <input v-model="accountForm.handle" type="text"
+                   :placeholder="accountForm.platform === 'luogu' ? '如 1940760' : accountForm.platform === 'acwing' ? '如 360946' : accountForm.platform === 'atcoder' ? '如 FarmingWAs' : '如 MCGA_WJJ'"
+                   class="ui-input font-mono text-xs w-full">
+          </div>
+
+          <!-- Cookie 凭据 (洛谷与 AcWing) -->
+          <div v-if="accountForm.platform === 'luogu' || accountForm.platform === 'acwing'">
+            <label class="block text-[var(--text-secondary)] font-medium mb-1.5">
+              {{ accountForm.platform === 'luogu' ? 'Cookie (__client_id 字段)' : 'Cookie (sessionid 字段)' }}
+            </label>
+            <input v-model="accountForm.cookie" type="text"
+                   :placeholder="accountForm.platform === 'luogu' ? '输入 __client_id' : '输入 sessionid'"
+                   class="ui-input font-mono text-xs w-full">
+            <p class="text-[10px] text-[var(--text-muted)] mt-1">用于抓取该平台的个人私有提交与做题记录。</p>
+          </div>
+          <div v-else class="p-2.5 rounded-xl bg-blue-500/5 border border-blue-500/20 text-[11px] text-blue-600 dark:text-blue-400 flex items-center space-x-2">
+            <svg class="w-4 h-4 shrink-0 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <span>{{ getPlatformName(accountForm.platform) }} 支持公开 API，无需配置 Cookie 即可同步。</span>
+          </div>
+
+          <!-- 账号别名 / 备注 -->
+          <div>
+            <label class="block text-[var(--text-secondary)] font-medium mb-1.5">账号别名 / 备注 (可选)</label>
+            <input v-model="accountForm.alias" type="text" placeholder="例如: 大号、刷题小号、被封旧号等"
+                   class="ui-input text-xs w-full">
+          </div>
+
+          <!-- 是否主账号 -->
+          <div class="flex items-center justify-between pt-1">
+            <div>
+              <span class="font-medium text-[var(--text-primary)]">设为该平台主账号</span>
+              <p class="text-[10px] text-[var(--text-muted)]">主账号将作为该平台的首要状态与展示代表</p>
+            </div>
+            <input type="checkbox" v-model="accountForm.is_primary"
+                   class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer">
+          </div>
+        </div>
+
+        <!-- 弹窗底部操作按钮 -->
+        <div class="pt-3 border-t border-[var(--border-subtle)] flex items-center justify-end space-x-2.5">
+          <button @click="accountModalOpen = false" type="button" class="btn-secondary text-xs px-4 py-2">
+            取消
+          </button>
+          <button @click="handleSaveAccount" :disabled="isAccountSubmitting" type="button" class="btn-primary text-xs px-5 py-2 flex items-center space-x-1.5">
+            <svg v-if="isAccountSubmitting" class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 14v1m8-8h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"></path>
+            </svg>
+            <span>{{ isAccountSubmitting ? '保存中...' : '保存账号' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 全局浮动提示 (Toast - Apple Frosted Pill) -->
     <div v-if="toast.show" class="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-xl text-xs font-semibold border flex items-center space-x-2.5 backdrop-blur-xl transition-all font-sans"
          :class="toast.type === 'success' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'">
@@ -1412,6 +1500,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.5.4"></script>
+  <script src="/static/app.js?v=2.5.5"></script>
 </body>
 </html>

@@ -201,6 +201,8 @@ def init_db():
             sub_cols = [row["name"] for row in cursor.fetchall()]
             if "user_id" not in sub_cols:
                 cursor.execute("ALTER TABLE submissions ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;")
+            if "account_handle" not in sub_cols:
+                cursor.execute("ALTER TABLE submissions ADD COLUMN account_handle TEXT DEFAULT '';")
 
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_date ON submissions(user_id, date);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_platform ON submissions(user_id, platform);")
@@ -292,6 +294,27 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_contests_start_ts ON contests(start_timestamp);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_contests_platform ON contests(platform);")
 
+        # 8. 多平台账号表 (Platform Accounts - 支持单平台多账号)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS platform_accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                platform TEXT NOT NULL,
+                handle TEXT NOT NULL,
+                cookie TEXT DEFAULT '',
+                alias TEXT DEFAULT '',
+                is_primary INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'unconfigured',
+                status_message TEXT DEFAULT '',
+                last_synced_at TEXT DEFAULT '',
+                item_count INTEGER DEFAULT 0,
+                rating TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_platform_accounts_user ON platform_accounts(user_id, platform);")
+
         # 为主账户填充默认配置（如果缺失）
         default_configs = {
             "cf_handle": "",
@@ -314,6 +337,56 @@ def init_db():
                 INSERT OR IGNORE INTO platform_status (user_id, platform, status, message, last_checked_at, item_count, rating)
                 VALUES (1, ?, 'unconfigured', '未配置账号', '', 0, '');
             """, (p,))
+
+        # 兼容存量单账号自动平滑迁移至 platform_accounts
+        cursor.execute("SELECT id FROM users;")
+        user_rows = cursor.fetchall()
+        for u_row in user_rows:
+            uid = u_row["id"]
+            cursor.execute("SELECT COUNT(*) as cnt FROM platform_accounts WHERE user_id = ?;", (uid,))
+            if cursor.fetchone()["cnt"] == 0:
+                cursor.execute("SELECT key, value FROM user_configs WHERE user_id = ?;", (uid,))
+                cfg_dict = {r["key"]: r["value"] for r in cursor.fetchall()}
+                cursor.execute("SELECT platform, status, message, item_count, rating, last_checked_at FROM platform_status WHERE user_id = ?;", (uid,))
+                stat_dict = {r["platform"]: dict(r) for r in cursor.fetchall()}
+
+                # Codeforces
+                cf_h = cfg_dict.get("cf_handle", "").strip()
+                if cf_h:
+                    st = stat_dict.get("codeforces", {})
+                    cursor.execute("""
+                        INSERT INTO platform_accounts (user_id, platform, handle, cookie, alias, is_primary, status, status_message, item_count, rating, last_synced_at)
+                        VALUES (?, 'codeforces', ?, '', '主号', 1, ?, ?, ?, ?, ?);
+                    """, (uid, cf_h, st.get("status", "ok"), st.get("message", ""), st.get("item_count", 0), st.get("rating", ""), st.get("last_checked_at", "")))
+
+                # Luogu
+                lg_u = cfg_dict.get("luogu_uid", "").strip()
+                lg_c = cfg_dict.get("luogu_cookie", "").strip()
+                if lg_u or lg_c:
+                    st = stat_dict.get("luogu", {})
+                    cursor.execute("""
+                        INSERT INTO platform_accounts (user_id, platform, handle, cookie, alias, is_primary, status, status_message, item_count, rating, last_synced_at)
+                        VALUES (?, 'luogu', ?, ?, '主号', 1, ?, ?, ?, ?, ?);
+                    """, (uid, lg_u, lg_c, st.get("status", "ok"), st.get("message", ""), st.get("item_count", 0), st.get("rating", ""), st.get("last_checked_at", "")))
+
+                # AcWing
+                aw_u = cfg_dict.get("acwing_user_id", "").strip()
+                aw_c = cfg_dict.get("acwing_cookie", "").strip()
+                if aw_u or aw_c:
+                    st = stat_dict.get("acwing", {})
+                    cursor.execute("""
+                        INSERT INTO platform_accounts (user_id, platform, handle, cookie, alias, is_primary, status, status_message, item_count, rating, last_synced_at)
+                        VALUES (?, 'acwing', ?, ?, '主号', 1, ?, ?, ?, ?, ?);
+                    """, (uid, aw_u, aw_c, st.get("status", "ok"), st.get("message", ""), st.get("item_count", 0), st.get("rating", ""), st.get("last_checked_at", "")))
+
+                # AtCoder
+                at_h = cfg_dict.get("atcoder_handle", "").strip()
+                if at_h:
+                    st = stat_dict.get("atcoder", {})
+                    cursor.execute("""
+                        INSERT INTO platform_accounts (user_id, platform, handle, cookie, alias, is_primary, status, status_message, item_count, rating, last_synced_at)
+                        VALUES (?, 'atcoder', ?, '', '主号', 1, ?, ?, ?, ?, ?);
+                    """, (uid, at_h, st.get("status", "ok"), st.get("message", ""), st.get("item_count", 0), st.get("rating", ""), st.get("last_checked_at", "")))
 
         conn.commit()
 
@@ -518,6 +591,176 @@ def get_all_platform_status(user_id: int) -> List[Dict[str, Any]]:
         cursor.execute("SELECT * FROM platform_status WHERE user_id = ?;", (user_id,))
         return [dict(r) for r in cursor.fetchall()]
 
+# --- Platform Accounts (Multi-Account Support) ---
+
+def _sync_primary_to_configs(cursor: sqlite3.Cursor, user_id: int, platform: str, handle: str, cookie: str):
+    """保持向后兼容，将当前主账号同步至 user_configs 表"""
+    mapping = {
+        "codeforces": [("cf_handle", handle)],
+        "luogu": [("luogu_uid", handle), ("luogu_cookie", cookie)],
+        "acwing": [("acwing_user_id", handle), ("acwing_cookie", cookie)],
+        "atcoder": [("atcoder_handle", handle)]
+    }
+    for k, v in mapping.get(platform, []):
+        cursor.execute("""
+            INSERT INTO user_configs (user_id, key, value) VALUES (?, ?, ?)
+            ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+        """, (user_id, k, v))
+
+def get_platform_accounts(user_id: int, platform: Optional[str] = None) -> List[Dict[str, Any]]:
+    """获取用户绑定的平台账号列表"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if platform and platform != "all":
+            cursor.execute("""
+                SELECT * FROM platform_accounts
+                WHERE user_id = ? AND platform = ?
+                ORDER BY is_primary DESC, id ASC;
+            """, (user_id, platform))
+        else:
+            cursor.execute("""
+                SELECT * FROM platform_accounts
+                WHERE user_id = ?
+                ORDER BY platform ASC, is_primary DESC, id ASC;
+            """, (user_id,))
+        return [dict(r) for r in cursor.fetchall()]
+
+def get_account_by_id(account_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+    """根据 ID 获取账号详情"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM platform_accounts WHERE id = ? AND user_id = ?;", (account_id, user_id))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+def add_platform_account(user_id: int, platform: str, handle: str, cookie: str = "", alias: str = "", is_primary: bool = False) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    """新增平台账号 (支持多账号)"""
+    handle = handle.strip()
+    platform = platform.strip().lower()
+    if not handle and platform not in ("acwing", "luogu"):
+        return False, "请填写用户名或 Handle", None
+    if not handle and not cookie:
+        return False, "请填写用户名/UID 或 Cookie", None
+    if not alias:
+        alias = handle if handle else "默认账号"
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        # 检查是否已存在相同 handle 的账号
+        cursor.execute("SELECT id FROM platform_accounts WHERE user_id = ? AND platform = ? AND handle = ?;", (user_id, platform, handle))
+        if cursor.fetchone():
+            return False, f"该平台下已存在账号 {handle}", None
+
+        # 检查当前是否已有账号，若没有则此账号自动成为主账号
+        cursor.execute("SELECT COUNT(*) as cnt FROM platform_accounts WHERE user_id = ? AND platform = ?;", (user_id, platform))
+        has_existing = cursor.fetchone()["cnt"] > 0
+        actual_primary = 1 if (is_primary or not has_existing) else 0
+
+        if actual_primary:
+            cursor.execute("UPDATE platform_accounts SET is_primary = 0 WHERE user_id = ? AND platform = ?;", (user_id, platform))
+
+        cursor.execute("""
+            INSERT INTO platform_accounts (user_id, platform, handle, cookie, alias, is_primary, status, status_message)
+            VALUES (?, ?, ?, ?, ?, ?, 'unconfigured', '未同步');
+        """, (user_id, platform, handle, cookie.strip(), alias.strip(), actual_primary))
+        new_id = cursor.lastrowid
+        
+        # 同步回写 user_configs 保持兼容
+        if actual_primary:
+            _sync_primary_to_configs(cursor, user_id, platform, handle, cookie.strip())
+
+        conn.commit()
+
+        cursor.execute("SELECT * FROM platform_accounts WHERE id = ?;", (new_id,))
+        acc = dict(cursor.fetchone())
+        return True, "账号添加成功", acc
+
+def update_platform_account(account_id: int, user_id: int, handle: Optional[str] = None, cookie: Optional[str] = None, alias: Optional[str] = None, is_primary: Optional[bool] = None, status: Optional[str] = None, status_message: Optional[str] = None, item_count: Optional[int] = None, rating: Optional[str] = None, last_synced_at: Optional[str] = None) -> Tuple[bool, str]:
+    """更新平台账号信息"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM platform_accounts WHERE id = ? AND user_id = ?;", (account_id, user_id))
+        existing = cursor.fetchone()
+        if not existing:
+            return False, "账号不存在"
+
+        existing = dict(existing)
+        platform = existing["platform"]
+
+        new_handle = handle.strip() if handle is not None else existing["handle"]
+        new_cookie = cookie.strip() if cookie is not None else existing["cookie"]
+        new_alias = alias.strip() if alias is not None else existing["alias"]
+        new_status = status if status is not None else existing["status"]
+        new_msg = status_message if status_message is not None else existing["status_message"]
+        new_items = item_count if item_count is not None else existing["item_count"]
+        new_rating = rating if rating is not None else existing["rating"]
+        new_last_synced = last_synced_at if last_synced_at is not None else existing["last_synced_at"]
+
+        if is_primary:
+            cursor.execute("UPDATE platform_accounts SET is_primary = 0 WHERE user_id = ? AND platform = ?;", (user_id, platform))
+            new_primary = 1
+        elif is_primary is False:
+            new_primary = 0
+        else:
+            new_primary = existing["is_primary"]
+
+        cursor.execute("""
+            UPDATE platform_accounts SET
+                handle = ?, cookie = ?, alias = ?, is_primary = ?,
+                status = ?, status_message = ?, item_count = ?, rating = ?, last_synced_at = ?
+            WHERE id = ? AND user_id = ?;
+        """, (new_handle, new_cookie, new_alias, new_primary, new_status, new_msg, new_items, new_rating, new_last_synced, account_id, user_id))
+
+        if new_primary:
+            _sync_primary_to_configs(cursor, user_id, platform, new_handle, new_cookie)
+
+        conn.commit()
+        return True, "账号更新成功"
+
+def delete_platform_account(account_id: int, user_id: int) -> Tuple[bool, str]:
+    """删除绑定的账号 (保留其历史已拉取的题目数据，防止题数丢失)"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM platform_accounts WHERE id = ? AND user_id = ?;", (account_id, user_id))
+        acc = cursor.fetchone()
+        if not acc:
+            return False, "账号不存在"
+        
+        acc = dict(acc)
+        was_primary = acc["is_primary"]
+        platform = acc["platform"]
+
+        cursor.execute("DELETE FROM platform_accounts WHERE id = ? AND user_id = ?;", (account_id, user_id))
+        
+        # 若删除的是主账号，自动将剩余的第一个账号设为主账号
+        if was_primary:
+            cursor.execute("SELECT id, handle, cookie FROM platform_accounts WHERE user_id = ? AND platform = ? ORDER BY id ASC LIMIT 1;", (user_id, platform))
+            next_primary = cursor.fetchone()
+            if next_primary:
+                cursor.execute("UPDATE platform_accounts SET is_primary = 1 WHERE id = ?;", (next_primary["id"],))
+                _sync_primary_to_configs(cursor, user_id, platform, next_primary["handle"], next_primary["cookie"])
+            else:
+                _sync_primary_to_configs(cursor, user_id, platform, "", "")
+                now_str = get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
+                cursor.execute("""
+                    INSERT INTO platform_status (user_id, platform, status, message, last_checked_at, item_count, rating, updated_at)
+                    VALUES (?, ?, 'unconfigured', '未配置账号', ?, 0, '', CURRENT_TIMESTAMP)
+                    ON CONFLICT(user_id, platform) DO UPDATE SET
+                        status = 'unconfigured',
+                        message = '未配置账号',
+                        last_checked_at = excluded.last_checked_at,
+                        item_count = 0,
+                        rating = '',
+                        updated_at = CURRENT_TIMESTAMP;
+                """, (user_id, platform, now_str))
+
+        conn.commit()
+        return True, "账号已移除 (历史提交数据已安全保留)"
+
+def set_primary_account(account_id: int, user_id: int) -> Tuple[bool, str]:
+    """设为主账号"""
+    return update_platform_account(account_id, user_id, is_primary=True)
+
 # --- Submissions Management (Per User) ---
 
 def save_submissions(submissions: List[Dict[str, Any]], user_id: int = 1) -> int:
@@ -530,6 +773,7 @@ def save_submissions(submissions: List[Dict[str, Any]], user_id: int = 1) -> int
             sub_id = f"u{user_id}_{s['platform']}_{s['raw_id']}"
             tags_json = json.dumps(s.get("tags", []), ensure_ascii=False)
             extra_json = json.dumps(s.get("extra_data", {}), ensure_ascii=False)
+            acc_handle = s.get("account_handle", "")
             
             sub_at = s.get("submitted_at", "")
             sub_date = s.get("date")
@@ -542,8 +786,8 @@ def save_submissions(submissions: List[Dict[str, Any]], user_id: int = 1) -> int
                 INSERT INTO submissions (
                     id, user_id, platform, raw_id, problem_id, problem_title, verdict, tags,
                     difficulty, difficulty_score, submitted_at, date, submission_url,
-                    code_language, extra_data
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    code_language, extra_data, account_handle
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     problem_title = excluded.problem_title,
                     verdict = excluded.verdict,
@@ -554,7 +798,8 @@ def save_submissions(submissions: List[Dict[str, Any]], user_id: int = 1) -> int
                     date = CASE WHEN excluded.date != '' THEN excluded.date ELSE submissions.date END,
                     submission_url = excluded.submission_url,
                     code_language = excluded.code_language,
-                    extra_data = excluded.extra_data;
+                    extra_data = excluded.extra_data,
+                    account_handle = CASE WHEN excluded.account_handle != '' THEN excluded.account_handle ELSE submissions.account_handle END;
             """, (
                 sub_id,
                 user_id,
@@ -570,9 +815,9 @@ def save_submissions(submissions: List[Dict[str, Any]], user_id: int = 1) -> int
                 sub_date,
                 s.get("submission_url", ""),
                 s.get("code_language", ""),
-                extra_json
+                extra_json,
+                acc_handle
             ))
-            inserted_count += 1
         conn.commit()
         return inserted_count
 

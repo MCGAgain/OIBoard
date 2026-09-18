@@ -80,6 +80,37 @@ createApp({
     const isSavingSystem = ref(false);
     const isVerifying = ref({ codeforces: false, luogu: false, acwing: false, atcoder: false });
 
+    // --- Multi-Account Management State ---
+    const accounts = ref([]);
+    const isAccountSyncing = ref({});
+    const isAccountTesting = ref({});
+    const accountModalOpen = ref(false);
+    const accountModalMode = ref("add"); // 'add' | 'edit'
+    const accountForm = ref({ id: null, platform: "codeforces", handle: "", cookie: "", alias: "", is_primary: false });
+    const isAccountSubmitting = ref(false);
+
+    const platformMetaList = [
+      { id: "codeforces", name: "Codeforces", dotColor: "bg-blue-500" },
+      { id: "atcoder", name: "AtCoder", dotColor: "bg-purple-500" },
+      { id: "luogu", name: "洛谷 (Luogu)", dotColor: "bg-emerald-500" },
+      { id: "acwing", name: "AcWing", dotColor: "bg-indigo-500" }
+    ];
+
+    const groupedAccounts = computed(() => {
+      const map = { codeforces: [], atcoder: [], luogu: [], acwing: [] };
+      for (const a of accounts.value) {
+        if (map[a.platform]) {
+          map[a.platform].push(a);
+        }
+      }
+      return map;
+    });
+
+    const getPlatformName = (platform) => {
+      const found = platformMetaList.find(p => p.id === platform);
+      return found ? found.name : platform;
+    };
+
     const settingsForm = ref({
       cf_handle: "",
       luogu_uid: "",
@@ -774,6 +805,7 @@ createApp({
           poll_interval_minutes: configs.value.poll_interval_minutes || "30",
           http_proxy: configs.value.http_proxy || "",
         };
+        await loadAccounts();
       } catch (e) {
         console.error("加载设置失败:", e);
       }
@@ -1431,6 +1463,215 @@ createApp({
       }
     };
 
+    // --- Multi-Account Actions ---
+    const loadAccounts = async () => {
+      try {
+        const res = await apiFetch("/api/accounts");
+        const data = await res.json();
+        if (data.accounts) {
+          accounts.value = data.accounts;
+        }
+      } catch (e) {
+        console.error("加载多账号列表失败:", e);
+      }
+    };
+
+    const openAddAccountModal = (platform = "codeforces") => {
+      accountModalMode.value = "add";
+      const existing = groupedAccounts.value[platform] || [];
+      accountForm.value = {
+        id: null,
+        platform: platform,
+        handle: "",
+        cookie: "",
+        alias: "",
+        is_primary: existing.length === 0
+      };
+      accountModalOpen.value = true;
+    };
+
+    const openEditAccountModal = (account) => {
+      accountModalMode.value = "edit";
+      accountForm.value = {
+        id: account.id,
+        platform: account.platform,
+        handle: account.handle,
+        cookie: account.cookie || "",
+        alias: account.alias || "",
+        is_primary: !!account.is_primary
+      };
+      accountModalOpen.value = true;
+    };
+
+    const handleSaveAccount = async () => {
+      if (!accountForm.value.handle || !accountForm.value.handle.trim()) {
+        showToast("请输入账号标识 (用户名/UID)", "error");
+        return;
+      }
+      isAccountSubmitting.value = true;
+      try {
+        if (accountModalMode.value === "add") {
+          const payload = {
+            platform: accountForm.value.platform,
+            handle: accountForm.value.handle.trim(),
+            cookie: accountForm.value.cookie ? accountForm.value.cookie.trim() : "",
+            alias: accountForm.value.alias ? accountForm.value.alias.trim() : "",
+            is_primary: !!accountForm.value.is_primary
+          };
+          const res = await apiFetch("/api/accounts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok || data.detail) {
+            showToast(data.detail || "添加账号失败", "error");
+            return;
+          }
+          showToast("账号添加成功", "success");
+          accountModalOpen.value = false;
+          await Promise.all([loadAccounts(), loadSettings(), loadOverview()]);
+        } else {
+          const payload = {
+            handle: accountForm.value.handle.trim(),
+            cookie: accountForm.value.cookie ? accountForm.value.cookie.trim() : "",
+            alias: accountForm.value.alias ? accountForm.value.alias.trim() : "",
+            is_primary: !!accountForm.value.is_primary
+          };
+          const res = await apiFetch(`/api/accounts/${accountForm.value.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok || data.detail) {
+            showToast(data.detail || "更新账号失败", "error");
+            return;
+          }
+          showToast("账号更新成功", "success");
+          accountModalOpen.value = false;
+          await Promise.all([loadAccounts(), loadSettings(), loadOverview()]);
+        }
+      } catch (e) {
+        showToast("保存失败: " + e.message, "error");
+      } finally {
+        isAccountSubmitting.value = false;
+      }
+    };
+
+    const handleDeleteAccount = async (account) => {
+      if (!confirm(`确定要移除账号 [${account.alias || account.handle}] 吗？\n注意：历史已抓取的提交记录与做题统计仍将安全保留。`)) {
+        return;
+      }
+      try {
+        const res = await apiFetch(`/api/accounts/${account.id}`, {
+          method: "DELETE"
+        });
+        const data = await res.json();
+        if (!res.ok || data.detail) {
+          showToast(data.detail || "删除失败", "error");
+          return;
+        }
+        showToast("账号已移除", "success");
+        await Promise.all([loadAccounts(), loadSettings(), loadOverview()]);
+      } catch (e) {
+        showToast("删除账号失败: " + e.message, "error");
+      }
+    };
+
+    const handleSetPrimaryAccount = async (account) => {
+      try {
+        const res = await apiFetch(`/api/accounts/${account.id}/primary`, {
+          method: "POST"
+        });
+        const data = await res.json();
+        if (!res.ok || data.detail) {
+          showToast(data.detail || "设置主账号失败", "error");
+          return;
+        }
+        showToast(`已将 [${account.alias || account.handle}] 设为主账号`, "success");
+        await Promise.all([loadAccounts(), loadSettings()]);
+      } catch (e) {
+        showToast("操作失败: " + e.message, "error");
+      }
+    };
+
+    const handleSyncSingleAccount = async (account) => {
+      isAccountSyncing.value[account.id] = true;
+      try {
+        const res = await apiFetch(`/api/accounts/${account.id}/sync`, {
+          method: "POST"
+        });
+        const data = await res.json();
+        if (!res.ok || data.detail) {
+          showToast(data.detail || "同步失败", "error");
+          return;
+        }
+        showToast(`[${account.alias || account.handle}] 同步完成: 新增 ${data.new_submissions} 条提交记录`, "success");
+        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes()]);
+        if (currentTab.value === "overview") {
+          renderHeatmap();
+          renderActiveChart();
+          syncSegmentedThumbs();
+        }
+      } catch (e) {
+        showToast("同步失败: " + e.message, "error");
+      } finally {
+        isAccountSyncing.value[account.id] = false;
+      }
+    };
+
+    const handleVerifySingleAccount = async (account) => {
+      isAccountTesting.value[account.id] = true;
+      try {
+        const res = await apiFetch("/api/accounts/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platform: account.platform,
+            handle: account.handle,
+            cookie: account.cookie || "",
+            http_proxy: settingsForm.value.http_proxy || configs.value.http_proxy || ""
+          })
+        });
+        const data = await res.json();
+        if (data.valid) {
+          showToast(data.message || `账号 [${account.handle}] 连通性测试通过`, "success");
+        } else {
+          showToast(data.message || `账号 [${account.handle}] 连通性测试未通过`, "error");
+        }
+        await loadAccounts();
+      } catch (e) {
+        showToast("连通性测试异常: " + e.message, "error");
+      } finally {
+        isAccountTesting.value[account.id] = false;
+      }
+    };
+
+    const syncPlatformManual = async (platform) => {
+      isVerifying.value[platform] = true;
+      try {
+        showToast(`正在同步 ${getPlatformName(platform)} 所有账号...`, "info");
+        const res = await apiFetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platform })
+        });
+        const data = await res.json();
+        showToast(`${getPlatformName(platform)} 同步完成`, "success");
+        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes()]);
+        if (currentTab.value === "overview") {
+          renderHeatmap();
+          renderActiveChart();
+          syncSegmentedThumbs();
+        }
+      } catch (e) {
+        showToast("同步异常: " + e.message, "error");
+      } finally {
+        isVerifying.value[platform] = false;
+      }
+    };
+
     // --- Helpers ---
     const formatTimeAgo = (timeStr) => {
       if (!timeStr) return "";
@@ -1645,6 +1886,26 @@ createApp({
       verifyPlatform,
       saveSettingsAndSync,
       saveSystemSettingsOnly,
+      // Multi-Account Management exports
+      accounts,
+      isAccountSyncing,
+      isAccountTesting,
+      accountModalOpen,
+      accountModalMode,
+      accountForm,
+      isAccountSubmitting,
+      platformMetaList,
+      groupedAccounts,
+      getPlatformName,
+      loadAccounts,
+      openAddAccountModal,
+      openEditAccountModal,
+      handleSaveAccount,
+      handleDeleteAccount,
+      handleSetPrimaryAccount,
+      handleSyncSingleAccount,
+      handleVerifySingleAccount,
+      syncPlatformManual,
       formatTimeAgo,
       getStatusClass,
       getPlatformPillClass,
