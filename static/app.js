@@ -1604,10 +1604,16 @@ createApp({
         });
         const data = await res.json();
         if (!res.ok || data.detail) {
-          showToast(data.detail || "同步失败", "error");
+          showToast(data.detail || "同步请求失败", "error");
           return;
         }
-        showToast(`[${account.alias || account.handle}] 同步完成: 新增 ${data.new_submissions} 条提交记录`, "success");
+        if (data.success === false) {
+          showToast(`[${account.alias || account.handle}] 同步未完成: ${data.message || "请求失败"}`, "error");
+          await Promise.all([loadAccounts(), loadSettings()]);
+          return;
+        }
+        const count = data.count !== undefined ? data.count : (data.new_submissions !== undefined ? data.new_submissions : 0);
+        showToast(`[${account.alias || account.handle}] 同步完成: 成功获取 ${count} 条提交记录`, "success");
         await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes()]);
         if (currentTab.value === "overview") {
           renderHeatmap();
@@ -1658,7 +1664,11 @@ createApp({
           body: JSON.stringify({ platform })
         });
         const data = await res.json();
-        showToast(`${getPlatformName(platform)} 同步完成`, "success");
+        if (!res.ok || data.success === false) {
+          showToast(`${getPlatformName(platform)} 同步未完成: ${data.message || "请求失败"}`, "error");
+        } else {
+          showToast(`${getPlatformName(platform)} 同步完成: ${data.message || "已获取最新数据"}`, "success");
+        }
         await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes()]);
         if (currentTab.value === "overview") {
           renderHeatmap();

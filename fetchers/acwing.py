@@ -112,6 +112,7 @@ class AcWingFetcher(BaseFetcher):
 
     async def _fetch_problem_page(self, client: httpx.AsyncClient, sem: asyncio.Semaphore, page: int, headers: dict) -> List[Tuple[str, str, str]]:
         async with sem:
+            await asyncio.sleep(0.08)
             url = f"{self.BASE_URL}/problem/{page}/"
             try:
                 res = await client.get(url, headers=headers)
@@ -164,6 +165,7 @@ class AcWingFetcher(BaseFetcher):
         prob_url = f"{self.BASE_URL}/problem/content/{pid}/"
 
         async with sem:
+            await asyncio.sleep(0.08)
             try:
                 res = await client.get(url, headers=headers)
                 if res.status_code == 200:
@@ -283,8 +285,8 @@ class AcWingFetcher(BaseFetcher):
                     if m:
                         total_expected = int(m.group(1))
 
-                # 2. 并发扫描题库所有页面 (1~45页)，提取所有通过标记的题目
-                sem_page = asyncio.Semaphore(12)
+                # 2. 适度温和并发扫描题库页面 (1~45页)，避免触发平台高频封禁
+                sem_page = asyncio.Semaphore(4)
                 tasks = [self._fetch_problem_page(client, sem_page, p, headers) for p in range(1, 45)]
                 page_results = await asyncio.gather(*tasks)
 
@@ -293,8 +295,8 @@ class AcWingFetcher(BaseFetcher):
                     for item in r:
                         all_passed_probs.append(item)
 
-                # 3. 并发获取所有已通过题目的真实提交流 (/problem/content/submission/{pid}/)
-                sem_subs = asyncio.Semaphore(16)
+                # 3. 适度温和并发获取已通过题目的真实提交流 (/problem/content/submission/{pid}/)
+                sem_subs = asyncio.Semaphore(4)
                 sub_tasks = [self._fetch_problem_submissions(client, sem_subs, p, headers) for p in all_passed_probs]
                 sub_results = await asyncio.gather(*sub_tasks)
 

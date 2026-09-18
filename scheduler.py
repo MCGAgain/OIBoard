@@ -180,7 +180,7 @@ class TaskScheduler:
         accounts = get_platform_accounts(user_id, acc["platform"])
         has_ok = any(a["status"] == "ok" for a in accounts)
         update_platform_status(user_id, acc["platform"], "ok" if has_ok else "error", msg, rating=r)
-        return {"success": ok, "message": msg, "count": cnt}
+        return {"success": ok, "message": msg, "count": cnt, "new_submissions": cnt}
 
     async def sync_contests(self) -> Dict[str, Any]:
         """抓取并保存跨平台比赛列表 (Codeforces, AtCoder, Luogu)"""
