@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 
 from db import (
     get_all_configs,
@@ -22,6 +22,19 @@ from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher, AtCoderFetc
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("OIBoardScheduler")
+
+def sanitize_proxy(proxy: Optional[str]) -> Optional[str]:
+    """严格净化校验出站代理协议，防止非法格式导致 httpx 抛出 ValueError 崩溃"""
+    if not proxy:
+        return None
+    p = str(proxy).strip()
+    if not p:
+        return None
+    valid_schemes = ("http://", "https://", "socks5://", "socks5h://", "socks4://")
+    if any(p.lower().startswith(s) for s in valid_schemes):
+        return p
+    logger.warning(f"忽略格式非法的出站代理: {p!r}，已自动回退为直连")
+    return None
 
 class TaskScheduler:
     def __init__(self):
@@ -133,7 +146,7 @@ class TaskScheduler:
     async def sync_platform(self, platform: str, user_id: int = 1) -> Dict[str, Any]:
         """单用户单平台多账号同步逻辑"""
         configs = get_all_configs(user_id)
-        proxy = configs.get("http_proxy", "").strip()
+        proxy = sanitize_proxy(configs.get("http_proxy", ""))
         res = {"platform": platform, "success": False, "message": "", "count": 0}
 
         accounts = get_platform_accounts(user_id, platform)
@@ -173,7 +186,7 @@ class TaskScheduler:
         if not acc:
             return {"success": False, "message": "账号不存在", "count": 0}
         configs = get_all_configs(user_id)
-        proxy = configs.get("http_proxy", "").strip()
+        proxy = sanitize_proxy(configs.get("http_proxy", ""))
         ok, msg, cnt, r = await self._sync_account_worker(acc, user_id, proxy=proxy)
 
         # 刷新平台整体状态
@@ -186,7 +199,7 @@ class TaskScheduler:
         """抓取并保存跨平台比赛列表 (Codeforces, AtCoder, Luogu)"""
         logger.info("开始同步跨平台比赛列表 (Codeforces, AtCoder, Luogu)...")
         try:
-            proxy = get_config(1, "http_proxy", default="")
+            proxy = sanitize_proxy(get_config(1, "http_proxy", default=""))
             contests = await self.contest_fetcher.fetch_all_contests(proxy=proxy)
             inserted = save_contests(contests)
             self._last_contest_sync = int(datetime.now().timestamp())

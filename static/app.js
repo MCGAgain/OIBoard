@@ -1408,12 +1408,17 @@ createApp({
     };
 
     const saveSystemSettingsOnly = async () => {
+      const proxy = (settingsForm.value.http_proxy || "").trim();
+      if (proxy && !/^(http|https|socks5|socks5h|socks4):\/\//i.test(proxy)) {
+        showToast("代理地址格式错误：必须以 http:// 或 socks5:// 开头（例如 http://127.0.0.1:7890）", "error");
+        return;
+      }
       isSavingSystem.value = true;
       try {
         const minsStr = String(settingsForm.value.poll_interval_minutes || "30");
         const payload = {
           poll_interval_minutes: minsStr,
-          http_proxy: settingsForm.value.http_proxy || ""
+          http_proxy: proxy
         };
         const res = await apiFetch("/api/settings", {
           method: "POST",
@@ -1426,7 +1431,7 @@ createApp({
           configs.value.http_proxy = payload.http_proxy;
           showToast(`系统参数保存成功！日常同步间隔已更新为 ${minsStr} 分钟`, "success");
         } else {
-          showToast(data.message || "保存失败", "error");
+          showToast(data.detail || data.message || "保存失败", "error");
         }
       } catch (e) {
         showToast("保存失败: " + e.message, "error");
@@ -1436,12 +1441,18 @@ createApp({
     };
 
     const saveSettingsAndSync = async () => {
+      const proxy = (settingsForm.value.http_proxy || "").trim();
+      if (proxy && !/^(http|https|socks5|socks5h|socks4):\/\//i.test(proxy)) {
+        showToast("代理地址格式错误：必须以 http:// 或 socks5:// 开头（例如 http://127.0.0.1:7890）", "error");
+        return;
+      }
       isSaving.value = true;
       try {
         const minsStr = String(settingsForm.value.poll_interval_minutes || "30");
         const payload = {
           ...settingsForm.value,
-          poll_interval_minutes: minsStr
+          poll_interval_minutes: minsStr,
+          http_proxy: proxy
         };
         const res = await apiFetch("/api/settings", {
           method: "POST",
@@ -1455,6 +1466,8 @@ createApp({
           showToast("配置保存成功，正在同步最新数据...", "success");
           currentTab.value = "overview"; // 自动平滑切回总览看板
           await syncNow("all");
+        } else {
+          showToast(data.detail || data.message || "保存设置失败", "error");
         }
       } catch (e) {
         showToast("保存设置失败: " + e.message, "error");

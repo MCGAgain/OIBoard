@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, List
 
 import db
 from captcha import captcha_store
-from scheduler import scheduler_instance
+from scheduler import scheduler_instance, sanitize_proxy
 from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher, AtCoderFetcher
 
 # --- Lifespan ---
@@ -266,6 +266,12 @@ async def update_settings(payload: SettingsPayload, current_user: Dict[str, Any]
                     val_str = str(m)
                 except Exception:
                     val_str = "30"
+            elif k == "http_proxy":
+                if val_str and not sanitize_proxy(val_str):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="出站代理格式不正确，必须以 http:// 或 socks5:// 开头（例如 http://127.0.0.1:7890）"
+                    )
             db.set_config(uid, k, val_str)
     return {"success": True, "message": "配置更新成功"}
 
@@ -352,9 +358,7 @@ async def verify_account_direct(payload: VerifyAccountDirectPayload, current_use
     """独立测试平台账号连通性"""
     uid = current_user["id"]
     p = payload.platform.lower().strip()
-    proxy = (payload.http_proxy or "").strip()
-    if not proxy:
-        proxy = (db.get_config(uid, "http_proxy", "") or "").strip()
+    proxy = sanitize_proxy(payload.http_proxy or db.get_config(uid, "http_proxy", ""))
 
     if p == "codeforces":
         cf = CodeforcesFetcher()
@@ -393,9 +397,7 @@ async def trigger_sync(payload: SyncPayload, current_user: Dict[str, Any] = Depe
 async def verify_credentials(payload: VerifyPayload, current_user: Dict[str, Any] = Depends(get_current_user)):
     uid = current_user["id"]
     p = payload.platform.lower()
-    proxy = (payload.http_proxy or "").strip()
-    if not proxy:
-        proxy = (db.get_config(uid, "http_proxy", "") or "").strip()
+    proxy = sanitize_proxy(payload.http_proxy or db.get_config(uid, "http_proxy", ""))
 
     if p == "codeforces":
         cf = CodeforcesFetcher()
