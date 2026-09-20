@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 
 import db
 from captcha import captcha_store
@@ -52,17 +52,28 @@ async def add_no_cache_headers(request: Request, call_next):
     return response
 
 # --- Pydantic Models ---
+class UserConfigPayload(BaseModel):
+    cf_handle: Optional[str] = ""
+    luogu_uid: Optional[str] = ""
+    luogu_cookie: Optional[str] = ""
+    acwing_user_id: Optional[str] = ""
+    acwing_cookie: Optional[str] = ""
+    atcoder_handle: Optional[str] = ""
+    auto_sync: Optional[bool] = True
+    sync_interval_min: Optional[int] = 30
+    http_proxy: Optional[str] = ""
+
 class RegisterPayload(BaseModel):
     username: str
     password: str
-    captcha_id: Optional[str] = None
-    captcha_code: Optional[str] = None
+    captcha_id: Optional[str] = ""
+    captcha_code: Optional[str] = ""
 
 class LoginPayload(BaseModel):
     username: str
     password: str
-    captcha_id: Optional[str] = None
-    captcha_code: Optional[str] = None
+    captcha_id: Optional[str] = ""
+    captcha_code: Optional[str] = ""
 
 class ChangePasswordPayload(BaseModel):
     old_password: str
@@ -92,6 +103,17 @@ class UpdateAccountPayload(BaseModel):
     alias: Optional[str] = None
     is_primary: Optional[bool] = None
 
+class AccountItem(BaseModel):
+    id: Optional[str] = None
+    account_name: Optional[str] = ""
+    handle: str
+    cookie: Optional[str] = ""
+    is_primary: Optional[bool] = False
+
+class MultiAccountUpdatePayload(BaseModel):
+    platform: str
+    accounts: List[AccountItem]
+
 class VerifyAccountDirectPayload(BaseModel):
     platform: str
     handle: str
@@ -100,20 +122,20 @@ class VerifyAccountDirectPayload(BaseModel):
 
 class MistakeCreatePayload(BaseModel):
     platform: str
-    problem_id: str
+    problem_id: Union[str, int]
     problem_title: str
-    difficulty: Optional[str] = ""
-    tags: Optional[List[str]] = []
+    difficulty: Optional[Union[str, int, float]] = ""
+    tags: Optional[Union[List[Any], str]] = []
     key_point: Optional[str] = ""
     notes: Optional[str] = ""
     problem_url: Optional[str] = ""
     last_submitted_at: Optional[str] = ""
-    last_submission_id: Optional[str] = ""
+    last_submission_id: Optional[Union[str, int]] = ""
 
 class MistakeUpdatePayload(BaseModel):
     key_point: Optional[str] = None
     notes: Optional[str] = None
-    tags: Optional[List[str]] = None
+    tags: Optional[Union[List[Any], str]] = None
     problem_url: Optional[str] = None
     status: Optional[str] = None
 
@@ -291,16 +313,16 @@ async def add_mistake(payload: MistakeCreatePayload, current_user: Dict[str, Any
     uid = current_user["id"]
     item = db.add_mistake(
         user_id=uid,
-        platform=payload.platform,
-        problem_id=payload.problem_id,
-        problem_title=payload.problem_title,
-        difficulty=payload.difficulty or "",
+        platform=str(payload.platform),
+        problem_id=str(payload.problem_id).strip(),
+        problem_title=str(payload.problem_title).strip(),
+        difficulty=str(payload.difficulty).strip() if payload.difficulty is not None else "",
         tags=payload.tags or [],
-        key_point=payload.key_point or "",
-        notes=payload.notes or "",
-        problem_url=payload.problem_url or "",
-        last_submitted_at=payload.last_submitted_at or "",
-        last_submission_id=payload.last_submission_id or ""
+        key_point=str(payload.key_point or "").strip(),
+        notes=str(payload.notes or ""),
+        problem_url=str(payload.problem_url or "").strip(),
+        last_submitted_at=str(payload.last_submitted_at or "").strip(),
+        last_submission_id=str(payload.last_submission_id).strip() if payload.last_submission_id is not None else ""
     )
     return {"success": True, "mistake": item}
 

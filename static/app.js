@@ -253,6 +253,9 @@ createApp({
       if (token.value) {
         options.headers["Authorization"] = `Bearer ${token.value}`;
       }
+      if (options.body && typeof options.body === "string" && !options.headers["Content-Type"]) {
+        options.headers["Content-Type"] = "application/json";
+      }
       
       // 为 GET 请求自动附加当前毫秒时间戳参数，强制浏览器向服务器请求最新数据
       let reqUrl = url;
@@ -812,26 +815,36 @@ createApp({
     const openAddToMistakesModal = (subOrItem, fromMistakesList = false) => {
       isMistakeEditing.value = fromMistakesList;
       mistakeFormTab.value = "write";
+      subOrItem = subOrItem || {};
       
       let tagsStr = "";
       if (Array.isArray(subOrItem.tags)) {
         tagsStr = subOrItem.tags.join(", ");
       } else if (typeof subOrItem.tags === "string") {
-        tagsStr = subOrItem.tags;
+        try {
+          const parsed = JSON.parse(subOrItem.tags);
+          if (Array.isArray(parsed)) {
+            tagsStr = parsed.join(", ");
+          } else {
+            tagsStr = subOrItem.tags;
+          }
+        } catch {
+          tagsStr = subOrItem.tags;
+        }
       }
 
       mistakeForm.value = {
         id: fromMistakesList ? subOrItem.id : null,
         platform: subOrItem.platform || "luogu",
-        problem_id: subOrItem.problem_id || "",
-        problem_title: subOrItem.problem_title || "",
-        difficulty: subOrItem.difficulty || "",
+        problem_id: subOrItem.problem_id != null ? String(subOrItem.problem_id) : "",
+        problem_title: subOrItem.problem_title != null ? String(subOrItem.problem_title) : "",
+        difficulty: subOrItem.difficulty != null ? String(subOrItem.difficulty) : "",
         tags_input: tagsStr,
         key_point: subOrItem.key_point || "",
         notes: subOrItem.notes || "",
         problem_url: subOrItem.problem_url || subOrItem.submission_url || "",
         last_submitted_at: subOrItem.last_submitted_at || subOrItem.submitted_at || "",
-        last_submission_id: subOrItem.last_submission_id || subOrItem.id || ""
+        last_submission_id: subOrItem.last_submission_id != null ? String(subOrItem.last_submission_id) : (subOrItem.id != null ? String(subOrItem.id) : "")
       };
       mistakeModalOpen.value = true;
     };
@@ -850,6 +863,7 @@ createApp({
         if (isMistakeEditing.value && mistakeForm.value.id) {
           const res = await apiFetch(`/api/mistakes/${mistakeForm.value.id}`, {
             method: "PUT",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               key_point: mistakeForm.value.key_point,
               notes: mistakeForm.value.notes,
@@ -863,22 +877,25 @@ createApp({
             await loadMistakes();
             await loadMistakeKeys();
           } else {
-            showToast("更新失败，请重试", "error");
+            const err = await res.json().catch(() => ({}));
+            const msg = typeof err.detail === "string" ? err.detail : (Array.isArray(err.detail) && err.detail[0]?.msg ? err.detail[0].msg : "更新失败，请重试");
+            showToast(msg, "error");
           }
         } else {
           const res = await apiFetch("/api/mistakes", {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              platform: mistakeForm.value.platform,
-              problem_id: mistakeForm.value.problem_id,
-              problem_title: mistakeForm.value.problem_title,
-              difficulty: mistakeForm.value.difficulty,
+              platform: String(mistakeForm.value.platform || "luogu"),
+              problem_id: String(mistakeForm.value.problem_id || "").trim(),
+              problem_title: String(mistakeForm.value.problem_title || "").trim(),
+              difficulty: mistakeForm.value.difficulty != null ? String(mistakeForm.value.difficulty) : "",
               tags: tags,
-              key_point: mistakeForm.value.key_point,
-              notes: mistakeForm.value.notes,
-              problem_url: mistakeForm.value.problem_url,
-              last_submitted_at: mistakeForm.value.last_submitted_at,
-              last_submission_id: mistakeForm.value.last_submission_id
+              key_point: mistakeForm.value.key_point || "",
+              notes: mistakeForm.value.notes || "",
+              problem_url: mistakeForm.value.problem_url || "",
+              last_submitted_at: mistakeForm.value.last_submitted_at || "",
+              last_submission_id: mistakeForm.value.last_submission_id != null ? String(mistakeForm.value.last_submission_id) : ""
             })
           });
           if (res.ok) {
@@ -887,7 +904,9 @@ createApp({
             await loadMistakes();
             await loadMistakeKeys();
           } else {
-            showToast("收录失败，请重试", "error");
+            const err = await res.json().catch(() => ({}));
+            const msg = typeof err.detail === "string" ? err.detail : (Array.isArray(err.detail) && err.detail[0]?.msg ? err.detail[0].msg : "收录失败，请重试");
+            showToast(msg, "error");
           }
         }
       } catch (e) {
