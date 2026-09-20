@@ -966,6 +966,25 @@ createApp({
         newAcs = [0];
       }
 
+      // 计算 Y 轴动态起点：按用户需求算法（取最左侧一天即一年前最低的累计通过量，除最高位其余位置0）
+      // 获得当前数的量级次幂，整除该次幂再乘上该次幂，使曲线走势更突出、斜率更显著，每天动态更新
+      let yMin = 0;
+      if (values.length > 0) {
+        const leftmostVal = values[0];
+        if (leftmostVal > 0) {
+          const s = Math.floor(leftmostVal).toString();
+          if (s.length > 1) {
+            const power = Math.pow(10, s.length - 1);
+            yMin = Math.floor(leftmostVal / power) * power;
+          }
+        }
+      }
+      const maxVal = values.length > 0 ? Math.max(...values) : 0;
+      let yMax = undefined;
+      if (maxVal <= yMin && yMin > 0) {
+        yMax = yMin + 10;
+      }
+
       const option = {
         tooltip: {
           trigger: "axis",
@@ -1011,6 +1030,9 @@ createApp({
         },
         yAxis: {
           type: "value",
+          min: yMin,
+          ...(yMax !== undefined ? { max: yMax } : {}),
+          minInterval: 1,
           splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)" } },
           axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
         },
