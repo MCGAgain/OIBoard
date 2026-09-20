@@ -996,20 +996,7 @@ def get_recent_daily_effort(user_id: int = 1, days: int = 365) -> List[Dict[str,
             ORDER BY date ASC;
         """, (user_id, start_date))
         rows = cursor.fetchall()
-        
-        daily_map = {r["date"]: (r["total_subs"], r["unique_ac"]) for r in rows}
-        res = []
-        curr_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        while curr_dt <= today_dt:
-            curr_str = curr_dt.strftime("%Y-%m-%d")
-            total_subs, unique_ac = daily_map.get(curr_str, (0, 0))
-            res.append({
-                "date": curr_str,
-                "total_subs": total_subs,
-                "unique_ac": unique_ac
-            })
-            curr_dt += timedelta(days=1)
-        return res
+        return [dict(r) for r in rows]
 
 def get_submission_years(user_id: int = 1) -> List[int]:
     with get_connection() as conn:

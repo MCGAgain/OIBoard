@@ -1147,26 +1147,14 @@ createApp({
       let totalList = [];
 
       if (rawDaily.length > 0) {
-        const dailyMap = new Map();
-        rawDaily.forEach(item => dailyMap.set(item.date, item));
-        let startDt = new Date(rawDaily[0].date + "T00:00:00");
-        const endDt = new Date(rawDaily[rawDaily.length - 1].date + "T00:00:00");
-
-        while (startDt <= endDt) {
-          const yyyy = startDt.getFullYear();
-          const mm = String(startDt.getMonth() + 1).padStart(2, '0');
-          const dd = String(startDt.getDate()).padStart(2, '0');
-          const dStr = `${yyyy}-${mm}-${dd}`;
-          const it = dailyMap.get(dStr);
-          const uAc = it?.unique_ac || 0;
-          const tSub = it?.total_subs || 0;
-          fullDates.push(dStr);
-          dates.push(dStr.slice(2));
-          acList.push(uAc);
-          nonAcList.push(Math.max(0, tSub - uAc));
-          totalList.push(tSub);
-          startDt.setDate(startDt.getDate() + 1);
-        }
+        // 每日提交仅统计有提交行为的活跃日期，不填充空白无提交日
+        const activeDaily = rawDaily.filter(item => (item.total_subs || 0) > 0);
+        const list = activeDaily.length > 0 ? activeDaily : rawDaily;
+        dates = list.map(item => item.date ? item.date.slice(2) : "");
+        fullDates = list.map(item => item.date);
+        acList = list.map(item => item.unique_ac || 0);
+        nonAcList = list.map(item => Math.max(0, (item.total_subs || 0) - (item.unique_ac || 0)));
+        totalList = list.map(item => item.total_subs || 0);
       } else {
         const todayStr = new Date().toISOString().slice(0, 10);
         dates = [todayStr.slice(2)];
