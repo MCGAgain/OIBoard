@@ -1071,7 +1071,8 @@ createApp({
         series: [{
           name: "累计通过题目",
           type: "line",
-          smooth: 0.25,
+          smooth: 0.5,
+          smoothMonotone: "x",
           showSymbol: false,
           symbol: "circle",
           symbolSize: 6,
