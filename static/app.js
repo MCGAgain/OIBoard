@@ -858,7 +858,7 @@ createApp({
             })
           });
           if (res.ok) {
-            showToast("错题笔记更新成功！", "success");
+            showToast("已更新错题笔记", "success");
             mistakeModalOpen.value = false;
             await loadMistakes();
             await loadMistakeKeys();
@@ -882,7 +882,7 @@ createApp({
             })
           });
           if (res.ok) {
-            showToast("成功加入专属错题集！", "success");
+            showToast("已加入错题集", "success");
             mistakeModalOpen.value = false;
             await loadMistakes();
             await loadMistakeKeys();
@@ -924,20 +924,20 @@ createApp({
           const data = await res.json();
           const newCount = data.mistake.review_count;
           if (data.mistake.status === "mastered") {
-            showToast(`🎉 恭喜！完成第 ${newCount} 次复习，已达成肌肉记忆并标记为掌握！`, "success");
+            showToast(`已完成第 ${newCount} 次复习，已标记为掌握`, "success");
           } else {
-            showToast(`打卡成功！完成第 ${newCount} 次复习，下次复习目标: ${data.mistake.next_review_at}`, "success");
+            showToast(`已记录复习，下次复习: ${data.mistake.next_review_at}`, "success");
           }
           await loadMistakes();
           if (activeMistake.value && activeMistake.value.id === item.id) {
             activeMistake.value = data.mistake;
           }
         } else {
-          showToast("打卡失败，请重试", "error");
+          showToast("记录失败，请重试", "error");
         }
       } catch (e) {
-        console.error("打卡复习失败:", e);
-        showToast("打卡失败: " + e.message, "error");
+        console.error("记录复习失败:", e);
+        showToast("记录失败: " + e.message, "error");
       }
     };
 
@@ -947,9 +947,9 @@ createApp({
         if (res.ok) {
           const data = await res.json();
           if (data.mistake.status === "mastered") {
-            showToast("已标记为完全掌握！", "success");
+            showToast("已标记为掌握", "success");
           } else {
-            showToast("已恢复为攻克训练中，复习计划已重新排定", "success");
+            showToast("已恢复为训练状态", "success");
           }
           await loadMistakes();
           if (activeMistake.value && activeMistake.value.id === item.id) {
