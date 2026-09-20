@@ -959,18 +959,22 @@ def get_climbing_curve(user_id: int = 1, days: int = 365) -> List[Dict[str, Any]
         """, (user_id, start_date))
         rows = cursor.fetchall()
         
-        recent_sum = sum(r["daily_new_ac"] for r in rows)
+        daily_new_map = {r["date"]: r["daily_new_ac"] for r in rows}
+        recent_sum = sum(daily_new_map.values())
         base_ac = max(0, total_ac - recent_sum)
         
-        points = [{"date": start_date, "ac": base_ac, "new_ac": 0}]
+        # 填充完整的连续日期序列（最小刻度保证为严格的 1 天，杜绝跳跃非等距）
+        points = []
         cum = base_ac
-        for r in rows:
-            cum += r["daily_new_ac"]
-            points.append({"date": r["date"], "ac": cum, "new_ac": r["daily_new_ac"]})
+        curr_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        while curr_dt <= today_dt:
+            curr_str = curr_dt.strftime("%Y-%m-%d")
+            new_ac = daily_new_map.get(curr_str, 0)
+            cum += new_ac
+            points.append({"date": curr_str, "ac": cum, "new_ac": new_ac})
+            curr_dt += timedelta(days=1)
             
-        if points[-1]["date"] != today_str:
-            points.append({"date": today_str, "ac": total_ac, "new_ac": 0})
-        else:
+        if points:
             points[-1]["ac"] = total_ac
             
         return points
@@ -991,8 +995,21 @@ def get_recent_daily_effort(user_id: int = 1, days: int = 365) -> List[Dict[str,
             GROUP BY date 
             ORDER BY date ASC;
         """, (user_id, start_date))
-        rows = [dict(r) for r in cursor.fetchall()]
-        return rows
+        rows = cursor.fetchall()
+        
+        daily_map = {r["date"]: (r["total_subs"], r["unique_ac"]) for r in rows}
+        res = []
+        curr_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        while curr_dt <= today_dt:
+            curr_str = curr_dt.strftime("%Y-%m-%d")
+            total_subs, unique_ac = daily_map.get(curr_str, (0, 0))
+            res.append({
+                "date": curr_str,
+                "total_subs": total_subs,
+                "unique_ac": unique_ac
+            })
+            curr_dt += timedelta(days=1)
+        return res
 
 def get_submission_years(user_id: int = 1) -> List[int]:
     with get_connection() as conn:

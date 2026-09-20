@@ -951,14 +951,38 @@ createApp({
       const dark = isDark.value;
       const rawCurve = overview.value.climbing_curve || [];
       
+      // 保证数据序列严格按日历连续，最小刻度单位为严格 1 天（杜绝跳天导致非等距）
       let dates = [];
       let values = [];
       let newAcs = [];
 
       if (rawCurve.length > 0) {
-        dates = rawCurve.map(item => item.date);
-        values = rawCurve.map(item => item.ac);
-        newAcs = rawCurve.map(item => item.new_ac || 0);
+        // 双重保障：补齐缺失的每一天，确保每一天的横坐标宽度绝对一致（最小单位 1 天）
+        const curveMap = new Map();
+        rawCurve.forEach(item => curveMap.set(item.date, item));
+        
+        let startDt = new Date(rawCurve[0].date + "T00:00:00");
+        const endDt = new Date(rawCurve[rawCurve.length - 1].date + "T00:00:00");
+        let lastAc = rawCurve[0].ac;
+
+        while (startDt <= endDt) {
+          const yyyy = startDt.getFullYear();
+          const mm = String(startDt.getMonth() + 1).padStart(2, '0');
+          const dd = String(startDt.getDate()).padStart(2, '0');
+          const dStr = `${yyyy}-${mm}-${dd}`;
+          if (curveMap.has(dStr)) {
+            const it = curveMap.get(dStr);
+            lastAc = it.ac;
+            dates.push(dStr);
+            values.push(it.ac);
+            newAcs.push(it.new_ac || 0);
+          } else {
+            dates.push(dStr);
+            values.push(lastAc);
+            newAcs.push(0);
+          }
+          startDt.setDate(startDt.getDate() + 1);
+        }
       } else {
         const todayStr = new Date().toISOString().slice(0, 10);
         dates = [todayStr];
@@ -988,6 +1012,14 @@ createApp({
       const option = {
         tooltip: {
           trigger: "axis",
+          axisPointer: {
+            type: "line",
+            lineStyle: {
+              color: dark ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.15)",
+              width: 1,
+              type: "dashed"
+            }
+          },
           padding: [8, 14],
           backgroundColor: dark ? "rgba(20, 20, 22, 0.95)" : "rgba(255, 255, 255, 0.95)",
           borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
@@ -1039,9 +1071,10 @@ createApp({
         series: [{
           name: "累计通过题目",
           type: "line",
-          smooth: 0.35,
+          smooth: 0.25,
+          showSymbol: false,
           symbol: "circle",
-          symbolSize: 4,
+          symbolSize: 6,
           itemStyle: { color: dark ? "#2997ff" : "#0071e3" },
           lineStyle: { width: 2.5, color: dark ? "#2997ff" : "#0071e3" },
           areaStyle: {
@@ -1083,11 +1116,26 @@ createApp({
       let totalList = [];
 
       if (rawDaily.length > 0) {
-        dates = rawDaily.map(item => item.date ? item.date.slice(2) : "");
-        fullDates = rawDaily.map(item => item.date);
-        acList = rawDaily.map(item => item.unique_ac || 0);
-        nonAcList = rawDaily.map(item => Math.max(0, (item.total_subs || 0) - (item.unique_ac || 0)));
-        totalList = rawDaily.map(item => item.total_subs || 0);
+        const dailyMap = new Map();
+        rawDaily.forEach(item => dailyMap.set(item.date, item));
+        let startDt = new Date(rawDaily[0].date + "T00:00:00");
+        const endDt = new Date(rawDaily[rawDaily.length - 1].date + "T00:00:00");
+
+        while (startDt <= endDt) {
+          const yyyy = startDt.getFullYear();
+          const mm = String(startDt.getMonth() + 1).padStart(2, '0');
+          const dd = String(startDt.getDate()).padStart(2, '0');
+          const dStr = `${yyyy}-${mm}-${dd}`;
+          const it = dailyMap.get(dStr);
+          const uAc = it?.unique_ac || 0;
+          const tSub = it?.total_subs || 0;
+          fullDates.push(dStr);
+          dates.push(dStr.slice(2));
+          acList.push(uAc);
+          nonAcList.push(Math.max(0, tSub - uAc));
+          totalList.push(tSub);
+          startDt.setDate(startDt.getDate() + 1);
+        }
       } else {
         const todayStr = new Date().toISOString().slice(0, 10);
         dates = [todayStr.slice(2)];
