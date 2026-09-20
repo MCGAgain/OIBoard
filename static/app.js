@@ -50,6 +50,39 @@ createApp({
     const availableHeatmapYears = ref([new Date().getFullYear()]);
     const tagStats = ref([]);
     const mistakes = ref([]);
+    const mistakesCounts = ref({ total: 0, due: 0, in_progress: 0, mastered: 0 });
+    const mistakeKeySet = ref(new Set());
+    const mistakeStatusFilter = ref("all");
+    const mistakePlatformFilter = ref("all");
+    const mistakeSearch = ref("");
+    const mistakeTagFilter = ref("");
+    const mistakeSortBy = ref("last_submitted_at");
+    const mistakePage = ref(1);
+    const mistakePageSize = ref(30);
+    const mistakeTotal = ref(0);
+    const isMistakesLoading = ref(false);
+
+    const mistakeModalOpen = ref(false);
+    const isMistakeEditing = ref(false);
+    const mistakeFormTab = ref("write");
+    const mistakeForm = ref({
+      id: null,
+      platform: "luogu",
+      problem_id: "",
+      problem_title: "",
+      difficulty: "",
+      tags_input: "",
+      key_point: "",
+      notes: "",
+      problem_url: "",
+      last_submitted_at: "",
+      last_submission_id: ""
+    });
+    const isMistakeSaving = ref(false);
+
+    const viewNoteModalOpen = ref(false);
+    const activeMistake = ref(null);
+
     const submissions = ref([]);
     const subFilter = ref("all");
 
@@ -740,14 +773,227 @@ createApp({
       }
     };
 
-    const loadMistakes = async () => {
+    const loadMistakeKeys = async () => {
       try {
-        const res = await apiFetch("/api/stats/mistakes?limit=50");
+        const res = await apiFetch("/api/mistakes/keys");
         const data = await res.json();
-        mistakes.value = data.mistakes || [];
+        mistakeKeySet.value = new Set(data.keys || []);
+      } catch (e) {
+        console.error("加载已收录错题Key失败:", e);
+      }
+    };
+
+    const loadMistakes = async () => {
+      isMistakesLoading.value = true;
+      try {
+        const params = new URLSearchParams({
+          status: mistakeStatusFilter.value,
+          platform: mistakePlatformFilter.value,
+          search: mistakeSearch.value,
+          tag: mistakeTagFilter.value,
+          sort_by: mistakeSortBy.value,
+          page: String(mistakePage.value),
+          page_size: String(mistakePageSize.value)
+        });
+        const res = await apiFetch(`/api/mistakes?${params.toString()}`);
+        const data = await res.json();
+        mistakes.value = data.items || [];
+        mistakeTotal.value = data.total || 0;
+        if (data.counts) {
+          mistakesCounts.value = data.counts;
+        }
       } catch (e) {
         console.error("加载错题集失败:", e);
+      } finally {
+        isMistakesLoading.value = false;
       }
+    };
+
+    const openAddToMistakesModal = (subOrItem, fromMistakesList = false) => {
+      isMistakeEditing.value = fromMistakesList;
+      mistakeFormTab.value = "write";
+      
+      let tagsStr = "";
+      if (Array.isArray(subOrItem.tags)) {
+        tagsStr = subOrItem.tags.join(", ");
+      } else if (typeof subOrItem.tags === "string") {
+        tagsStr = subOrItem.tags;
+      }
+
+      mistakeForm.value = {
+        id: fromMistakesList ? subOrItem.id : null,
+        platform: subOrItem.platform || "luogu",
+        problem_id: subOrItem.problem_id || "",
+        problem_title: subOrItem.problem_title || "",
+        difficulty: subOrItem.difficulty || "",
+        tags_input: tagsStr,
+        key_point: subOrItem.key_point || "",
+        notes: subOrItem.notes || "",
+        problem_url: subOrItem.problem_url || subOrItem.submission_url || "",
+        last_submitted_at: subOrItem.last_submitted_at || subOrItem.submitted_at || "",
+        last_submission_id: subOrItem.last_submission_id || subOrItem.id || ""
+      };
+      mistakeModalOpen.value = true;
+    };
+
+    const saveMistake = async () => {
+      if (!mistakeForm.value.problem_id || !mistakeForm.value.problem_title) {
+        showToast("请填写题号和题目名称", "error");
+        return;
+      }
+      isMistakeSaving.value = true;
+      try {
+        const tags = mistakeForm.value.tags_input
+          ? mistakeForm.value.tags_input.split(/[,，]/).map(t => t.trim()).filter(Boolean)
+          : [];
+
+        if (isMistakeEditing.value && mistakeForm.value.id) {
+          const res = await apiFetch(`/api/mistakes/${mistakeForm.value.id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              key_point: mistakeForm.value.key_point,
+              notes: mistakeForm.value.notes,
+              tags: tags,
+              problem_url: mistakeForm.value.problem_url
+            })
+          });
+          if (res.ok) {
+            showToast("错题笔记更新成功！", "success");
+            mistakeModalOpen.value = false;
+            await loadMistakes();
+            await loadMistakeKeys();
+          } else {
+            showToast("更新失败，请重试", "error");
+          }
+        } else {
+          const res = await apiFetch("/api/mistakes", {
+            method: "POST",
+            body: JSON.stringify({
+              platform: mistakeForm.value.platform,
+              problem_id: mistakeForm.value.problem_id,
+              problem_title: mistakeForm.value.problem_title,
+              difficulty: mistakeForm.value.difficulty,
+              tags: tags,
+              key_point: mistakeForm.value.key_point,
+              notes: mistakeForm.value.notes,
+              problem_url: mistakeForm.value.problem_url,
+              last_submitted_at: mistakeForm.value.last_submitted_at,
+              last_submission_id: mistakeForm.value.last_submission_id
+            })
+          });
+          if (res.ok) {
+            showToast("成功加入专属错题集！", "success");
+            mistakeModalOpen.value = false;
+            await loadMistakes();
+            await loadMistakeKeys();
+          } else {
+            showToast("收录失败，请重试", "error");
+          }
+        }
+      } catch (e) {
+        console.error("保存错题失败:", e);
+        showToast("保存失败: " + e.message, "error");
+      } finally {
+        isMistakeSaving.value = false;
+      }
+    };
+
+    const deleteMistakeItem = async (item) => {
+      if (!confirm(`确定要将题目 [${item.problem_id}] ${item.problem_title} 从错题集中移除吗？`)) {
+        return;
+      }
+      try {
+        const res = await apiFetch(`/api/mistakes/${item.id}`, { method: "DELETE" });
+        if (res.ok) {
+          showToast("已从错题集移除", "success");
+          await loadMistakes();
+          await loadMistakeKeys();
+        } else {
+          showToast("移除失败", "error");
+        }
+      } catch (e) {
+        console.error("删除错题失败:", e);
+        showToast("移除失败: " + e.message, "error");
+      }
+    };
+
+    const recordMistakeReview = async (item) => {
+      try {
+        const res = await apiFetch(`/api/mistakes/${item.id}/review`, { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          const newCount = data.mistake.review_count;
+          if (data.mistake.status === "mastered") {
+            showToast(`🎉 恭喜！完成第 ${newCount} 次复习，已达成肌肉记忆并标记为掌握！`, "success");
+          } else {
+            showToast(`打卡成功！完成第 ${newCount} 次复习，下次复习目标: ${data.mistake.next_review_at}`, "success");
+          }
+          await loadMistakes();
+          if (activeMistake.value && activeMistake.value.id === item.id) {
+            activeMistake.value = data.mistake;
+          }
+        } else {
+          showToast("打卡失败，请重试", "error");
+        }
+      } catch (e) {
+        console.error("打卡复习失败:", e);
+        showToast("打卡失败: " + e.message, "error");
+      }
+    };
+
+    const toggleMistakeMaster = async (item) => {
+      try {
+        const res = await apiFetch(`/api/mistakes/${item.id}/toggle-master`, { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.mistake.status === "mastered") {
+            showToast("已标记为完全掌握！", "success");
+          } else {
+            showToast("已恢复为攻克训练中，复习计划已重新排定", "success");
+          }
+          await loadMistakes();
+          if (activeMistake.value && activeMistake.value.id === item.id) {
+            activeMistake.value = data.mistake;
+          }
+        }
+      } catch (e) {
+        console.error("切换掌握状态失败:", e);
+      }
+    };
+
+    const openViewNoteModal = (item) => {
+      activeMistake.value = item;
+      viewNoteModalOpen.value = true;
+      nextTick(() => {
+        if (window.hljs) {
+          document.querySelectorAll("#mistake-markdown-content pre code").forEach(el => {
+            window.hljs.highlightElement(el);
+          });
+        }
+      });
+    };
+
+    const renderMarkdown = (content) => {
+      if (!content || !content.trim()) {
+        return "<p class='text-[var(--text-muted)] text-xs italic'>暂无详细代码或笔记，可点击上方「编辑」补充思路与AC代码。</p>";
+      }
+      if (window.marked) {
+        try {
+          return window.marked.parse(content);
+        } catch (e) {
+          return `<pre class='p-3 bg-black/5 dark:bg-white/5 rounded-xl font-mono text-xs overflow-x-auto'>${content}</pre>`;
+        }
+      }
+      return `<pre class='p-3 bg-black/5 dark:bg-white/5 rounded-xl font-mono text-xs overflow-x-auto'>${content}</pre>`;
+    };
+
+    const insertCodeSnippet = (lang = "cpp") => {
+      const templates = {
+        cpp: "\n```cpp\n#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    // 核心思路与解法注释\n    \n    return 0;\n}\n```\n",
+        python: "\n```python\n# 核心思路与解法注释\ndef solve():\n    pass\n\nif __name__ == '__main__':\n    solve()\n```\n",
+        java: "\n```java\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        // 核心思路与解法注释\n    }\n}\n```\n"
+      };
+      mistakeForm.value.notes += templates[lang] || templates.cpp;
     };
 
     const loadSubmissions = async () => {
@@ -813,7 +1059,7 @@ createApp({
 
     const reloadAllData = async () => {
       if (!isLoggedIn.value) return;
-      await Promise.all([loadOverview(), loadHeatmap(), loadTags(), loadMistakes(), loadSubmissions(), loadSettings(), loadContests()]);
+      await Promise.all([loadOverview(), loadHeatmap(), loadTags(), loadMistakes(), loadMistakeKeys(), loadSubmissions(), loadSettings(), loadContests()]);
       await nextTick();
       syncSegmentedThumbs();
       if (currentTab.value === "overview") {
@@ -1716,7 +1962,7 @@ createApp({
         }
         const count = data.count !== undefined ? data.count : (data.new_submissions !== undefined ? data.new_submissions : 0);
         showToast(`[${account.alias || account.handle}] 同步完成: 成功获取 ${count} 条提交记录`, "success");
-        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes()]);
+        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadMistakeKeys()]);
         if (currentTab.value === "overview") {
           renderHeatmap();
           renderActiveChart();
@@ -1771,7 +2017,7 @@ createApp({
         } else {
           showToast(`${getPlatformName(platform)} 同步完成: ${data.message || "已获取最新数据"}`, "success");
         }
-        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes()]);
+        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadMistakeKeys()]);
         if (currentTab.value === "overview") {
           renderHeatmap();
           renderActiveChart();
@@ -1920,6 +2166,13 @@ createApp({
       nextTick(syncSegmentedThumbs);
     });
 
+    // 监控错题集状态与筛选切换
+    watch([mistakeStatusFilter, mistakePlatformFilter, mistakeSortBy], () => {
+      mistakePage.value = 1;
+      loadMistakes();
+      nextTick(syncSegmentedThumbs);
+    });
+
     // 标签页切换自动静默拉取最新数据，概览页重新加载热力图与图表，彻底告别手动硬刷新
     watch(currentTab, async (tab) => {
       if (tab === "overview") {
@@ -1931,7 +2184,7 @@ createApp({
         });
       } else {
         if (tab === "submissions") {
-          await loadSubmissions();
+          await Promise.all([loadSubmissions(), loadMistakeKeys()]);
         } else if (tab === "mistakes") {
           await loadMistakes();
         } else if (tab === "contests") {
@@ -2051,7 +2304,37 @@ createApp({
       isCurveSmooth,
       renderActiveChart,
       syncSegmentedThumbs,
-      todayAcRate
+      todayAcRate,
+      // Mistakes Notebook exports
+      mistakes,
+      mistakesCounts,
+      mistakeKeySet,
+      mistakeStatusFilter,
+      mistakePlatformFilter,
+      mistakeSearch,
+      mistakeTagFilter,
+      mistakeSortBy,
+      mistakePage,
+      mistakePageSize,
+      mistakeTotal,
+      isMistakesLoading,
+      loadMistakes,
+      loadMistakeKeys,
+      mistakeModalOpen,
+      isMistakeEditing,
+      mistakeFormTab,
+      mistakeForm,
+      isMistakeSaving,
+      openAddToMistakesModal,
+      saveMistake,
+      deleteMistakeItem,
+      recordMistakeReview,
+      toggleMistakeMaster,
+      viewNoteModalOpen,
+      activeMistake,
+      openViewNoteModal,
+      renderMarkdown,
+      insertCodeSnippet
     };
   }
 }).mount("#app");

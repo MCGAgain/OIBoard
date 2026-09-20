@@ -98,6 +98,31 @@ class VerifyAccountDirectPayload(BaseModel):
     cookie: Optional[str] = ""
     http_proxy: Optional[str] = ""
 
+class MistakeCreatePayload(BaseModel):
+    platform: str
+    problem_id: str
+    problem_title: str
+    difficulty: Optional[str] = ""
+    tags: Optional[List[str]] = []
+    key_point: Optional[str] = ""
+    notes: Optional[str] = ""
+    problem_url: Optional[str] = ""
+    last_submitted_at: Optional[str] = ""
+    last_submission_id: Optional[str] = ""
+
+class MistakeUpdatePayload(BaseModel):
+    key_point: Optional[str] = None
+    notes: Optional[str] = None
+    tags: Optional[List[str]] = None
+    problem_url: Optional[str] = None
+    status: Optional[str] = None
+
+class MistakeReviewPayload(BaseModel):
+    review_time: Optional[str] = ""
+
+class MistakeMasterPayload(BaseModel):
+    mastered: Optional[bool] = None
+
 class SyncPayload(BaseModel):
     platform: Optional[str] = "all"
 
@@ -231,11 +256,101 @@ async def get_tags(current_user: Dict[str, Any] = Depends(get_current_user)):
     tag_data = db.get_tag_statistics(user_id=uid)
     return {"tags": tag_data}
 
+@app.get("/api/mistakes")
+async def get_user_mistakes(
+    status: str = "all",
+    search: str = "",
+    tag: str = "",
+    platform: str = "",
+    sort_by: str = "last_submitted_at",
+    page: int = 1,
+    page_size: int = 50,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    uid = current_user["id"]
+    data = db.get_user_mistakes(
+        user_id=uid,
+        status=status,
+        search=search,
+        tag=tag,
+        platform=platform,
+        sort_by=sort_by,
+        page=page,
+        page_size=page_size
+    )
+    return data
+
+@app.get("/api/mistakes/keys")
+async def get_mistake_keys(current_user: Dict[str, Any] = Depends(get_current_user)):
+    uid = current_user["id"]
+    keys = db.get_user_mistake_keys(user_id=uid)
+    return {"keys": keys}
+
+@app.post("/api/mistakes")
+async def add_mistake(payload: MistakeCreatePayload, current_user: Dict[str, Any] = Depends(get_current_user)):
+    uid = current_user["id"]
+    item = db.add_mistake(
+        user_id=uid,
+        platform=payload.platform,
+        problem_id=payload.problem_id,
+        problem_title=payload.problem_title,
+        difficulty=payload.difficulty or "",
+        tags=payload.tags or [],
+        key_point=payload.key_point or "",
+        notes=payload.notes or "",
+        problem_url=payload.problem_url or "",
+        last_submitted_at=payload.last_submitted_at or "",
+        last_submission_id=payload.last_submission_id or ""
+    )
+    return {"success": True, "mistake": item}
+
+@app.put("/api/mistakes/{mistake_id}")
+async def update_mistake(mistake_id: int, payload: MistakeUpdatePayload, current_user: Dict[str, Any] = Depends(get_current_user)):
+    uid = current_user["id"]
+    ok = db.update_mistake(
+        user_id=uid,
+        mistake_id=mistake_id,
+        key_point=payload.key_point,
+        notes=payload.notes,
+        tags=payload.tags,
+        problem_url=payload.problem_url,
+        status=payload.status
+    )
+    if not ok:
+        raise HTTPException(status_code=404, detail="错题未找到或未做任何更改")
+    return {"success": True}
+
+@app.delete("/api/mistakes/{mistake_id}")
+async def delete_mistake(mistake_id: int, current_user: Dict[str, Any] = Depends(get_current_user)):
+    uid = current_user["id"]
+    ok = db.delete_mistake(user_id=uid, mistake_id=mistake_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="错题不存在")
+    return {"success": True}
+
+@app.post("/api/mistakes/{mistake_id}/review")
+async def review_mistake(mistake_id: int, payload: Optional[MistakeReviewPayload] = None, current_user: Dict[str, Any] = Depends(get_current_user)):
+    uid = current_user["id"]
+    r_time = payload.review_time if payload else ""
+    res = db.manual_record_review(user_id=uid, mistake_id=mistake_id, review_time=r_time)
+    if not res:
+        raise HTTPException(status_code=404, detail="错题未找到")
+    return {"success": True, "mistake": res}
+
+@app.post("/api/mistakes/{mistake_id}/toggle-master")
+async def toggle_master_mistake(mistake_id: int, payload: Optional[MistakeMasterPayload] = None, current_user: Dict[str, Any] = Depends(get_current_user)):
+    uid = current_user["id"]
+    mastered = payload.mastered if payload else None
+    res = db.toggle_mistake_mastered(user_id=uid, mistake_id=mistake_id, mastered=mastered)
+    if not res:
+        raise HTTPException(status_code=404, detail="错题未找到")
+    return {"success": True, "mistake": res}
+
 @app.get("/api/stats/mistakes")
 async def get_mistakes(limit: int = 50, current_user: Dict[str, Any] = Depends(get_current_user)):
     uid = current_user["id"]
-    mistakes = db.get_mistakes(user_id=uid, limit=limit)
-    return {"mistakes": mistakes}
+    res = db.get_user_mistakes(user_id=uid, page_size=limit)
+    return {"mistakes": res.get("items", []), "counts": res.get("counts", {})}
 
 @app.get("/api/stats/submissions")
 async def get_submissions(limit: int = 2000, platform: str = "all", current_user: Dict[str, Any] = Depends(get_current_user)):

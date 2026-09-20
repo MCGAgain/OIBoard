@@ -315,6 +315,35 @@ def init_db():
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_platform_accounts_user ON platform_accounts(user_id, platform);")
 
+        # 9. 专属错题集表 (Mistakes Notebook - 手动精选收录 / 艾宾浩斯复习周期 / 原题代码联动)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS mistakes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                platform TEXT NOT NULL,
+                problem_id TEXT NOT NULL,
+                problem_title TEXT NOT NULL,
+                difficulty TEXT DEFAULT '',
+                tags TEXT DEFAULT '[]',
+                key_point TEXT DEFAULT '',
+                notes TEXT DEFAULT '',
+                problem_url TEXT DEFAULT '',
+                last_submitted_at TEXT DEFAULT '',
+                last_submission_id TEXT DEFAULT '',
+                first_added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                review_count INTEGER DEFAULT 0,
+                max_review_count INTEGER DEFAULT 6,
+                next_review_at TEXT DEFAULT '',
+                status TEXT DEFAULT 'pending_review',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, platform, problem_id),
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_mistakes_user_review ON mistakes(user_id, status, next_review_at);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_mistakes_user_sub_time ON mistakes(user_id, last_submitted_at);")
+
         # 为主账户填充默认配置（如果缺失）
         default_configs = {
             "cf_handle": "",
@@ -1052,40 +1081,479 @@ def get_tag_statistics(user_id: int = 1) -> List[Dict[str, Any]]:
         result = sorted(tag_map.values(), key=lambda x: (x["ac_count"], x["total_count"]), reverse=True)
         return result
 
-def get_mistakes(user_id: int = 1, limit: int = 50) -> List[Dict[str, Any]]:
+REVIEW_INTERVALS = [7, 14, 21, 28, 42, 60]
+
+def calculate_next_review_date(base_date_str: str, review_count: int) -> str:
+    """根据当前复习次数计算下一次复习目标日期 (YYYY-MM-DD)，超过最大轮次返回空字符串"""
+    if review_count >= len(REVIEW_INTERVALS):
+        return ""
+    days = REVIEW_INTERVALS[review_count]
+    base_dt = None
+    if base_date_str:
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+            try:
+                base_dt = datetime.strptime(base_date_str[:19], fmt)
+                break
+            except Exception:
+                pass
+    if not base_dt:
+        base_dt = datetime.now()
+    next_dt = base_dt + timedelta(days=days)
+    return next_dt.strftime("%Y-%m-%d")
+
+def build_default_problem_url(platform: str, problem_id: str, raw_sub_url: str = "") -> str:
+    """根据题目平台与ID自动生成原题直达链接"""
+    plat = (platform or "").lower()
+    pid = str(problem_id or "").strip()
+    if not pid:
+        return raw_sub_url or ""
+    if plat == "luogu":
+        return f"https://www.luogu.com.cn/problem/{pid}"
+    elif plat in ("codeforces", "cf"):
+        m = re.match(r"^(\d+)[/_ -]?([A-Za-z0-9]+)$", pid)
+        if m:
+            return f"https://codeforces.com/problemset/problem/{m.group(1)}/{m.group(2)}"
+        return f"https://codeforces.com/problemset/problem/{pid}"
+    elif plat == "atcoder":
+        m = re.match(r"^([a-zA-Z0-9]+)_[a-zA-Z0-9]+$", pid)
+        if m:
+            return f"https://atcoder.jp/contests/{m.group(1)}/tasks/{pid}"
+        return f"https://atcoder.jp/tasks/{pid}"
+    elif plat == "acwing":
+        return f"https://www.acwing.com/problem/content/{pid}/"
+    return raw_sub_url or ""
+
+def add_mistake(
+    user_id: int,
+    platform: str,
+    problem_id: str,
+    problem_title: str,
+    difficulty: str = "",
+    tags: Any = None,
+    key_point: str = "",
+    notes: str = "",
+    problem_url: str = "",
+    last_submitted_at: str = "",
+    last_submission_id: str = ""
+) -> Dict[str, Any]:
+    """用户手动将题目收录到专属错题集"""
+    plat = platform.lower()
+    pid = str(problem_id).strip()
+    
+    # 格式化标签
+    if isinstance(tags, list):
+        tags_json = json.dumps([str(t).strip() for t in tags if str(t).strip()], ensure_ascii=False)
+    elif isinstance(tags, str):
+        try:
+            parsed = json.loads(tags)
+            if isinstance(parsed, list):
+                tags_json = json.dumps([str(t).strip() for t in parsed if str(t).strip()], ensure_ascii=False)
+            else:
+                tags_json = json.dumps([tags.strip()], ensure_ascii=False)
+        except Exception:
+            tags_json = json.dumps([t.strip() for t in tags.split(",") if t.strip()], ensure_ascii=False)
+    else:
+        tags_json = "[]"
+
+    if not problem_url:
+        problem_url = build_default_problem_url(plat, pid)
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        # 如果未传入提交时间，从 submissions 表查询该题最新的提交时间
+        if not last_submitted_at:
+            cursor.execute("""
+                SELECT id, submitted_at FROM submissions
+                WHERE user_id = ? AND platform = ? AND problem_id = ?
+                ORDER BY submitted_at DESC LIMIT 1
+            """, (user_id, plat, pid))
+            sub_row = cursor.fetchone()
+            if sub_row:
+                last_submitted_at = sub_row["submitted_at"]
+                if not last_submission_id:
+                    last_submission_id = sub_row["id"]
+        
+        if not last_submitted_at:
+            last_submitted_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        next_review = calculate_next_review_date(last_submitted_at, 0)
+
+        cursor.execute("""
+            INSERT INTO mistakes (
+                user_id, platform, problem_id, problem_title, difficulty, tags,
+                key_point, notes, problem_url, last_submitted_at, last_submission_id,
+                first_added_at, review_count, max_review_count, next_review_at, status,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 0, 6, ?, 'pending_review', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id, platform, problem_id) DO UPDATE SET
+                problem_title = excluded.problem_title,
+                difficulty = CASE WHEN excluded.difficulty != '' THEN excluded.difficulty ELSE mistakes.difficulty END,
+                tags = CASE WHEN excluded.tags != '[]' AND excluded.tags != '' THEN excluded.tags ELSE mistakes.tags END,
+                key_point = CASE WHEN excluded.key_point != '' THEN excluded.key_point ELSE mistakes.key_point END,
+                notes = CASE WHEN excluded.notes != '' THEN excluded.notes ELSE mistakes.notes END,
+                problem_url = CASE WHEN excluded.problem_url != '' THEN excluded.problem_url ELSE mistakes.problem_url END,
+                last_submitted_at = CASE WHEN excluded.last_submitted_at != '' THEN excluded.last_submitted_at ELSE mistakes.last_submitted_at END,
+                last_submission_id = CASE WHEN excluded.last_submission_id != '' THEN excluded.last_submission_id ELSE mistakes.last_submission_id END,
+                updated_at = CURRENT_TIMESTAMP;
+        """, (
+            user_id, plat, pid, problem_title, difficulty, tags_json,
+            key_point, notes, problem_url, last_submitted_at, last_submission_id,
+            next_review
+        ))
+        conn.commit()
+
+        cursor.execute("SELECT * FROM mistakes WHERE user_id = ? AND platform = ? AND problem_id = ?", (user_id, plat, pid))
+        row = cursor.fetchone()
+        res = dict(row)
+        res["tags"] = json.loads(res["tags"]) if res["tags"] else []
+        return res
+
+def get_user_mistakes(
+    user_id: int = 1,
+    status: str = "all",
+    search: str = "",
+    tag: str = "",
+    platform: str = "",
+    sort_by: str = "last_submitted_at",
+    page: int = 1,
+    page_size: int = 50
+) -> Dict[str, Any]:
+    """获取用户错题集，严格按最新提交时间排序，并提供智能到期/进度聚合统计"""
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 1. 获取全局各状态数量
+        cursor.execute("""
+            SELECT
+                COUNT(*) as total_count,
+                SUM(CASE WHEN status != 'mastered' AND next_review_at != '' AND next_review_at <= ? THEN 1 ELSE 0 END) as due_count,
+                SUM(CASE WHEN status = 'pending_review' AND (next_review_at = '' OR next_review_at > ?) THEN 1 ELSE 0 END) as in_progress_count,
+                SUM(CASE WHEN status = 'mastered' THEN 1 ELSE 0 END) as mastered_count
+            FROM mistakes
+            WHERE user_id = ?
+        """, (today_str, today_str, user_id))
+        count_row = cursor.fetchone()
+        counts = {
+            "total": count_row["total_count"] or 0,
+            "due": count_row["due_count"] or 0,
+            "in_progress": count_row["in_progress_count"] or 0,
+            "mastered": count_row["mastered_count"] or 0
+        }
+
+        # 2. 构建条件查询
+        query_sql = "SELECT * FROM mistakes WHERE user_id = ?"
+        params: List[Any] = [user_id]
+
+        if platform and platform != "all":
+            query_sql += " AND platform = ?"
+            params.append(platform)
+
+        if status == "due":
+            query_sql += " AND status != 'mastered' AND next_review_at != '' AND next_review_at <= ?"
+            params.append(today_str)
+        elif status == "pending_review":
+            query_sql += " AND status = 'pending_review' AND (next_review_at = '' OR next_review_at > ?)"
+            params.append(today_str)
+        elif status == "mastered":
+            query_sql += " AND status = 'mastered'"
+
+        if search:
+            query_sql += " AND (problem_id LIKE ? OR problem_title LIKE ? OR key_point LIKE ? OR notes LIKE ?)"
+            s_param = f"%{search.strip()}%"
+            params.extend([s_param, s_param, s_param, s_param])
+
+        if tag:
+            query_sql += " AND tags LIKE ?"
+            params.append(f"%{tag.strip()}%")
+
+        # 统计筛选后总数
+        count_query = query_sql.replace("SELECT *", "SELECT COUNT(*)")
+        cursor.execute(count_query, params)
+        filtered_total = cursor.fetchone()[0]
+
+        # 排序：默认严格按最新提交时间倒序
+        if sort_by == "next_review_at":
+            query_sql += " ORDER BY CASE WHEN next_review_at != '' THEN 0 ELSE 1 END, next_review_at ASC, id DESC"
+        elif sort_by == "review_count":
+            query_sql += " ORDER BY review_count ASC, last_submitted_at DESC"
+        else:
+            query_sql += " ORDER BY CASE WHEN last_submitted_at != '' AND last_submitted_at IS NOT NULL THEN 0 ELSE 1 END, last_submitted_at DESC, id DESC"
+
+        offset = max(0, (page - 1) * page_size)
+        query_sql += " LIMIT ? OFFSET ?"
+        params.extend([page_size, offset])
+
+        cursor.execute(query_sql, params)
+        rows = cursor.fetchall()
+        items = []
+        today_date = datetime.now().date()
+
+        for r in rows:
+            item = dict(r)
+            item["tags"] = json.loads(item["tags"]) if item["tags"] else []
+            
+            # 计算倒计时与到期状态
+            item["is_due"] = False
+            item["days_left"] = None
+            if item["next_review_at"]:
+                try:
+                    target_date = datetime.strptime(item["next_review_at"], "%Y-%m-%d").date()
+                    days = (target_date - today_date).days
+                    item["days_left"] = days
+                    if days <= 0 and item["status"] != "mastered":
+                        item["is_due"] = True
+                except Exception:
+                    pass
+            items.append(item)
+
+        return {
+            "items": items,
+            "total": filtered_total,
+            "counts": counts,
+            "page": page,
+            "page_size": page_size
+        }
+
+def get_mistake_by_id(mistake_id: int, user_id: int = 1) -> Optional[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM mistakes WHERE id = ? AND user_id = ?", (mistake_id, user_id))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        res = dict(row)
+        res["tags"] = json.loads(res["tags"]) if res["tags"] else []
+        return res
+
+def get_user_mistake_keys(user_id: int = 1) -> List[str]:
+    """返回用户已收录题目的集合 key (格式: 'platform:problem_id')"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT platform, problem_id FROM mistakes WHERE user_id = ?", (user_id,))
+        return [f"{r['platform']}:{r['problem_id']}" for r in cursor.fetchall()]
+
+def update_mistake(
+    user_id: int,
+    mistake_id: int,
+    key_point: Optional[str] = None,
+    notes: Optional[str] = None,
+    tags: Optional[Any] = None,
+    problem_url: Optional[str] = None,
+    status: Optional[str] = None
+) -> bool:
+    """更新错题的卡点、笔记代码、标签或状态"""
+    fields = []
+    params = []
+    if key_point is not None:
+        fields.append("key_point = ?")
+        params.append(key_point)
+    if notes is not None:
+        fields.append("notes = ?")
+        params.append(notes)
+    if tags is not None:
+        if isinstance(tags, list):
+            tags_json = json.dumps([str(t).strip() for t in tags if str(t).strip()], ensure_ascii=False)
+        else:
+            tags_json = str(tags)
+        fields.append("tags = ?")
+        params.append(tags_json)
+    if problem_url is not None:
+        fields.append("problem_url = ?")
+        params.append(problem_url)
+    if status is not None:
+        fields.append("status = ?")
+        params.append(status)
+
+    if not fields:
+        return False
+
+    fields.append("updated_at = CURRENT_TIMESTAMP")
+    sql = f"UPDATE mistakes SET {', '.join(fields)} WHERE id = ? AND user_id = ?"
+    params.extend([mistake_id, user_id])
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_mistake(user_id: int, mistake_id: int) -> bool:
+    """从错题集中移除题目"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM mistakes WHERE id = ? AND user_id = ?", (mistake_id, user_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def manual_record_review(user_id: int, mistake_id: int, review_time: str = "") -> Optional[Dict[str, Any]]:
+    """手动打卡完成一次复习，自动推进轮次并计算下个目标日期"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM mistakes WHERE id = ? AND user_id = ?", (mistake_id, user_id))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        
+        m = dict(row)
+        now_str = review_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        new_count = (m["review_count"] or 0) + 1
+        max_reviews = m["max_review_count"] or 6
+
+        if new_count >= max_reviews:
+            new_status = "mastered"
+            next_review = ""
+        else:
+            new_status = m["status"] if m["status"] != "archived" else "pending_review"
+            next_review = calculate_next_review_date(now_str, new_count)
+
+        cursor.execute("""
+            UPDATE mistakes
+            SET review_count = ?,
+                next_review_at = ?,
+                status = ?,
+                last_submitted_at = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (new_count, next_review, new_status, now_str, mistake_id))
+        conn.commit()
+        m["review_count"] = new_count
+        m["next_review_at"] = next_review
+        m["status"] = new_status
+        m["last_submitted_at"] = now_str
+        m["tags"] = json.loads(m["tags"]) if m["tags"] else []
+        return m
+
+def toggle_mistake_mastered(user_id: int, mistake_id: int, mastered: Optional[bool] = None) -> Optional[Dict[str, Any]]:
+    """切换掌握状态（形成肌肉记忆）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM mistakes WHERE id = ? AND user_id = ?", (mistake_id, user_id))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        
+        m = dict(row)
+        current_status = m["status"]
+        if mastered is None:
+            new_status = "pending_review" if current_status == "mastered" else "mastered"
+        else:
+            new_status = "mastered" if mastered else "pending_review"
+        
+        if new_status == "mastered":
+            next_review = ""
+        else:
+            next_review = calculate_next_review_date(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), m["review_count"] or 0)
+        
+        cursor.execute("""
+            UPDATE mistakes
+            SET status = ?, next_review_at = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (new_status, next_review, mistake_id))
+        conn.commit()
+        m["status"] = new_status
+        m["next_review_at"] = next_review
+        m["tags"] = json.loads(m["tags"]) if m["tags"] else []
+        return m
+
+def sync_mistakes_with_submissions(user_id: int = 1) -> int:
+    """
+    检查 submissions 表中是否有错题的更新提交记录。
+    如果发现用户在添加错题后重新提交（重做），自动更新 last_submitted_at 并推进一步复习进度。
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT 
-                s.platform,
-                s.problem_id,
-                s.problem_title,
-                s.difficulty,
-                s.verdict,
-                s.submission_url,
-                s.tags,
-                MAX(s.submitted_at) as submitted_at,
-                COUNT(*) as fail_times
-            FROM submissions s
-            WHERE s.user_id = ?
-              AND s.verdict != 'AC'
-              AND NOT EXISTS (
-                  SELECT 1 FROM submissions ac_s 
-                  WHERE ac_s.user_id = s.user_id 
-                    AND ac_s.platform = s.platform 
-                    AND ac_s.problem_id = s.problem_id 
-                    AND ac_s.verdict = 'AC'
-              )
-            GROUP BY s.platform, s.problem_id
-            ORDER BY fail_times DESC, submitted_at DESC
-            LIMIT ?;
-        """, (user_id, limit))
-        mistakes = []
-        for r in cursor.fetchall():
-            item = dict(r)
-            item["tags"] = json.loads(item["tags"]) if item["tags"] else []
-            mistakes.append(item)
-        return mistakes
+            SELECT id, platform, problem_id, last_submitted_at, review_count, max_review_count, status
+            FROM mistakes
+            WHERE user_id = ?
+        """, (user_id,))
+        mistakes = cursor.fetchall()
+        if not mistakes:
+            return 0
+
+        updated_count = 0
+        for m in mistakes:
+            m_id = m["id"]
+            plat = m["platform"]
+            pid = m["problem_id"]
+            last_sub_at = m["last_submitted_at"] or ""
+            current_review_count = m["review_count"] or 0
+            max_reviews = m["max_review_count"] or 6
+
+            if last_sub_at:
+                cursor.execute("""
+                    SELECT id, submitted_at
+                    FROM submissions
+                    WHERE user_id = ? AND platform = ? AND problem_id = ? AND submitted_at > ?
+                    ORDER BY submitted_at ASC
+                """, (user_id, plat, pid, last_sub_at))
+            else:
+                cursor.execute("""
+                    SELECT id, submitted_at
+                    FROM submissions
+                    WHERE user_id = ? AND platform = ? AND problem_id = ?
+                    ORDER BY submitted_at ASC
+                """, (user_id, plat, pid))
+            
+            newer_subs = cursor.fetchall()
+            if not newer_subs:
+                continue
+
+            simulated_last_sub = last_sub_at
+            simulated_review_count = current_review_count
+            latest_sub_id = m.get("last_submission_id", "")
+
+            for sub in newer_subs:
+                sub_time_str = sub["submitted_at"]
+                sub_id = sub["id"]
+                latest_sub_id = sub_id
+
+                is_new_session = False
+                if not simulated_last_sub:
+                    is_new_session = True
+                else:
+                    try:
+                        t1 = datetime.strptime(simulated_last_sub[:19], "%Y-%m-%d %H:%M:%S")
+                        t2 = datetime.strptime(sub_time_str[:19], "%Y-%m-%d %H:%M:%S")
+                        if (t2 - t1).total_seconds() >= 21600:
+                            is_new_session = True
+                    except Exception:
+                        if sub_time_str[:10] != simulated_last_sub[:10]:
+                            is_new_session = True
+
+                simulated_last_sub = sub_time_str
+                if is_new_session and m["status"] != "mastered":
+                    simulated_review_count += 1
+
+            new_status = m["status"]
+            if simulated_review_count >= max_reviews:
+                new_status = "mastered"
+                next_review = ""
+            else:
+                next_review = calculate_next_review_date(simulated_last_sub, simulated_review_count)
+
+            cursor.execute("""
+                UPDATE mistakes
+                SET last_submitted_at = ?,
+                    last_submission_id = ?,
+                    review_count = ?,
+                    next_review_at = ?,
+                    status = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (simulated_last_sub, latest_sub_id, simulated_review_count, next_review, new_status, m_id))
+            updated_count += 1
+
+        if updated_count > 0:
+            conn.commit()
+        return updated_count
+
+def get_mistakes(user_id: int = 1, limit: int = 50) -> List[Dict[str, Any]]:
+    """向后兼容接口：获取用户当前专属错题集列表"""
+    res = get_user_mistakes(user_id=user_id, page_size=limit)
+    return res.get("items", [])
 
 def get_recent_submissions(user_id: int = 1, limit: int = 2000, platform: str = "") -> List[Dict[str, Any]]:
     with get_connection() as conn:

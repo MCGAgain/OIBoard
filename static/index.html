@@ -25,7 +25,11 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
   <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/static/style.css?v=2.5.7">
+  <!-- Marked Markdown Parser & Highlight.js -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="/static/style.css?v=2.7.0">
 </head>
 <body :class="[isDark ? 'dark text-[#f5f5f7]' : 'text-[#1d1d1f]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white transition-colors duration-300">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -235,7 +239,8 @@
               </svg>
               <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap flex items-center justify-between flex-1">
                 <span>错题集</span>
-                <span v-if="mistakes.length > 0" class="px-1.5 py-0.2 rounded text-[10px] bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 font-mono">{{ mistakes.length }}</span>
+                <span v-if="mistakesCounts.due > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-mono font-bold animate-pulse" :title="mistakesCounts.due + ' 题待复习'">{{ mistakesCounts.due }}</span>
+                <span v-else-if="mistakesCounts.total > 0" class="px-1.5 py-0.2 rounded text-[10px] bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 font-mono">{{ mistakesCounts.total }}</span>
               </span>
             </button>
 
@@ -992,16 +997,30 @@
                     {{ formatTimeAgo(sub.submitted_at) }}
                   </td>
                   <td class="px-4 py-3 text-right font-sans">
-                    <a v-if="sub.submission_url" :href="sub.submission_url" target="_blank" 
-                       class="text-blue-600 dark:text-blue-400 hover:opacity-80 text-xs hover:underline inline-flex items-center space-x-1 font-medium">
-                      <span>查看</span>
-                      <svg class="w-3 h-3 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
-                    <span v-else class="text-[var(--text-muted)] text-xs">-</span>
+                    <div class="inline-flex items-center justify-end space-x-2">
+                      <button @click="openAddToMistakesModal(sub)" 
+                              type="button"
+                              class="px-2 py-1 rounded-lg text-xs font-medium transition-all inline-flex items-center space-x-1"
+                              :class="mistakeKeySet.has(sub.platform + ':' + sub.problem_id) ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shadow-sm' : 'bg-[var(--bg-subtle)] hover:bg-rose-500/10 text-[var(--text-secondary)] hover:text-rose-600 border border-[var(--border-subtle)]'"
+                              :title="mistakeKeySet.has(sub.platform + ':' + sub.problem_id) ? '已在错题集中，点击查看/编辑' : '点击收录到专属错题集'">
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="9"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <span>{{ mistakeKeySet.has(sub.platform + ':' + sub.problem_id) ? '已入错题' : '入错题' }}</span>
+                      </button>
+                      <a v-if="sub.submission_url" :href="sub.submission_url" target="_blank" 
+                         class="text-blue-600 dark:text-blue-400 hover:opacity-80 text-xs hover:underline inline-flex items-center space-x-1 font-medium">
+                        <span>查看</span>
+                        <svg class="w-3 h-3 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                          <polyline points="15 3 21 3 21 9"></polyline>
+                          <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                      </a>
+                      <span v-else class="text-[var(--text-muted)] text-xs">-</span>
+                    </div>
                   </td>
                 </tr>
                 <tr v-if="paginatedSubmissions.length === 0">
@@ -1029,89 +1048,308 @@
           </div>
         </div>
 
-        <!-- ================= TAB 3: 待攻克错题集 (MISTAKES) ================= -->
-        <div v-show="currentTab === 'mistakes'" class="ui-card p-6 space-y-4 font-sans">
-          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-[var(--border-subtle)]">
-            <div>
-              <h2 class="text-xs font-bold text-[var(--text-primary)] flex items-center space-x-2">
-                <svg class="w-4 h-4 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="9"></circle>
-                  <line x1="12" y1="8" x2="12" y2="12"></line>
-                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                </svg>
-                <span>待攻克错题</span>
-              </h2>
+        <!-- ================= TAB 3: 专属错题集 (MISTAKES WORKBENCH) ================= -->
+        <div v-show="currentTab === 'mistakes'" class="space-y-6 font-sans">
+          
+          <!-- 1. 艾宾浩斯复习总览 KPI 卡片组 (Bento Grid) -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <!-- 总收录题目 -->
+            <div class="ui-card p-4 sm:p-5 flex flex-col justify-between hover:border-[var(--border-hover)] transition-all">
+              <div class="flex items-center justify-between text-[var(--text-tertiary)] mb-2">
+                <span class="text-xs font-medium">总收录题量</span>
+                <div class="w-7 h-7 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                </div>
+              </div>
+              <div class="flex items-baseline space-x-2">
+                <span class="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] font-mono">{{ mistakesCounts.total || 0 }}</span>
+                <span class="text-xs text-[var(--text-tertiary)]">题</span>
+              </div>
+              <p class="text-[11px] text-[var(--text-muted)] mt-1">手动精选收录的攻克弱项</p>
             </div>
-            <span class="text-xs font-sans bg-rose-500/10 text-rose-600 dark:text-rose-400 font-semibold px-2.5 py-0.5 rounded-full border border-rose-500/20">
-              共 {{ mistakes.length }} 题
-            </span>
+
+            <!-- 今日到期待复习 -->
+            <div :class="['ui-card p-4 sm:p-5 flex flex-col justify-between transition-all cursor-pointer',
+                          mistakesCounts.due > 0 ? 'bg-rose-500/[0.04] dark:bg-rose-500/[0.08] border-rose-500/30 shadow-sm' : 'hover:border-[var(--border-hover)]']"
+                 @click="mistakeStatusFilter = 'due'">
+              <div class="flex items-center justify-between text-[var(--text-tertiary)] mb-2">
+                <span class="text-xs font-medium" :class="mistakesCounts.due > 0 ? 'text-rose-600 dark:text-rose-400 font-semibold' : ''">今日待复习</span>
+                <div class="w-7 h-7 rounded-xl flex items-center justify-center"
+                     :class="mistakesCounts.due > 0 ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 animate-pulse' : 'bg-rose-500/10 text-rose-500'">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </div>
+              </div>
+              <div class="flex items-baseline space-x-2">
+                <span class="text-2xl sm:text-3xl font-extrabold font-mono" :class="mistakesCounts.due > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--text-primary)]'">
+                  {{ mistakesCounts.due || 0 }}
+                </span>
+                <span class="text-xs" :class="mistakesCounts.due > 0 ? 'text-rose-500' : 'text-[var(--text-tertiary)]'">题</span>
+              </div>
+              <p class="text-[11px] mt-1" :class="mistakesCounts.due > 0 ? 'text-rose-600 dark:text-rose-400 font-medium' : 'text-[var(--text-muted)]'">
+                {{ mistakesCounts.due > 0 ? '⚠️ 到期需重做唤醒记忆' : '目前暂无待复习题目' }}
+              </p>
+            </div>
+
+            <!-- 攻克训练中 -->
+            <div class="ui-card p-4 sm:p-5 flex flex-col justify-between hover:border-[var(--border-hover)] transition-all cursor-pointer"
+                 @click="mistakeStatusFilter = 'pending_review'">
+              <div class="flex items-center justify-between text-[var(--text-tertiary)] mb-2">
+                <span class="text-xs font-medium">攻克训练中</span>
+                <div class="w-7 h-7 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                </div>
+              </div>
+              <div class="flex items-baseline space-x-2">
+                <span class="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] font-mono">{{ mistakesCounts.in_progress || 0 }}</span>
+                <span class="text-xs text-[var(--text-tertiary)]">题</span>
+              </div>
+              <p class="text-[11px] text-[var(--text-muted)] mt-1">按 1~2 周周期循环强化</p>
+            </div>
+
+            <!-- 形成肌肉记忆 (已掌握) -->
+            <div class="ui-card p-4 sm:p-5 flex flex-col justify-between hover:border-[var(--border-hover)] transition-all cursor-pointer"
+                 @click="mistakeStatusFilter = 'mastered'">
+              <div class="flex items-center justify-between text-[var(--text-tertiary)] mb-2">
+                <span class="text-xs font-medium">已形成肌肉记忆</span>
+                <div class="w-7 h-7 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                </div>
+              </div>
+              <div class="flex items-baseline space-x-2">
+                <span class="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">{{ mistakesCounts.mastered || 0 }}</span>
+                <span class="text-xs text-[var(--text-tertiary)]">题</span>
+              </div>
+              <p class="text-[11px] text-[var(--text-muted)] mt-1">完成 6 轮复习或标为掌握</p>
+            </div>
           </div>
 
-          <!-- 错题表格 -->
-          <div class="overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
-            <table class="w-full text-left text-xs text-[var(--text-secondary)]">
-              <thead class="text-[var(--text-tertiary)] bg-[var(--bg-subtle)] uppercase border-b border-[var(--border-subtle)] font-sans">
-                <tr>
-                  <th class="px-4 py-3">平台</th>
-                  <th class="px-4 py-3">题目</th>
-                  <th class="px-4 py-3">难度</th>
-                  <th class="px-4 py-3">状态</th>
-                  <th class="px-4 py-3">未通过次数</th>
-                  <th class="px-4 py-3">最后尝试</th>
-                  <th class="px-4 py-3 text-right">操作</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-[var(--border-subtle)] font-sans">
-                <tr v-for="item in mistakes" :key="item.platform + item.problem_id" class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
-                  <td class="px-4 py-3 font-mono">
-                    <span :class="['px-2 py-0.5 rounded-full text-[10px] font-bold border', 
+          <!-- 2. 主卡片：操作控制条与错题库 -->
+          <div class="ui-card p-5 sm:p-6 space-y-5">
+            <!-- 顶部操作条 -->
+            <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pb-4 border-b border-[var(--border-subtle)]">
+              <!-- 状态筛选 Segmented Control -->
+              <div class="segmented-control self-start overflow-x-auto max-w-full">
+                <button @click="mistakeStatusFilter = 'all'" :class="['segmented-item text-xs', mistakeStatusFilter === 'all' ? 'active' : '']">
+                  <span>全部</span>
+                  <span class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/[0.05] dark:bg-white/[0.1] font-mono">{{ mistakesCounts.total || 0 }}</span>
+                </button>
+                <button @click="mistakeStatusFilter = 'due'" :class="['segmented-item text-xs', mistakeStatusFilter === 'due' ? 'active' : '']">
+                  <span>今日待复习</span>
+                  <span v-if="mistakesCounts.due > 0" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-mono font-bold">{{ mistakesCounts.due }}</span>
+                </button>
+                <button @click="mistakeStatusFilter = 'pending_review'" :class="['segmented-item text-xs', mistakeStatusFilter === 'pending_review' ? 'active' : '']">
+                  <span>训练中</span>
+                  <span class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/[0.05] dark:bg-white/[0.1] font-mono">{{ mistakesCounts.in_progress || 0 }}</span>
+                </button>
+                <button @click="mistakeStatusFilter = 'mastered'" :class="['segmented-item text-xs', mistakeStatusFilter === 'mastered' ? 'active' : '']">
+                  <span>已掌握</span>
+                  <span class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/[0.05] dark:bg-white/[0.1] font-mono">{{ mistakesCounts.mastered || 0 }}</span>
+                </button>
+              </div>
+
+              <!-- 右侧平台筛选、搜索与手动录入按钮 -->
+              <div class="flex flex-wrap items-center gap-2.5">
+                <!-- 平台选择 -->
+                <select v-model="mistakePlatformFilter" class="ui-input text-xs py-1.5 px-2.5">
+                  <option value="all">所有平台</option>
+                  <option value="luogu">洛谷 (Luogu)</option>
+                  <option value="codeforces">Codeforces</option>
+                  <option value="atcoder">AtCoder</option>
+                  <option value="acwing">AcWing</option>
+                </select>
+
+                <!-- 排序方式 -->
+                <select v-model="mistakeSortBy" class="ui-input text-xs py-1.5 px-2.5">
+                  <option value="last_submitted_at">最新提交时间 (推荐)</option>
+                  <option value="next_review_at">复习到期日期</option>
+                  <option value="review_count">复习次数</option>
+                </select>
+
+                <!-- 搜索框 -->
+                <div class="relative min-w-[160px] sm:min-w-[200px]">
+                  <input v-model="mistakeSearch" @keyup.enter="loadMistakes" type="text" placeholder="搜索题号/标题/卡点..."
+                         class="ui-input text-xs w-full pl-8 pr-3 py-1.5">
+                  <svg class="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-2.5 top-1/2 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </div>
+
+                <!-- 手动收录错题按钮 -->
+                <button @click="openAddToMistakesModal({}, false)" type="button" class="btn-primary text-xs px-3.5 py-1.5 flex items-center space-x-1.5 shrink-0">
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  <span>收录错题</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 错题列表卡片流 -->
+            <div v-if="mistakes.length > 0" class="space-y-3.5">
+              <div v-for="item in mistakes" :key="item.id" 
+                   class="p-4 sm:p-5 rounded-2xl border transition-all hover:shadow-md hover:border-[var(--border-hover)]"
+                   :class="item.status === 'mastered' ? 'bg-black/[0.01] dark:bg-white/[0.01] border-[var(--border-subtle)] opacity-85' :
+                           item.is_due ? 'bg-rose-500/[0.03] dark:bg-rose-500/[0.06] border-rose-500/30' : 'bg-[var(--bg-card)] border-[var(--border-subtle)]'">
+                
+                <!-- 头部：平台、题号、标题、标签与复习倒计时徽章 -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div class="flex items-center flex-wrap gap-2">
+                    <!-- 平台 Badge -->
+                    <span :class="['px-2.5 py-0.5 rounded-full text-[10px] font-bold border font-mono', 
                                    item.platform === 'codeforces' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' :
                                    item.platform === 'atcoder' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' :
                                    item.platform === 'luogu' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20']">
                       {{ item.platform === 'codeforces' ? 'CF' : item.platform === 'atcoder' ? 'ATCODER' : item.platform === 'luogu' ? 'LUOGU' : 'ACWING' }}
                     </span>
-                  </td>
-                  <td class="px-4 py-3 text-[var(--text-primary)] font-medium">
-                    <div class="flex items-center space-x-2">
-                      <span class="text-[var(--text-tertiary)] font-mono">[{{ item.problem_id }}]</span>
-                      <span>{{ item.problem_title }}</span>
-                    </div>
-                  </td>
-                  <td class="px-4 py-3 text-[var(--text-secondary)] font-mono">
-                    <span class="px-2 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] text-[11px] border border-[var(--border-subtle)]">{{ item.difficulty || '-' }}</span>
-                  </td>
-                  <td class="px-4 py-3 font-mono">
-                    <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
-                      {{ item.verdict }}
+                    <!-- 题号 & 标题 -->
+                    <span class="text-xs font-mono font-bold text-[var(--text-tertiary)]">[{{ item.problem_id }}]</span>
+                    <span class="text-sm font-bold text-[var(--text-primary)] hover:text-blue-500 transition-colors cursor-pointer" @click="openViewNoteModal(item)">
+                      {{ item.problem_title }}
                     </span>
-                  </td>
-                  <td class="px-4 py-3 font-mono text-rose-600 dark:text-rose-400 font-bold">
-                    {{ item.fail_times }} 次
-                  </td>
-                  <td class="px-4 py-3 text-[var(--text-secondary)] font-mono text-[11px]" :title="item.submitted_at">
-                    {{ formatTimeAgo(item.submitted_at) }}
-                  </td>
-                  <td class="px-4 py-3 text-right font-sans">
-                    <a v-if="item.submission_url" :href="item.submission_url" target="_blank"
-                       class="text-blue-600 dark:text-blue-400 hover:opacity-80 text-xs hover:underline inline-flex items-center space-x-1 font-medium">
+                    <!-- 难度 -->
+                    <span v-if="item.difficulty" class="px-2 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] text-[10px] border border-[var(--border-subtle)] font-mono">
+                      {{ item.difficulty }}
+                    </span>
+                    <!-- 标签 -->
+                    <span v-for="tag in item.tags" :key="tag" class="px-2 py-0.5 rounded-md bg-black/[0.03] dark:bg-white/[0.05] text-[var(--text-tertiary)] text-[10px] border border-[var(--border-subtle)]">
+                      {{ tag }}
+                    </span>
+                  </div>
+
+                  <!-- 右侧复习状态徽章 -->
+                  <div class="shrink-0 flex items-center space-x-2">
+                    <!-- 已掌握 -->
+                    <span v-if="item.status === 'mastered'" class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      <span>已形成肌肉记忆</span>
+                    </span>
+                    <!-- 今日到期 / 超期 -->
+                    <span v-else-if="item.is_due" class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 animate-pulse">
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                      <span>{{ item.days_left < 0 ? '超期 ' + Math.abs(item.days_left) + ' 天' : '今日到期需重做' }}</span>
+                    </span>
+                    <!-- 倒计时中 -->
+                    <span v-else-if="item.next_review_at" class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-mono">
+                      <svg class="w-3.5 h-3.5 text-[var(--text-tertiary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                      <span>{{ item.days_left }} 天后重做 ({{ item.next_review_at }})</span>
+                    </span>
+                  </div>
+                </div>
+
+                <!-- 中间主体：复习进度阶梯条 + 最新提交时间 + 核心卡点 -->
+                <div class="mt-3.5 pt-3 border-t border-[var(--border-subtle)] space-y-2.5 text-xs">
+                  <!-- 复习阶梯进度条 & 提交时间 -->
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[var(--text-tertiary)] font-mono">
+                    <div class="flex items-center space-x-2">
+                      <span class="text-[11px] font-sans text-[var(--text-secondary)] font-medium">重做轮次:</span>
+                      <!-- 6段复习阶梯 -->
+                      <div class="flex items-center space-x-1">
+                        <div v-for="step in 6" :key="step"
+                             :class="['h-2 w-4 sm:w-5 rounded-full transition-all',
+                                      step <= (item.review_count || 0) ? 'bg-emerald-500 shadow-sm' : 'bg-black/[0.08] dark:bg-white/[0.1]']"
+                             :title="'第 ' + step + ' 轮复习'"></div>
+                      </div>
+                      <span class="text-xs font-bold" :class="item.review_count >= 6 ? 'text-emerald-500' : 'text-[var(--text-primary)]'">
+                        {{ item.review_count || 0 }} / 6 次
+                      </span>
+                    </div>
+
+                    <!-- 最新提交时间 -->
+                    <div class="text-[11px] flex items-center space-x-1.5" :title="item.last_submitted_at">
+                      <svg class="w-3.5 h-3.5 text-[var(--text-muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                      <span>最新提交: {{ item.last_submitted_at || '暂无提交时间' }}</span>
+                      <span v-if="item.last_submitted_at" class="text-[var(--text-muted)]">({{ formatTimeAgo(item.last_submitted_at) }})</span>
+                    </div>
+                  </div>
+
+                  <!-- 核心卡点 / 错因 (Blocker) -->
+                  <div v-if="item.key_point" class="p-2.5 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-200 flex items-start space-x-2">
+                    <span class="shrink-0 font-bold">💡 卡点分析:</span>
+                    <span class="leading-relaxed font-sans">{{ item.key_point }}</span>
+                  </div>
+                </div>
+
+                <!-- 底部操作按钮栏 -->
+                <div class="mt-3.5 pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs font-sans">
+                  <!-- 左侧笔记预览入口 -->
+                  <button @click="openViewNoteModal(item)" 
+                          class="px-3 py-1.5 rounded-xl bg-[var(--bg-subtle)] hover:bg-black/[0.06] dark:hover:bg-white/[0.08] border border-[var(--border-subtle)] text-[var(--text-primary)] font-medium inline-flex items-center space-x-1.5 transition-all">
+                    <svg class="w-3.5 h-3.5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                    <span>查看代码与笔记</span>
+                  </button>
+
+                  <!-- 右侧操作项 -->
+                  <div class="flex items-center space-x-2">
+                    <!-- 去做题 (跳转原题) -->
+                    <a v-if="item.problem_url" :href="item.problem_url" target="_blank"
+                       class="px-3 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/25 font-medium inline-flex items-center space-x-1.5 transition-all">
                       <span>去做题</span>
-                      <svg class="w-3 h-3 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
+                      <svg class="w-3.5 h-3.5 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                     </a>
-                    <span v-else class="text-[var(--text-muted)] text-xs">-</span>
-                  </td>
-                </tr>
-                <tr v-if="mistakes.length === 0">
-                  <td colspan="7" class="px-4 py-12 text-center text-[var(--text-muted)] font-sans">
-                    太棒了！暂无未攻克的错题
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+
+                    <!-- 手动打卡复习 (重做打卡) -->
+                    <button v-if="item.status !== 'mastered'" @click="recordMistakeReview(item)" 
+                            class="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 font-medium inline-flex items-center space-x-1.5 transition-all"
+                            title="提交记录会自动更新，若在线下或其他地方重做，可直接手动打卡">
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      <span>打卡重做 (+1)</span>
+                    </button>
+
+                    <!-- 掌握状态切换 -->
+                    <button @click="toggleMistakeMaster(item)" 
+                            class="px-2.5 py-1.5 rounded-xl bg-[var(--bg-subtle)] hover:bg-black/[0.06] dark:hover:bg-white/[0.08] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium inline-flex items-center space-x-1 transition-all"
+                            :title="item.status === 'mastered' ? '恢复为需定期复习' : '已彻底掌握形成肌肉记忆，无需再提醒'">
+                      <svg class="w-3.5 h-3.5" :class="item.status === 'mastered' ? 'text-amber-500' : 'text-emerald-500'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                      <span>{{ item.status === 'mastered' ? '重新复习' : '标为掌握' }}</span>
+                    </button>
+
+                    <!-- 编辑 -->
+                    <button @click="openAddToMistakesModal(item, true)" 
+                            class="px-2.5 py-1.5 rounded-xl bg-[var(--bg-subtle)] hover:bg-black/[0.06] dark:hover:bg-white/[0.08] text-[var(--text-secondary)] border border-[var(--border-subtle)] font-medium inline-flex items-center space-x-1 transition-all">
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                      <span>编辑</span>
+                    </button>
+
+                    <!-- 移除 -->
+                    <button @click="deleteMistakeItem(item)" 
+                            class="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-medium inline-flex items-center transition-all"
+                            title="从错题集移除">
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- 空状态 -->
+            <div v-else class="py-16 text-center space-y-3">
+              <div class="w-14 h-14 mx-auto rounded-3xl bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center justify-center">
+                <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+              </div>
+              <h3 class="text-sm font-bold text-[var(--text-primary)]">暂无匹配的错题</h3>
+              <p class="text-xs text-[var(--text-muted)] max-w-md mx-auto leading-relaxed">
+                错题集现已升级为手动精选攻克模式。你可以在「提交记录」中点击「入错题」，或点击上方「收录错题」将做错或卡住的经典题目收入库中，开启艾宾浩斯肌肉记忆训练。
+              </p>
+              <button @click="openAddToMistakesModal({}, false)" type="button" class="btn-primary text-xs px-4 py-2 inline-flex items-center space-x-1.5 mt-2">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>收录第一道错题</span>
+              </button>
+            </div>
+
+            <!-- 分页器 -->
+            <div v-if="mistakeTotal > mistakePageSize" class="flex items-center justify-between pt-4 border-t border-[var(--border-subtle)] text-xs font-sans">
+              <span class="text-[var(--text-secondary)]">第 {{ mistakePage }} 页 (共 {{ mistakeTotal }} 条)</span>
+              <div class="flex items-center space-x-2 font-sans">
+                <button @click="mistakePage = Math.max(1, mistakePage - 1); loadMistakes();" :disabled="mistakePage <= 1"
+                        class="px-3 py-1.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-subtle)] shadow-sm font-medium transition-all">
+                  上一页
+                </button>
+                <button @click="mistakePage = mistakePage + 1; loadMistakes();" :disabled="mistakes.length < mistakePageSize"
+                        class="px-3 py-1.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-subtle)] shadow-sm font-medium transition-all">
+                  下一页
+                </button>
+              </div>
+            </div>
+
           </div>
+
         </div>
 
         <!-- ================= TAB 4: 平台设置与配置 (SETTINGS) ================= -->
@@ -1496,6 +1734,218 @@
       </div>
     </div>
 
+    <!-- 错题添加 / 编辑弹窗 (Add / Edit Mistake Modal) -->
+    <div v-if="mistakeModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/45 backdrop-blur-sm overflow-y-auto">
+      <div class="w-full max-w-2xl bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 font-sans my-8">
+        <!-- 弹窗标题 -->
+        <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+            <h3 class="text-sm font-bold text-[var(--text-primary)]">
+              {{ isMistakeEditing ? '编辑错题与解题笔记' : '收录到专属错题集' }}
+            </h3>
+          </div>
+          <button @click="mistakeModalOpen = false" class="p-1 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors">
+            <svg class="w-4 h-4 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <!-- 表单区域 -->
+        <div class="space-y-3.5 text-xs max-h-[72vh] overflow-y-auto pr-1">
+          <!-- 第一行：平台选择与题号 -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[var(--text-secondary)] font-medium mb-1">所属平台</label>
+              <select v-model="mistakeForm.platform" :disabled="isMistakeEditing" class="ui-input text-xs w-full">
+                <option value="luogu">洛谷 (Luogu)</option>
+                <option value="codeforces">Codeforces</option>
+                <option value="atcoder">AtCoder</option>
+                <option value="acwing">AcWing</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[var(--text-secondary)] font-medium mb-1">题目编号 (如 P1495, 1900B)</label>
+              <input v-model="mistakeForm.problem_id" :disabled="isMistakeEditing" type="text" placeholder="例如: P1495" class="ui-input text-xs w-full font-mono">
+            </div>
+          </div>
+
+          <!-- 第二行：题目名称与难度 -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="sm:col-span-2">
+              <label class="block text-[var(--text-secondary)] font-medium mb-1">题目名称</label>
+              <input v-model="mistakeForm.problem_title" type="text" placeholder="例如: 【模板】中国剩余定理" class="ui-input text-xs w-full font-medium">
+            </div>
+            <div>
+              <label class="block text-[var(--text-secondary)] font-medium mb-1">难度 (可选)</label>
+              <input v-model="mistakeForm.difficulty" type="text" placeholder="例如: 提高+/省选- 或 1800" class="ui-input text-xs w-full">
+            </div>
+          </div>
+
+          <!-- 第三行：原题链接与分类标签 -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[var(--text-secondary)] font-medium mb-1">原题直达链接 (做题跳转)</label>
+              <input v-model="mistakeForm.problem_url" type="text" placeholder="留空则自动根据题号生成" class="ui-input text-xs w-full font-mono">
+            </div>
+            <div>
+              <label class="block text-[var(--text-secondary)] font-medium mb-1">分类标签 (逗号分隔)</label>
+              <input v-model="mistakeForm.tags_input" type="text" placeholder="例如: 数论, 中国剩余定理, 逆元" class="ui-input text-xs w-full">
+            </div>
+          </div>
+
+          <!-- 第四行：核心卡点 / 错因短板分析 (重点展示) -->
+          <div>
+            <label class="block text-[var(--text-secondary)] font-medium mb-1 flex items-center justify-between">
+              <span class="text-amber-600 dark:text-amber-400 font-semibold">💡 核心卡点 / 错因分析 (为什么没做出来？)</span>
+            </label>
+            <textarea v-model="mistakeForm.key_point" rows="2" 
+                      placeholder="记录当时的卡点与思路盲区，例如：在模数为合数时直接使用了费马小定理导致WA；没看清数据范围需要使用 __int128 乘法防溢出等"
+                      class="ui-input text-xs w-full leading-relaxed"></textarea>
+          </div>
+
+          <!-- 第五行：详细注释代码与思路笔记 (支持 Markdown) -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-[var(--text-secondary)] font-medium">详细解题思路与带注释代码 (Markdown)</label>
+              
+              <!-- 右侧快捷插入与预览切换 -->
+              <div class="flex items-center space-x-2">
+                <div class="hidden sm:flex items-center space-x-1 text-[11px] text-[var(--text-muted)]">
+                  <span>插入代码:</span>
+                  <button @click="insertCodeSnippet('cpp')" type="button" class="px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] hover:bg-black/[0.08] dark:hover:bg-white/[0.08] text-[var(--text-secondary)] font-mono">C++</button>
+                  <button @click="insertCodeSnippet('python')" type="button" class="px-1.5 py-0.5 rounded bg-[var(--bg-subtle)] hover:bg-black/[0.08] dark:hover:bg-white/[0.08] text-[var(--text-secondary)] font-mono">Py</button>
+                </div>
+                <!-- 编辑/预览 Tab -->
+                <div class="segmented-control scale-90 origin-right">
+                  <button @click="mistakeFormTab = 'write'" :class="['segmented-item text-[11px] py-0.5 px-2.5', mistakeFormTab === 'write' ? 'active' : '']" type="button">编辑</button>
+                  <button @click="mistakeFormTab = 'preview'" :class="['segmented-item text-[11px] py-0.5 px-2.5', mistakeFormTab === 'preview' ? 'active' : '']" type="button">预览</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Markdown 编辑态 -->
+            <div v-show="mistakeFormTab === 'write'">
+              <textarea v-model="mistakeForm.notes" rows="10"
+                        placeholder="支持完整 Markdown 语法与代码块高亮，例如：&#10;```cpp&#10;#include <bits/stdc++.h>&#10;using namespace std;&#10;...&#10;```"
+                        class="ui-input text-xs w-full font-mono leading-relaxed"></textarea>
+            </div>
+
+            <!-- Markdown 实时预览态 -->
+            <div v-show="mistakeFormTab === 'preview'" 
+                 class="markdown-body p-4 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-[var(--border-subtle)] min-h-[200px] max-h-[280px] overflow-y-auto"
+                 v-html="renderMarkdown(mistakeForm.notes)">
+            </div>
+          </div>
+        </div>
+
+        <!-- 弹窗底部操作按钮 -->
+        <div class="pt-3 border-t border-[var(--border-subtle)] flex items-center justify-between">
+          <span class="text-[11px] text-[var(--text-muted)] font-mono">
+            {{ isMistakeEditing ? '编辑已有错题笔记' : '收录后将按 1~2 周周期自动追踪提醒重做' }}
+          </span>
+          <div class="flex items-center space-x-2.5">
+            <button @click="mistakeModalOpen = false" type="button" class="btn-secondary text-xs px-4 py-2">
+              取消
+            </button>
+            <button @click="saveMistake" :disabled="isMistakeSaving" type="button" class="btn-primary text-xs px-5 py-2 flex items-center space-x-1.5">
+              <svg v-if="isMistakeSaving" class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 14v1m8-8h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"></path></svg>
+              <span>{{ isMistakeSaving ? '保存中...' : (isMistakeEditing ? '保存修改' : '加入错题集') }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 查看错题代码与思路笔记弹窗 (View Mistake Code & Notes Modal) -->
+    <div v-if="viewNoteModalOpen && activeMistake" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+      <div class="w-full max-w-3xl bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 font-sans my-8">
+        <!-- 弹窗标题与元信息 -->
+        <div class="flex items-start justify-between pb-3 border-b border-[var(--border-subtle)] gap-2">
+          <div class="space-y-1">
+            <div class="flex items-center flex-wrap gap-2">
+              <!-- 平台 Badge -->
+              <span :class="['px-2.5 py-0.5 rounded-full text-[10px] font-bold border font-mono', 
+                             activeMistake.platform === 'codeforces' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' :
+                             activeMistake.platform === 'atcoder' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' :
+                             activeMistake.platform === 'luogu' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20']">
+                {{ activeMistake.platform === 'codeforces' ? 'CF' : activeMistake.platform === 'atcoder' ? 'ATCODER' : activeMistake.platform === 'luogu' ? 'LUOGU' : 'ACWING' }}
+              </span>
+              <span class="text-xs font-mono font-bold text-[var(--text-tertiary)]">[{{ activeMistake.problem_id }}]</span>
+              <h3 class="text-base font-bold text-[var(--text-primary)]">
+                {{ activeMistake.problem_title }}
+              </h3>
+              <span v-if="activeMistake.difficulty" class="px-2 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] text-[10px] border border-[var(--border-subtle)] font-mono">
+                {{ activeMistake.difficulty }}
+              </span>
+            </div>
+            
+            <div class="flex items-center space-x-3 text-xs text-[var(--text-tertiary)] font-mono">
+              <span>已复习: <strong class="text-emerald-600 dark:text-emerald-400">{{ activeMistake.review_count || 0 }} / 6</strong> 轮</span>
+              <span>•</span>
+              <span>最新提交: {{ activeMistake.last_submitted_at || '未记录' }}</span>
+              <span v-if="activeMistake.next_review_at && activeMistake.status !== 'mastered'">
+                • 目标复习日: {{ activeMistake.next_review_at }}
+              </span>
+            </div>
+          </div>
+
+          <button @click="viewNoteModalOpen = false" class="p-1 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors">
+            <svg class="w-4 h-4 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <!-- 核心卡点突出提示 -->
+        <div v-if="activeMistake.key_point" class="p-3.5 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 text-xs text-amber-800 dark:text-amber-200 space-y-1">
+          <div class="font-bold flex items-center space-x-1.5">
+            <span>💡 错题卡点与反思:</span>
+          </div>
+          <p class="leading-relaxed font-sans pl-1">{{ activeMistake.key_point }}</p>
+        </div>
+
+        <!-- 详细 Markdown 代码与解题笔记渲染容器 -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between text-xs text-[var(--text-tertiary)] font-medium">
+            <span>详细注释代码与思路笔记</span>
+          </div>
+          <div id="mistake-markdown-content" 
+               class="markdown-body p-4 sm:p-5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-[var(--border-subtle)] max-h-[52vh] overflow-y-auto"
+               v-html="renderMarkdown(activeMistake.notes)">
+          </div>
+        </div>
+
+        <!-- 弹窗底部操作按钮 -->
+        <div class="pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2.5">
+          <div class="flex items-center space-x-2">
+            <!-- 原题直达去做题 -->
+            <a v-if="activeMistake.problem_url" :href="activeMistake.problem_url" target="_blank"
+               class="btn-primary text-xs px-4 py-2 inline-flex items-center space-x-1.5">
+              <span>跳转原题重做</span>
+              <svg class="w-3.5 h-3.5 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </a>
+
+            <!-- 打卡重做 -->
+            <button v-if="activeMistake.status !== 'mastered'" @click="recordMistakeReview(activeMistake)" type="button"
+                    class="px-3.5 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 text-xs font-medium inline-flex items-center space-x-1.5 transition-all">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span>打卡本次重做 (+1)</span>
+            </button>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <!-- 切换编辑 -->
+            <button @click="viewNoteModalOpen = false; openAddToMistakesModal(activeMistake, true)" type="button"
+                    class="btn-secondary text-xs px-3.5 py-2 inline-flex items-center space-x-1">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+              <span>编辑笔记</span>
+            </button>
+            <button @click="viewNoteModalOpen = false" type="button" class="btn-secondary text-xs px-4 py-2">
+              关闭
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 全局浮动提示 (Toast - Apple Frosted Pill) -->
     <div v-if="toast.show" class="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-xl text-xs font-semibold border flex items-center space-x-2.5 backdrop-blur-xl transition-all font-sans"
          :class="toast.type === 'success' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'">
@@ -1511,6 +1961,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.6.2"></script>
+  <script src="/static/app.js?v=2.7.0"></script>
 </body>
 </html>

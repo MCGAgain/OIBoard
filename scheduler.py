@@ -16,7 +16,8 @@ from db import (
     get_beijing_now,
     get_platform_accounts,
     get_account_by_id,
-    update_platform_account
+    update_platform_account,
+    sync_mistakes_with_submissions
 )
 from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher, AtCoderFetcher, ContestFetcher
 
@@ -103,6 +104,10 @@ class TaskScheduler:
                     d["account_handle"] = handle
                     sub_dicts.append(d)
                 save_submissions(sub_dicts, user_id=user_id)
+                try:
+                    sync_mistakes_with_submissions(user_id=user_id)
+                except Exception as e:
+                    logger.exception(f"Error syncing mistakes for user {user_id}: {e}")
                 update_platform_account(
                     account_id, user_id,
                     status="ok",
@@ -232,6 +237,11 @@ class TaskScheduler:
                     results[p] = {"platform": p, "success": False, "message": str(res), "count": 0}
                 else:
                     results[p] = res
+
+            try:
+                sync_mistakes_with_submissions(user_id=user_id)
+            except Exception as e:
+                logger.exception(f"Sync mistakes in sync_all failed: {e}")
 
             now_str = get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
             set_config(user_id, "last_sync_time", now_str)
