@@ -130,8 +130,8 @@ createApp({
     let heatmapChart = null;
     let analyticsChart = null;
     let tagBarChart = null;
-    let platformPieChart = null;
     const chartView = ref("climbing"); // 'climbing' | 'daily' | 'tags' | 'platforms'
+    const isCurveSmooth = ref(true); // 累计曲线是否启用高斯核自然平滑拟合
 
     // --- Apple Segmented Control 物理级滑动指示器同步引擎 ---
     const syncSegmentedThumbs = () => {
@@ -1009,6 +1009,36 @@ createApp({
         yMax = yMin + 10;
       }
 
+      // 高斯核时间加权平滑算法：消除离散台阶产生的 90 度直角生硬感，将阶跃平滑为丝滑自然的 S 曲线
+      const gaussianSmooth = (arr, radius = 4, sigma = 2.0) => {
+        if (!arr || arr.length <= 2) return arr.slice();
+        const weights = [];
+        for (let k = -radius; k <= radius; k++) {
+          weights.push(Math.exp(-0.5 * Math.pow(k / sigma, 2)));
+        }
+        const wSum = weights.reduce((a, b) => a + b, 0);
+        const normWeights = weights.map(w => w / wSum);
+        const res = [];
+        const n = arr.length;
+        for (let i = 0; i < n; i++) {
+          let s = 0.0;
+          let wAcc = 0.0;
+          for (let ki = 0; ki < normWeights.length; ki++) {
+            const idx = i + (ki - radius);
+            if (idx >= 0 && idx < n) {
+              s += arr[idx] * normWeights[ki];
+              wAcc += normWeights[ki];
+            }
+          }
+          res.push(Number((s / wAcc).toFixed(2)));
+        }
+        res[0] = arr[0];
+        res[n - 1] = arr[n - 1];
+        return res;
+      };
+
+      const displayValues = isCurveSmooth.value ? gaussianSmooth(values, 4, 2.0) : values;
+
       const option = {
         tooltip: {
           trigger: "axis",
@@ -1032,9 +1062,10 @@ createApp({
           formatter: function (params) {
             const p = params[0];
             const idx = p.dataIndex;
+            const realVal = values[idx]; // 始终显示真实的整数累计通过量
             const newCount = newAcs[idx] || 0;
             let html = `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div>`;
-            html += `<div class="text-xs font-bold mt-1 font-sans" style="color:${dark ? '#2997ff' : '#0071e3'}">累计通过: ${p.value} 题</div>`;
+            html += `<div class="text-xs font-bold mt-1 font-sans" style="color:${dark ? '#2997ff' : '#0071e3'}">累计通过: ${realVal} 题</div>`;
             if (newCount > 0) {
               html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color:${dark ? '#30d158' : '#34c759'}">当日新增: +${newCount} 题</div>`;
             }
@@ -1071,8 +1102,7 @@ createApp({
         series: [{
           name: "累计通过题目",
           type: "line",
-          smooth: 0.5,
-          smoothMonotone: "x",
+          smooth: isCurveSmooth.value ? 0.45 : false,
           showSymbol: false,
           symbol: "circle",
           symbolSize: 6,
@@ -1087,7 +1117,7 @@ createApp({
               { offset: 1, color: "rgba(0, 113, 227, 0.0)" }
             ])
           },
-          data: values
+          data: displayValues
         }]
       };
 
@@ -1890,6 +1920,13 @@ createApp({
       });
     });
 
+    // 监控平滑拟合开关切换
+    watch(isCurveSmooth, () => {
+      if (chartView.value === "climbing") {
+        renderClimbingChart();
+      }
+    });
+
     // 监控比赛筛选切换
     watch([contestFilter, contestStatusFilter], () => {
       nextTick(syncSegmentedThumbs);
@@ -2023,6 +2060,7 @@ createApp({
       syncContestsNow,
       // Analytics Workbench & Segmented Control
       chartView,
+      isCurveSmooth,
       renderActiveChart,
       syncSegmentedThumbs,
       todayAcRate

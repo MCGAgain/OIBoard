@@ -630,36 +630,47 @@
               </div>
 
               <!-- 切换控制器 -->
-              <div class="segmented-control">
-                <button @click="chartView = 'climbing'" :class="['segmented-item', chartView === 'climbing' ? 'active' : '']">
-                  <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-                    <polyline points="17 6 23 6 23 12"></polyline>
-                  </svg>
-                  <span>累计通过</span>
+              <div class="flex items-center gap-2">
+                <!-- 平滑拟合 / 原始阶梯切换胶囊 (仅在累计通过视图显示) -->
+                <button v-if="chartView === 'climbing'" @click="isCurveSmooth = !isCurveSmooth" 
+                        class="text-[11px] font-sans px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--card-bg)] hover:border-[var(--primary)] text-[var(--text-secondary)] transition-all flex items-center gap-1.5 shadow-sm select-none cursor-pointer"
+                        :title="isCurveSmooth ? '当前：高斯核时间加权平滑拟合，点击切换为原始离散阶梯' : '当前：原始离散阶梯，点击切换为高斯核平滑拟合'">
+                  <span :class="isCurveSmooth ? 'text-[var(--primary)] font-bold' : 'opacity-60'">平滑拟合</span>
+                  <span class="opacity-30">|</span>
+                  <span :class="!isCurveSmooth ? 'text-[var(--primary)] font-bold' : 'opacity-60'">原始阶梯</span>
                 </button>
-                <button @click="chartView = 'daily'" :class="['segmented-item', chartView === 'daily' ? 'active' : '']">
-                  <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="20" x2="18" y2="10"></line>
-                    <line x1="12" y1="20" x2="12" y2="4"></line>
-                    <line x1="6" y1="20" x2="6" y2="14"></line>
-                  </svg>
-                  <span>每日提交</span>
-                </button>
-                <button @click="chartView = 'tags'" :class="['segmented-item', chartView === 'tags' ? 'active' : '']">
-                  <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-                    <line x1="7" y1="7" x2="7.01" y2="7"></line>
-                  </svg>
-                  <span>算法分类</span>
-                </button>
-                <button @click="chartView = 'platforms'" :class="['segmented-item', chartView === 'platforms' ? 'active' : '']">
-                  <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-                    <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-                  </svg>
-                  <span>平台分布</span>
-                </button>
+
+                <div class="segmented-control">
+                  <button @click="chartView = 'climbing'" :class="['segmented-item', chartView === 'climbing' ? 'active' : '']">
+                    <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                      <polyline points="17 6 23 6 23 12"></polyline>
+                    </svg>
+                    <span>累计通过</span>
+                  </button>
+                  <button @click="chartView = 'daily'" :class="['segmented-item', chartView === 'daily' ? 'active' : '']">
+                    <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="20" x2="18" y2="10"></line>
+                      <line x1="12" y1="20" x2="12" y2="4"></line>
+                      <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    <span>每日提交</span>
+                  </button>
+                  <button @click="chartView = 'tags'" :class="['segmented-item', chartView === 'tags' ? 'active' : '']">
+                    <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                      <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                    </svg>
+                    <span>算法分类</span>
+                  </button>
+                  <button @click="chartView = 'platforms'" :class="['segmented-item', chartView === 'platforms' ? 'active' : '']">
+                    <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                      <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+                    </svg>
+                    <span>平台分布</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1500,6 +1511,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.6.0"></script>
+  <script src="/static/app.js?v=2.6.1"></script>
 </body>
 </html>
