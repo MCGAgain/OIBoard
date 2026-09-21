@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import random
 from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
 
@@ -47,6 +48,31 @@ class TaskScheduler:
         self._is_running = False
         self._sync_lock = asyncio.Lock()
         self._last_contest_sync = 0
+        # 记录每个用户下一次动态抖动调度的实际间隔秒数（打破周期性爬虫指纹）
+        self._user_jitter_intervals: Dict[int, Dict[str, Any]] = {}
+
+    def _get_or_create_target_interval(self, user_id: int, base_minutes: int) -> float:
+        """获取或生成包含小范围随机波动（±15%~25%）的实际抓取间隔（秒），打破周期性特征规避WAF"""
+        cached = self._user_jitter_intervals.get(user_id)
+        if cached is None or cached.get("base") != base_minutes:
+            ratio = random.uniform(0.85, 1.25)
+            target_sec = max(60.0, base_minutes * 60.0 * ratio)
+            self._user_jitter_intervals[user_id] = {"base": base_minutes, "target_seconds": target_sec}
+            logger.info(f"[Anti-Scraping] 用户 {user_id} 动态抖动调度间隔已初始化: 基础 {base_minutes}m -> 实际 {target_sec/60:.1f}m (波动率 {ratio-1.0:+.1%})")
+        return self._user_jitter_intervals[user_id]["target_seconds"]
+
+    def _refresh_target_interval(self, user_id: int, base_minutes: int):
+        """一次同步完成后，为下一轮调度随机生成新的间隔（秒）"""
+        ratio = random.uniform(0.85, 1.25)
+        target_sec = max(60.0, base_minutes * 60.0 * ratio)
+        self._user_jitter_intervals[user_id] = {"base": base_minutes, "target_seconds": target_sec}
+        logger.info(f"[Anti-Scraping] 用户 {user_id} 下一轮动态抖动调度间隔已刷新: 基础 {base_minutes}m -> 实际 {target_sec/60:.1f}m (波动率 {ratio-1.0:+.1%})")
+
+    async def _staggered_task(self, coro, delay_seconds: float):
+        """延时启动任务，平滑并发尖峰"""
+        if delay_seconds > 0:
+            await asyncio.sleep(delay_seconds)
+        return await coro
 
     async def _sync_account_worker(self, acc: Dict[str, Any], user_id: int, proxy: str = "") -> Tuple[bool, str, int, str]:
         """同步单个账号的数据，返回 (success, message, count, rating)"""
@@ -165,7 +191,11 @@ class TaskScheduler:
         messages = []
         best_rating = ""
 
-        for acc in accounts:
+        for idx, acc in enumerate(accounts):
+            if idx > 0:
+                account_delay = random.uniform(2.0, 4.5)
+                logger.info(f"[Anti-Scraping] 多账号同步冷却: 等待 {account_delay:.2f}s 后同步账号 {acc.get('alias') or acc.get('handle')}...")
+                await asyncio.sleep(account_delay)
             ok, msg, cnt, r = await self._sync_account_worker(acc, user_id, proxy=proxy)
             if ok:
                 success_count += 1
@@ -217,14 +247,15 @@ class TaskScheduler:
     async def sync_all(self, user_id: int = 1) -> Dict[str, Any]:
         """全并发同步指定用户的所有平台数据及全局比赛列表"""
         async with self._sync_lock:
-            logger.info(f"Starting concurrent full sync for user {user_id}...")
+            logger.info(f"Starting staggered full sync for user {user_id}...")
             
+            # 采用交错阶梯延时出站请求，抹平并发峰值，规避 WAF 的突发并发指纹
             p_tasks = [
-                self.sync_platform("codeforces", user_id=user_id),
-                self.sync_platform("luogu", user_id=user_id),
-                self.sync_platform("acwing", user_id=user_id),
-                self.sync_platform("atcoder", user_id=user_id),
-                self.sync_contests(),
+                self._staggered_task(self.sync_platform("codeforces", user_id=user_id), 0.0),
+                self._staggered_task(self.sync_platform("luogu", user_id=user_id), random.uniform(1.2, 2.5)),
+                self._staggered_task(self.sync_platform("acwing", user_id=user_id), random.uniform(3.0, 4.8)),
+                self._staggered_task(self.sync_platform("atcoder", user_id=user_id), random.uniform(5.5, 7.5)),
+                self._staggered_task(self.sync_contests(), random.uniform(8.0, 10.5)),
             ]
             
             p_results = await asyncio.gather(*p_tasks, return_exceptions=True)
@@ -245,11 +276,11 @@ class TaskScheduler:
 
             now_str = get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
             set_config(user_id, "last_sync_time", now_str)
-            logger.info(f"Concurrent full sync finished for user {user_id} at {now_str}")
+            logger.info(f"Staggered full sync finished for user {user_id} at {now_str}")
             return {"results": results, "synced_at": now_str}
 
     async def run_loop(self):
-        """后台轮询主循环 (支持多用户独立调度)"""
+        """后台轮询主循环 (支持多用户独立调度及动态抖动反爬规避)"""
         self._is_running = True
         logger.info("Scheduler background loop started.")
         
@@ -268,14 +299,17 @@ class TaskScheduler:
                     else:
                         try:
                             last_dt = datetime.strptime(last_sync, "%Y-%m-%d %H:%M:%S")
-                            if (get_beijing_now().replace(tzinfo=None) - last_dt).total_seconds() >= interval * 60:
+                            target_seconds = self._get_or_create_target_interval(uid, interval)
+                            if (get_beijing_now().replace(tzinfo=None) - last_dt).total_seconds() >= target_seconds:
                                 should_sync = True
                         except Exception:
                             should_sync = True
 
                     if should_sync:
-                        logger.info(f"Scheduled sync triggered for user {uid} (interval={interval}m)")
+                        target_sec = self._get_or_create_target_interval(uid, interval)
+                        logger.info(f"Scheduled sync triggered for user {uid} (base={interval}m, dynamic_jitter={target_sec/60:.1f}m)")
                         await self.sync_all(user_id=uid)
+                        self._refresh_target_interval(uid, interval)
                         
             except Exception as e:
                 logger.error(f"Scheduler loop error: {str(e)}")

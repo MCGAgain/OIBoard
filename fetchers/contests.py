@@ -5,7 +5,7 @@ import logging
 import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Tuple
-from fetchers.base import BEIJING_TZ, format_beijing_time_and_date, get_beijing_now
+from fetchers.base import BEIJING_TZ, format_beijing_time_and_date, get_beijing_now, get_realistic_browser_headers
 
 logger = logging.getLogger("ContestFetcher")
 
@@ -31,9 +31,7 @@ def format_duration_seconds(sec: int) -> str:
 
 class ContestFetcher:
     def __init__(self):
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        }
+        self.headers = get_realistic_browser_headers()
 
     async def fetch_codeforces_contests(self, client: httpx.AsyncClient) -> List[Dict[str, Any]]:
         """抓取 Codeforces 即将举行和正在进行中的比赛"""
@@ -182,7 +180,7 @@ class ContestFetcher:
         contests = []
         try:
             url = "https://www.luogu.com.cn/contest/list"
-            res = await client.get(url, timeout=15.0)
+            res = await client.get(url, headers=get_realistic_browser_headers(referer="https://www.luogu.com.cn/"), timeout=15.0)
             if res.status_code == 200:
                 from bs4 import BeautifulSoup
                 soup = BeautifulSoup(res.text, "html.parser")

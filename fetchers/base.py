@@ -2,10 +2,56 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Tuple
+import random
+import re
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 
-import re
+BROWSER_PROFILES = [
+    {
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "sec_ch_ua": '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+        "platform": '"macOS"'
+    },
+    {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "sec_ch_ua": '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+        "platform": '"Windows"'
+    },
+    {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Edg/127.0.0.0",
+        "sec_ch_ua": '"Not)A;Brand";v="99", "Microsoft Edge";v="127", "Chromium";v="127"',
+        "platform": '"Windows"'
+    },
+    {
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+        "sec_ch_ua": None,
+        "platform": '"macOS"'
+    }
+]
+
+def get_realistic_browser_headers(referer: str = "", extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """生成具有真实桌面浏览器特征的 HTTP 请求头，规避 WAF 的简单爬虫指纹识别"""
+    profile = random.choice(BROWSER_PROFILES)
+    headers = {
+        "User-Agent": profile["user_agent"],
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin" if referer else "none",
+        "Sec-Fetch-User": "?1",
+    }
+    if profile.get("sec_ch_ua"):
+        headers["sec-ch-ua"] = profile["sec_ch_ua"]
+        headers["sec-ch-ua-mobile"] = "?0"
+        headers["sec-ch-ua-platform"] = profile["platform"]
+    if referer:
+        headers["Referer"] = referer
+    if extra:
+        headers.update(extra)
+    return headers
 
 def get_beijing_now() -> datetime:
     return datetime.now(BEIJING_TZ)

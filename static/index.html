@@ -1571,7 +1571,13 @@
                            class="ui-input font-mono flex-1 text-xs">
                     <span class="text-[var(--text-secondary)] text-xs font-sans">分钟</span>
                   </div>
-                  <p class="text-[10px] text-[var(--text-muted)] mt-1.5 font-mono">每 {{ settingsForm.poll_interval_minutes || 30 }} 分钟自动同步</p>
+                  <div class="mt-2 space-y-1">
+                    <p class="text-[10px] text-[var(--text-muted)] font-mono">基准间隔：每 {{ settingsForm.poll_interval_minutes || 30 }} 分钟自动同步</p>
+                    <p class="text-[10px] text-[var(--text-secondary)] flex items-center gap-1.5 leading-tight">
+                      <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500/80 shrink-0"></span>
+                      <span>反反爬防护已生效：真实调度在此基础上引入 ±15%~25% 动态随机扰动，破坏周期性特征以规避 WAF 拦截</span>
+                    </p>
+                  </div>
                 </div>
                 <div>
                   <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">出站代理 (支持 HTTP / SOCKS5，可选)</label>
@@ -1938,6 +1944,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.7.2"></script>
+  <script src="/static/app.js?v=2.7.3"></script>
 </body>
 </html>

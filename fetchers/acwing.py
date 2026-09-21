@@ -4,7 +4,7 @@ import httpx
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
-from fetchers.base import BaseFetcher, NormalizedSubmission, parse_beijing_str_to_date, parse_relative_or_absolute_time
+from fetchers.base import BaseFetcher, NormalizedSubmission, parse_beijing_str_to_date, parse_relative_or_absolute_time, get_realistic_browser_headers
 
 ACWING_PROBLEM_TAGS = {
     "动态规划 DP": ["背包", "DP", "编辑距离", "整数划分", "蒙德里安的梦想", "滑雪", "没有上司的舞会", "计数问题", "最长上升子序列", "石子合并", "方格取数", "数字三角形", "矩阵", "子段和", "最长公共子序列"],
@@ -30,12 +30,7 @@ class AcWingFetcher(BaseFetcher):
     BASE_URL = "https://www.acwing.com"
 
     def _get_headers(self, cookie: str = "") -> Dict[str, str]:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            "Referer": "https://www.acwing.com/problem/",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-        }
+        headers = get_realistic_browser_headers(referer="https://www.acwing.com/problem/")
         if cookie:
             c = cookie.strip()
             if not c.startswith("sessionid=") and "=" not in c:

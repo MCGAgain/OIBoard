@@ -1,11 +1,12 @@
 import re
 import json
 import asyncio
+import random
 import httpx
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Tuple
-from fetchers.base import BaseFetcher, NormalizedSubmission, format_beijing_time_and_date
+from fetchers.base import BaseFetcher, NormalizedSubmission, format_beijing_time_and_date, get_realistic_browser_headers
 
 LUOGU_DIFFICULTY_MAP = {
     0: ("暂无评定", 0),
@@ -213,11 +214,8 @@ class LuoguFetcher(BaseFetcher):
         return cookies_dict
 
     def _get_headers(self, uid: str = "") -> Dict[str, str]:
-        return {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Referer": f"{self.BASE_URL}/user/{uid}" if uid else f"{self.BASE_URL}/",
-            "Accept": "application/json, text/html, */*",
-        }
+        ref = f"{self.BASE_URL}/user/{uid}" if uid else f"{self.BASE_URL}/"
+        return get_realistic_browser_headers(referer=ref)
 
     def _extract_decode_data(self, html_text: str) -> Dict[str, Any]:
         """
@@ -352,16 +350,23 @@ class LuoguFetcher(BaseFetcher):
                     rec_wrap_1 = curr_1.get("records", {})
                     rec_list_1 = rec_wrap_1.get("result", []) if isinstance(rec_wrap_1, dict) else []
 
-                    # 若第一页满 20 条，并发抓取第 2~5 页
+                    # 若第一页满 20 条，按需顺序抓取第 2~5 页（带随机延迟与早退机制，防止高频风控）
                     if len(rec_list_1) >= 20:
-                        more_page_tasks = [
-                            client.get(f"{self.BASE_URL}/record/list?user={uid}&page={pg}", headers=web_headers)
-                            for pg in range(2, 6)
-                        ]
-                        more_res = await asyncio.gather(*more_page_tasks, return_exceptions=True)
-                        for r_item in more_res:
-                            if isinstance(r_item, httpx.Response) and r_item.status_code == 200:
-                                all_page_texts.append(r_item.text)
+                        for pg in range(2, 6):
+                            await asyncio.sleep(random.uniform(0.6, 1.6))
+                            try:
+                                r_item = await client.get(f"{self.BASE_URL}/record/list?user={uid}&page={pg}", headers=web_headers)
+                                if r_item.status_code == 200:
+                                    all_page_texts.append(r_item.text)
+                                    pg_data = self._extract_decode_data(r_item.text)
+                                    pg_curr = pg_data.get("currentData") or pg_data.get("data") or pg_data
+                                    pg_res = pg_curr.get("records", {}).get("result", [])
+                                    if len(pg_res) < 20:
+                                        break  # 最后一页，提前停止
+                                else:
+                                    break
+                            except Exception:
+                                break
 
                 for page_text in all_page_texts:
                     data = self._extract_decode_data(page_text)
