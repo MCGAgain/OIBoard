@@ -76,8 +76,6 @@ class TaskScheduler:
                     return False, "未配置 UID 或 Cookie", 0, ""
                 sub_list, msg = await self.luogu_fetcher.fetch_submissions(handle, cookie, proxy=proxy)
                 subs = sub_list
-                if subs:
-                    cleanup_luogu_placeholder_dates(user_id)
 
             elif platform == "acwing":
                 if not handle and not cookie:
@@ -104,6 +102,8 @@ class TaskScheduler:
                     d["account_handle"] = handle
                     sub_dicts.append(d)
                 save_submissions(sub_dicts, user_id=user_id)
+                if platform == "luogu":
+                    cleanup_luogu_placeholder_dates(user_id)
                 try:
                     sync_mistakes_with_submissions(user_id=user_id)
                 except Exception as e:
