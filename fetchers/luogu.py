@@ -220,34 +220,63 @@ class LuoguFetcher(BaseFetcher):
         }
 
     def _extract_decode_data(self, html_text: str) -> Dict[str, Any]:
+        """
+        从洛谷 HTML 页面或 JSON 响应中提取结构化核心数据字典。
+        兼容历史前端 (decodeURIComponent 编码) 与现代前端 (内嵌 JSON 标签 / template 格式)。
+        """
         import urllib.parse
+        if not html_text:
+            return {}
+        
+        stripped = html_text.strip()
+        if stripped.startswith("{") and stripped.endswith("}"):
+            try:
+                parsed = json.loads(stripped)
+                if isinstance(parsed, dict):
+                    if "currentData" in parsed and isinstance(parsed["currentData"], dict):
+                        return parsed["currentData"]
+                    if "data" in parsed and isinstance(parsed["data"], dict):
+                        return parsed["data"]
+                    return parsed
+            except Exception:
+                pass
+
         soup = BeautifulSoup(html_text, "html.parser")
         for s in soup.find_all("script"):
             txt = s.get_text().strip()
+            if not txt:
+                continue
             if "decodeURIComponent" in txt:
                 match = re.search(r'decodeURIComponent\("([^"]+)"\)', txt)
                 if match:
                     try:
                         raw_json = urllib.parse.unquote(match.group(1))
-                        return json.loads(raw_json)
+                        parsed = json.loads(raw_json)
+                        if isinstance(parsed, dict):
+                            if "currentData" in parsed and isinstance(parsed["currentData"], dict):
+                                return parsed["currentData"]
+                            if "data" in parsed and isinstance(parsed["data"], dict):
+                                return parsed["data"]
+                            return parsed
                     except Exception:
                         pass
+            if txt.startswith("{") and ("template" in txt or "instance" in txt or "currentData" in txt or "records" in txt or "passed" in txt):
+                try:
+                    parsed = json.loads(txt)
+                    if isinstance(parsed, dict):
+                        if "currentData" in parsed and isinstance(parsed["currentData"], dict):
+                            return parsed["currentData"]
+                        if "data" in parsed and isinstance(parsed["data"], dict):
+                            return parsed["data"]
+                        return parsed
+                except Exception:
+                    pass
         return {}
 
     def _extract_luogu_data(self, res_text: str, res_json: Any = None) -> Dict[str, Any]:
         if res_json and isinstance(res_json, dict) and "data" in res_json:
             return res_json.get("data", {})
-        try:
-            soup = BeautifulSoup(res_text, "html.parser")
-            for s in soup.find_all("script"):
-                txt = s.get_text().strip()
-                if txt.startswith("{") and ("template" in txt or "instance" in txt):
-                    parsed = json.loads(txt)
-                    if "data" in parsed:
-                        return parsed["data"]
-        except Exception:
-            pass
-        return {}
+        return self._extract_decode_data(res_text)
 
     async def verify(self, uid: str, cookie: str = "", proxy: str = "") -> Tuple[bool, str, Dict[str, Any]]:
         if not uid:
@@ -319,7 +348,7 @@ class LuoguFetcher(BaseFetcher):
                 if isinstance(res_1, httpx.Response) and res_1.status_code == 200:
                     all_page_texts.append(res_1.text)
                     data_1 = self._extract_decode_data(res_1.text) or {}
-                    curr_1 = data_1.get("currentData", {}) if "currentData" in data_1 else data_1.get("data", {})
+                    curr_1 = data_1.get("currentData") or data_1.get("data") or data_1
                     rec_wrap_1 = curr_1.get("records", {})
                     rec_list_1 = rec_wrap_1.get("result", []) if isinstance(rec_wrap_1, dict) else []
 
@@ -342,7 +371,7 @@ class LuoguFetcher(BaseFetcher):
                         except Exception:
                             data = {}
 
-                    curr_data = data.get("currentData", {}) if "currentData" in data else data.get("data", {})
+                    curr_data = data.get("currentData") or data.get("data") or data
                     records_wrap = curr_data.get("records", {})
                     records_list = records_wrap.get("result", []) if isinstance(records_wrap, dict) else []
 
@@ -354,7 +383,7 @@ class LuoguFetcher(BaseFetcher):
 
                         prob = r.get("problem", {})
                         pid = prob.get("pid", f"P_{rec_id}")
-                        title = prob.get("title") or prob.get("name") or pid
+                        title = prob.get("name") or prob.get("title") or pid
                         diff_num = prob.get("difficulty", 0)
                         diff_label, diff_score = LUOGU_DIFFICULTY_MAP.get(diff_num, ("未知", 0))
                         tags = infer_luogu_tags(title, pid, diff_num)

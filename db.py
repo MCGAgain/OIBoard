@@ -856,6 +856,13 @@ def cleanup_luogu_placeholder_dates(user_id: int = 1):
         cursor = conn.cursor()
         cursor.execute("DELETE FROM submissions WHERE user_id = ? AND platform = 'luogu' AND raw_id LIKE 'fail_unpassed_extra_%';", (user_id,))
         cursor.execute("UPDATE submissions SET submitted_at = '', date = '' WHERE user_id = ? AND platform = 'luogu' AND raw_id LIKE 'prob_%';", (user_id,))
+        cursor.execute("""
+            DELETE FROM submissions 
+            WHERE user_id = ? AND platform = 'luogu' AND raw_id LIKE 'prob_%'
+              AND problem_id IN (
+                  SELECT problem_id FROM submissions WHERE user_id = ? AND platform = 'luogu' AND raw_id LIKE 'rec_%'
+              );
+        """, (user_id, user_id))
         conn.commit()
 
 def cleanup_acwing_old_problem_rows(user_id: int = 1):
