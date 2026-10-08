@@ -83,6 +83,122 @@ html.dark, body.dark, .dark {
   box-sizing: border-box;
 }
 
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ================= 2K / 4K 高分辨率自适应 REM 阶梯 (未指定手选缩放时生效) ================= */
+@media (min-width: 1600px) {
+  html:not([data-ui-scale]),
+  html[data-ui-scale="auto"] {
+    font-size: 16.5px;
+  }
+}
+@media (min-width: 1920px) {
+  html:not([data-ui-scale]),
+  html[data-ui-scale="auto"] {
+    font-size: 17.5px;
+  }
+}
+@media (min-width: 2200px) {
+  html:not([data-ui-scale]),
+  html[data-ui-scale="auto"] {
+    font-size: 19px;
+  }
+}
+@media (min-width: 2560px) { /* 2K QHD 常见分辨率 */
+  html:not([data-ui-scale]),
+  html[data-ui-scale="auto"] {
+    font-size: 20.5px;
+  }
+}
+@media (min-width: 3200px) { /* 3K / 带宽高分屏 */
+  html:not([data-ui-scale]),
+  html[data-ui-scale="auto"] {
+    font-size: 22.5px;
+  }
+}
+@media (min-width: 3840px) { /* 4K UHD 极清大屏 */
+  html:not([data-ui-scale]),
+  html[data-ui-scale="auto"] {
+    font-size: 24.5px;
+  }
+}
+
+/* ================= 用户手动指定的 UI 缩放偏好 (即时覆盖) ================= */
+html[data-ui-scale="100"] { font-size: 16px !important; }
+html[data-ui-scale="115"] { font-size: 18.4px !important; }
+html[data-ui-scale="125"] { font-size: 20px !important; }
+html[data-ui-scale="140"] { font-size: 22.4px !important; }
+html[data-ui-scale="150"] { font-size: 24px !important; }
+html[data-ui-scale="175"] { font-size: 28px !important; }
+
+/* 主工作区响应式最大宽度阶梯，告别原固定 1280px 狭窄居中 */
+.main-content-container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 1400px;
+}
+@media (min-width: 1600px) {
+  .main-content-container {
+    max-width: 1560px;
+  }
+}
+@media (min-width: 1920px) {
+  .main-content-container {
+    max-width: 1800px;
+  }
+}
+@media (min-width: 2200px) {
+  .main-content-container {
+    max-width: 2060px;
+  }
+}
+@media (min-width: 2560px) {
+  .main-content-container {
+    max-width: 2360px;
+  }
+}
+@media (min-width: 3200px) {
+  .main-content-container {
+    max-width: 2860px;
+  }
+}
+@media (min-width: 3840px) {
+  .main-content-container {
+    max-width: 3460px;
+  }
+}
+
+/* 分析工作台图表容器响应式高度阶梯 */
+.analytics-chart-responsive {
+  width: 100%;
+  height: 340px;
+}
+@media (min-width: 1920px) {
+  .analytics-chart-responsive {
+    height: 420px;
+  }
+}
+@media (min-width: 2560px) {
+  .analytics-chart-responsive {
+    height: 480px;
+  }
+}
+@media (min-width: 3400px) {
+  .analytics-chart-responsive {
+    height: 560px;
+  }
+}
+
+/* 微字号与指示灯在高分屏下的 rem 自适应兜底 */
+.text-\[9px\]  { font-size: max(9px, 0.58rem) !important; }
+.text-\[10px\] { font-size: max(10px, 0.65rem) !important; }
+.text-\[11px\] { font-size: max(11px, 0.72rem) !important; }
+.pulse-dot     { width: 0.5rem !important; height: 0.5rem !important; }
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   background-color: var(--bg-canvas);

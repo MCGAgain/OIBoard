@@ -4,6 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OIBoard - 算法刷题数据看板</title>
+  <!-- 早期执行 UI 缩放偏好恢复，防止页面渲染闪烁 -->
+  <script>
+    (function() {
+      try {
+        var s = localStorage.getItem('oiboard_ui_scale');
+        if (s && s !== 'auto') {
+          document.documentElement.dataset.uiScale = s;
+        }
+      } catch (e) {}
+    })();
+  </script>
   <!-- 网站 Favicon -->
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <!-- Tailwind CSS -->
@@ -16,6 +27,11 @@
           colors: {
             brand: { 500: '#0071e3', 600: '#0077ed' },
             dark: { 800: '#1c1c1e', 850: '#141416', 900: '#0c0c0e', 950: '#000000' }
+          },
+          screens: {
+            '3xl': '1920px',
+            '4xl': '2560px',
+            '5xl': '3840px'
           }
         }
       }
@@ -29,7 +45,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=2.7.0">
+  <link rel="stylesheet" href="/static/style.css?v=2.8.0">
 </head>
 <body :class="[isDark ? 'dark text-[#f5f5f7]' : 'text-[#1d1d1f]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white transition-colors duration-300">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -285,7 +301,7 @@
       </aside>
 
       <!-- 主工作区 (Main Content Area, 左侧预留侧边栏间距) -->
-      <main class="flex-1 ml-16 p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto w-full transition-all">
+      <main class="flex-1 ml-16 p-4 sm:p-6 lg:p-8 2xl:p-10 space-y-6 main-content-container w-full transition-all">
 
         <!-- 顶栏 (Apple Glassmorphism Navigation Bar) -->
         <header class="ui-card p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -681,7 +697,7 @@
 
             <!-- ECharts 动态图表主容器 -->
             <div class="w-full pt-1">
-              <div id="analytics-chart" class="w-full h-80"></div>
+              <div id="analytics-chart" class="analytics-chart-responsive"></div>
             </div>
           </div>
         </div>
@@ -1588,6 +1604,66 @@
               </div>
             </div>
 
+            <!-- 显示与高分屏缩放 (UI Scale & High-DPI Adaptation) -->
+            <div class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-4 shadow-sm">
+              <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
+                <div class="flex items-center space-x-2">
+                  <svg class="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                  </svg>
+                  <span class="font-bold text-[var(--text-primary)] text-xs">显示与高分屏缩放 (UI Scale)</span>
+                </div>
+                <span class="text-[10px] text-[var(--text-tertiary)] font-mono">当前: {{ uiScalePref === 'auto' ? '自动自适应' : uiScalePref + '%' }}</span>
+              </div>
+
+              <div>
+                <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">界面整体缩放比例 (即时生效并自动记忆)</label>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                  <button type="button" @click="setUiScalePref('auto')"
+                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
+                                   uiScalePref === 'auto' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
+                    <span class="font-semibold">自动</span>
+                    <span class="text-[9px] opacity-75">根据屏幕自适应</span>
+                  </button>
+                  <button type="button" @click="setUiScalePref('100')"
+                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
+                                   uiScalePref === '100' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
+                    <span class="font-semibold">100%</span>
+                    <span class="text-[9px] opacity-75">标准 1080P</span>
+                  </button>
+                  <button type="button" @click="setUiScalePref('115')"
+                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
+                                   uiScalePref === '115' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
+                    <span class="font-semibold">115%</span>
+                    <span class="text-[9px] opacity-75">舒适微调</span>
+                  </button>
+                  <button type="button" @click="setUiScalePref('125')"
+                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
+                                   uiScalePref === '125' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
+                    <span class="font-semibold">125%</span>
+                    <span class="text-[9px] opacity-75">2K QHD 推荐</span>
+                  </button>
+                  <button type="button" @click="setUiScalePref('140')"
+                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
+                                   uiScalePref === '140' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
+                    <span class="font-semibold">140%</span>
+                    <span class="text-[9px] opacity-75">3K 宽屏</span>
+                  </button>
+                  <button type="button" @click="setUiScalePref('150')"
+                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
+                                   uiScalePref === '150' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
+                    <span class="font-semibold">150%</span>
+                    <span class="text-[9px] opacity-75">4K UHD 推荐</span>
+                  </button>
+                </div>
+                <p class="text-[10px] text-[var(--text-muted)] mt-2.5 leading-relaxed">
+                  看板基于原生矢量 REM 动态栅格架构。选择「自动」模式时，系统会在 1080P、2K、4K 分辨率下平滑自动匹配最佳缩放比与热力图宽度，字体与边框保持绝对清晰无锯齿。
+                </p>
+              </div>
+            </div>
+
             <!-- 账号密码安全设置卡片 (Password Change) -->
             <div class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-4 shadow-sm">
               <div class="flex items-center space-x-2 pb-3 border-b border-[var(--border-subtle)]">
@@ -1944,6 +2020,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.7.3"></script>
+  <script src="/static/app.js?v=2.8.0"></script>
 </body>
 </html>

@@ -235,6 +235,51 @@ createApp({
       syncSegmentedThumbs();
     };
 
+    // --- UI Scale Engine & High-DPI Adaptation ---
+    const uiScalePref = ref(localStorage.getItem("oiboard_ui_scale") || "auto");
+
+    // 动态依据根元素实际 px 大小计算 ECharts 矢量字号，保证 2K/4K/大字号下文字清晰比例协调
+    const getChartFontSize = (baseSize) => {
+      try {
+        const rootPx = parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+        const ratio = rootPx / 16;
+        return Math.max(9, Math.round(baseSize * ratio));
+      } catch (e) {
+        return baseSize;
+      }
+    };
+
+    const applyUiScale = () => {
+      const scale = uiScalePref.value;
+      if (!scale || scale === "auto") {
+        delete document.documentElement.dataset.uiScale;
+      } else {
+        document.documentElement.dataset.uiScale = scale;
+      }
+      nextTick(() => {
+        window.dispatchEvent(new Event("resize"));
+        if (currentTab.value === "overview") {
+          renderHeatmap();
+          renderActiveChart();
+        }
+      });
+    };
+
+    const setUiScalePref = (scale) => {
+      uiScalePref.value = scale;
+      localStorage.setItem("oiboard_ui_scale", scale);
+      applyUiScale();
+      const labelMap = {
+        'auto': '自动 (根据分辨率自适应)',
+        '100': '100% (标准 1080P)',
+        '115': '115% (舒适微调)',
+        '125': '125% (2K QHD 推荐)',
+        '140': '140% (3K 宽屏)',
+        '150': '150% (4K UHD 推荐)'
+      };
+      showToast(`界面缩放已设置为 ${labelMap[scale] || (scale + '%')}`, "info");
+    };
+
     // --- Toast 消息提示 ---
     const showToast = (message, type = "success") => {
       toast.value = { show: true, message, type };
@@ -1095,17 +1140,22 @@ createApp({
       const outer = chartDom.parentElement;
       const outerWidth = outer ? outer.clientWidth : 900;
 
-      // 根据可用容器宽度自适应计算 1:1 正方形单元格物理尺寸 (13px ~ 22px)
-      let cellSize = Math.floor((outerWidth - 65) / 53.5);
+      // 宽屏 / 2K / 4K 高分屏下自适应放宽单元格上限（13px ~ 38px），彻底消除宽屏下右侧死白空隙
+      const availableWidth = outerWidth - 32;
+      let cellSize = Math.floor((availableWidth - 44) / 54);
       if (cellSize < 13) cellSize = 13;
-      if (cellSize > 22) cellSize = 22;
+      if (cellSize > 38) cellSize = 38;
 
-      // 根据计算得到的动态单元格尺寸精确确定图表内容宽高，配合 margin: 0 auto 在宽屏上完美居中，窄屏上平滑滑动
-      const contentWidth = Math.ceil(cellSize * 54 + 48);
-      const contentHeight = cellSize * 7 + 50;
+      // 根据动态单元格精确确定图表与内边距，确保完美居中无溢出
+      const leftOffset = Math.max(28, Math.round(cellSize * 1.5));
+      const topOffset = Math.max(24, Math.round(cellSize * 1.3));
+      const rightPadding = Math.max(16, Math.round(cellSize * 0.8));
+      const contentWidth = Math.ceil(cellSize * 54 + leftOffset + rightPadding);
+      const contentHeight = Math.ceil(cellSize * 7 + topOffset + Math.round(cellSize * 1.2));
 
       chartDom.style.width = `${contentWidth}px`;
       chartDom.style.height = `${contentHeight}px`;
+      chartDom.style.margin = "0 auto";
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
@@ -1136,7 +1186,7 @@ createApp({
           textStyle: {
             color: dark ? "#f5f5f7" : "#1d1d1f",
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-            fontSize: 12
+            fontSize: getChartFontSize(12)
           },
           extraCssText: "backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25); z-index: 99999;",
           formatter: function (p) {
@@ -1165,14 +1215,14 @@ createApp({
           }
         },
         calendar: {
-          top: 24,
-          left: 28,
+          top: topOffset,
+          left: leftOffset,
           cellSize: [cellSize, cellSize], /* 动态正方形单元格 [cellSize, cellSize] 严格 1:1 */
           range: [startDateStr, endDateStr],
           itemStyle: {
             color: dark ? "#161618" : "#ebedf0",
             borderColor: dark ? "#000000" : "#ffffff",
-            borderWidth: 2,
+            borderWidth: cellSize >= 26 ? 3 : 2,
             borderRadius: Math.max(2, Math.round(cellSize * 0.18))
           },
           splitLine: { show: false },
@@ -1181,12 +1231,12 @@ createApp({
             firstDay: 1,
             nameMap: ["日", "一", "二", "三", "四", "五", "六"],
             color: dark ? "#6e6e73" : "#86868b",
-            fontSize: 10,
+            fontSize: Math.max(10, Math.min(16, Math.round(cellSize * 0.46))),
             fontFamily: "JetBrains Mono"
           },
           monthLabel: {
             color: dark ? "#a1a1a6" : "#6e6e73",
-            fontSize: 11,
+            fontSize: Math.max(11, Math.min(17, Math.round(cellSize * 0.50))),
             fontFamily: "JetBrains Mono"
           }
         },
@@ -1321,7 +1371,7 @@ createApp({
           textStyle: {
             color: dark ? "#f5f5f7" : "#1d1d1f",
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-            fontSize: 12
+            fontSize: getChartFontSize(12)
           },
           extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);",
           formatter: function (params) {
@@ -1351,7 +1401,7 @@ createApp({
           axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)" } },
           axisLabel: { 
             color: dark ? "#86868b" : "#86868b", 
-            fontSize: 10, 
+            fontSize: getChartFontSize(10), 
             fontFamily: "JetBrains Mono",
             formatter: (val) => val.slice(2) // YY-MM-DD
           }
@@ -1362,7 +1412,7 @@ createApp({
           ...(yMax !== undefined ? { max: yMax } : {}),
           minInterval: 1,
           splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)" } },
-          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
+          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
         },
         series: [{
           name: "累计通过题目",
@@ -1438,7 +1488,8 @@ createApp({
           borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
           textStyle: {
             color: dark ? "#f5f5f7" : "#1d1d1f",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+            fontSize: getChartFontSize(12)
           },
           extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);",
           formatter: function (params) {
@@ -1461,7 +1512,7 @@ createApp({
           right: 20,
           textStyle: {
             color: dark ? "#a1a1a6" : "#6e6e73",
-            fontSize: 11,
+            fontSize: getChartFontSize(11),
             fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif'
           },
           data: ["通过题目 (AC)", "未通过提交"]
@@ -1477,12 +1528,12 @@ createApp({
           type: "category",
           data: dates,
           axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)" } },
-          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
+          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
         },
         yAxis: {
           type: "value",
           splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)" } },
-          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
+          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
         },
         series: [
           {
@@ -1540,7 +1591,8 @@ createApp({
           borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
           textStyle: {
             color: dark ? "#f5f5f7" : "#1d1d1f",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+            fontSize: getChartFontSize(12)
           },
           extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);",
           formatter: function (params) {
@@ -1559,13 +1611,13 @@ createApp({
         xAxis: {
           type: "value",
           splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)" } },
-          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: 10, fontFamily: "JetBrains Mono" }
+          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
         },
         yAxis: {
           type: "category",
           data: categories,
           axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)" } },
-          axisLabel: { color: dark ? "#f5f5f7" : "#1d1d1f", fontSize: 11, fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }
+          axisLabel: { color: dark ? "#f5f5f7" : "#1d1d1f", fontSize: getChartFontSize(11), fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }
         },
         series: [{
           name: "通过题数",
@@ -1617,14 +1669,15 @@ createApp({
           borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
           textStyle: {
             color: dark ? "#f5f5f7" : "#1d1d1f",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+            fontSize: getChartFontSize(12)
           },
           extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);"
         },
         legend: {
           bottom: "6%",
           left: "center",
-          textStyle: { color: dark ? "#a1a1a6" : "#6e6e73", fontSize: 11, fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif' }
+          textStyle: { color: dark ? "#a1a1a6" : "#6e6e73", fontSize: getChartFontSize(11), fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif' }
         },
         series: [{
           name: "通过题量分布",
@@ -1641,7 +1694,7 @@ createApp({
           emphasis: {
             label: {
               show: true,
-              fontSize: 14,
+              fontSize: getChartFontSize(15),
               fontWeight: "bold",
               color: dark ? "#fff" : "#1d1d1f"
             }
@@ -2093,8 +2146,9 @@ createApp({
 
     // --- Lifecycle ---
     onMounted(async () => {
-      // 初始化应用主题模式 (根据当前时间自动切换或读取用户设定)
+      // 初始化应用主题模式与高分屏缩放比例
       applyTheme();
+      applyUiScale();
 
       // 30 秒级自动昼夜检测定时器 (仅在 auto 模式下无感平滑切换)
       setInterval(() => {
@@ -2138,7 +2192,7 @@ createApp({
       window.addEventListener("resize", () => {
         if (currentTab.value === "overview") {
           renderHeatmap();
-          analyticsChart && analyticsChart.resize();
+          renderActiveChart();
         }
         syncSegmentedThumbs();
       });
@@ -2305,6 +2359,9 @@ createApp({
       isDark,
       setThemePref,
       isDaylightTime,
+      // UI Scale Engine exports
+      uiScalePref,
+      setUiScalePref,
       // Contests exports
       contests,
       contestFilter,
