@@ -29,17 +29,13 @@ function showToast(message, type = 'success') {
   const toast = document.getElementById('toast');
   if (!toast) return;
   toast.innerText = message;
-  toast.className = `fixed bottom-6 right-6 px-4 py-2.5 rounded-2xl shadow-xl text-xs font-semibold z-50 transition-all duration-300 ${
-    type === 'success' 
-      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' 
-      : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
-  }`;
+  toast.className = type;
   toast.style.display = 'block';
   toast.style.opacity = '1';
   clearTimeout(window.__toastTimer);
   window.__toastTimer = setTimeout(() => {
     toast.style.opacity = '0';
-    setTimeout(() => { toast.style.display = 'none'; }, 300);
+    setTimeout(() => { toast.style.display = 'none'; }, 250);
   }, 3200);
 }
 
@@ -93,7 +89,7 @@ async function triggerScan(forceFull = false) {
       method: 'POST',
       body: JSON.stringify({ force: forceFull })
     });
-    showToast(forceFull ? '全量深度扫描完成' : '增量代码扫描完成', 'success');
+    showToast(forceFull ? '全量深度重扫完成' : '增量代码扫描完成', 'success');
     await fetchStatus();
     await fetchFiles();
   } catch (err) {
@@ -119,13 +115,44 @@ async function triggerSync() {
   }
 }
 
+async function browseFolder() {
+  const btn = document.getElementById('btn-browse-folder');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = '等待选择...';
+  }
+  try {
+    const res = await api('/api/browse-folder', { method: 'POST' });
+    if (res.cancelled) return;
+    if (res.path) {
+      document.getElementById('new-folder-path').value = res.path;
+      if (res.name && !document.getElementById('new-folder-name').value) {
+        document.getElementById('new-folder-name').value = res.name;
+      }
+      showToast('已选取目录: ' + res.path, 'success');
+    }
+  } catch (err) {
+    showToast('调起文件夹选择器失败: ' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `
+        <svg width="13" height="13" class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path>
+        </svg>
+        <span>浏览选取文件夹...</span>
+      `;
+    }
+  }
+}
+
 async function addFolder() {
   const pathInput = document.getElementById('new-folder-path');
   const nameInput = document.getElementById('new-folder-name');
   const p = pathInput.value.trim();
   const n = nameInput.value.trim();
   if (!p) {
-    showToast('请输入文件夹绝对路径', 'error');
+    showToast('请输入文件夹绝对路径或点击浏览选取', 'error');
     return;
   }
 
@@ -136,7 +163,7 @@ async function addFolder() {
     });
     pathInput.value = '';
     nameInput.value = '';
-    showToast('已添加并自动完成首次扫描！', 'success');
+    showToast('已添加并自动完成建档扫描！', 'success');
     await fetchStatus();
     await fetchFiles();
   } catch (err) {
@@ -145,7 +172,7 @@ async function addFolder() {
 }
 
 async function removeFolder(folderPath) {
-  if (!confirm(`确定要移除监控目录：\n${folderPath}\n（不会删除您磁盘上的任何文件）？`)) {
+  if (!confirm(`确定要移除监控目录：\n${folderPath}\n（不会删除您磁盘上的任何实际文件）？`)) {
     return;
   }
   try {
@@ -364,18 +391,19 @@ function renderFolderList() {
   const container = document.getElementById('folder-list-container');
   if (!container) return;
 
-  if (state.folders.length === 0) {
+  const folders = state.folders || [];
+  if (folders.length === 0) {
     container.innerHTML = `
-      <div class="text-center py-8 text-xs text-[var(--text-muted)] border border-dashed border-[var(--border-subtle)] rounded-xl">
-        暂无监控目录，请在上方输入框导入您的算法刷题或工程文件夹 (如 ~/Documents/Program/LeetCode)
+      <div class="text-center py-6 text-xs text-[var(--text-muted)] border border-dashed rounded-xl" style="padding: 1.5rem;">
+        暂无监控目录，请在上方输入框或点击「浏览选取文件夹」导入您的算法刷题工程
       </div>
     `;
     return;
   }
 
-  container.innerHTML = state.folders.map(f => `
-    <div class="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-      <div class="space-y-1 overflow-hidden max-w-full">
+  container.innerHTML = folders.map(f => `
+    <div class="p-3 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs" style="background: var(--bg-subtle);">
+      <div class="space-y-1 overflow-hidden" style="max-width: 100%;">
         <div class="flex items-center space-x-2">
           <span class="font-bold text-[var(--text-primary)]">${f.name || '文件夹'}</span>
           <span class="status-badge ${f.enabled ? 'ok' : 'warn'}">${f.enabled ? '监控中' : '已暂停'}</span>
@@ -391,7 +419,7 @@ function renderFolderList() {
         <button onclick="toggleFolder('${f.path.replace(/'/g, "\\'")}', ${!f.enabled})" class="btn-secondary text-xs px-2.5 py-1">
           ${f.enabled ? '暂停' : '启用'}
         </button>
-        <button onclick="removeFolder('${f.path.replace(/'/g, "\\'")}')" class="btn-secondary text-xs px-2.5 py-1 hover:text-rose-500">
+        <button onclick="removeFolder('${f.path.replace(/'/g, "\\'")}')" class="btn-secondary text-xs px-2.5 py-1" style="color: var(--apple-red);">
           移除
         </button>
       </div>
@@ -420,22 +448,22 @@ function renderFileList() {
   }
 
   container.innerHTML = filtered.slice(0, 100).map(f => `
-    <tr class="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-subtle)] text-xs">
-      <td class="py-2.5 px-3 font-mono truncate max-w-xs md:max-w-md" title="${f.path}">
+    <tr class="text-xs">
+      <td class="font-mono truncate" style="max-width: 24rem;" title="${f.path}">
         ${f.path}
       </td>
-      <td class="py-2.5 px-3">
+      <td>
         <span class="status-badge ${f.ext === 'c' ? 'warn' : (f.ext === 'cpp' ? 'ok' : 'scanning')} uppercase text-[10px] font-mono">
           ${f.ext}
         </span>
       </td>
-      <td class="py-2.5 px-3 text-right font-mono font-bold text-cyan-600 dark:text-cyan-400">
+      <td class="text-right font-mono font-bold text-cyan-600 dark:text-cyan-400">
         ${formatNumber(f.lines)}
       </td>
-      <td class="py-2.5 px-3 text-right font-mono text-[var(--text-muted)] text-[11px]">
+      <td class="text-right font-mono text-[var(--text-muted)] text-[11px]">
         ${(f.size / 1024).toFixed(1)} KB
       </td>
-      <td class="py-2.5 px-3 text-right font-mono text-[var(--text-muted)] text-[11px]">
+      <td class="text-right font-mono text-[var(--text-muted)] text-[11px]">
         ${formatDate(f.last_scanned)}
       </td>
     </tr>
@@ -443,7 +471,15 @@ function renderFileList() {
 }
 
 function initEventHandlers() {
+  document.getElementById('btn-browse-folder')?.addEventListener('click', browseFolder);
   document.getElementById('btn-add-folder')?.addEventListener('click', addFolder);
+  document.getElementById('new-folder-path')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addFolder();
+  });
+  document.getElementById('new-folder-name')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addFolder();
+  });
+
   document.getElementById('btn-scan-inc')?.addEventListener('click', () => triggerScan(false));
   document.getElementById('btn-scan-full')?.addEventListener('click', () => triggerScan(true));
   document.getElementById('btn-sync-now')?.addEventListener('click', triggerSync);
@@ -467,14 +503,14 @@ function initEventHandlers() {
     });
   });
 
-  // 昼夜模式
+  // 昼夜模式切换
   document.getElementById('theme-toggle')?.addEventListener('click', () => {
     const next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
     applyTheme(next);
   });
 }
 
-// 自动轮询本地 Agent 状态（每 4 秒刷新一次页面，保证扫描状态与倒计时实时响应）
+// 页面初始化与自动轮询
 window.addEventListener('DOMContentLoaded', async () => {
   applyTheme(state.theme);
   initEventHandlers();

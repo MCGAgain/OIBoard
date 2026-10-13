@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -67,6 +68,7 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/api/test-connection", s.handleTestConnection)
 	mux.HandleFunc("/api/login", s.handleLogin)
 	mux.HandleFunc("/api/files", s.handleFiles)
+	mux.HandleFunc("/api/browse-folder", s.handleBrowseFolder)
 
 	addr := fmt.Sprintf(":%d", port)
 	s.httpSrv = &http.Server{
@@ -376,5 +378,38 @@ func (s *Server) handleFiles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"files": files,
 		"total": len(files),
+	})
+}
+
+func (s *Server) handleBrowseFolder(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "osascript", "-e", `POSIX path of (choose folder with prompt "请选择要监控的代码文件夹")`)
+	out, err := cmd.Output()
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"cancelled": true})
+		return
+	}
+
+	selectedPath := strings.TrimSpace(string(out))
+	if selectedPath == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"cancelled": true})
+		return
+	}
+
+	// 规范化路径并去除末尾斜杠
+	selectedPath = filepath.Clean(selectedPath)
+	name := filepath.Base(selectedPath)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
+		"path":    selectedPath,
+		"name":    name,
 	})
 }
