@@ -158,6 +158,20 @@ class VerifyPayload(BaseModel):
     atcoder_handle: Optional[str] = ""
     http_proxy: Optional[str] = ""
 
+class LocalCodeSyncPayload(BaseModel):
+    total_lines: int
+    today_lines: int
+    total_files: int
+    today_files: int
+    c_lines: Optional[int] = 0
+    c_files: Optional[int] = 0
+    cpp_lines: Optional[int] = 0
+    cpp_files: Optional[int] = 0
+    java_lines: Optional[int] = 0
+    java_files: Optional[int] = 0
+    folders: Optional[List[str]] = []
+    synced_at: Optional[str] = ""
+
 # --- Auth Dependency (安全身份拦截器) ---
 async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
     if not authorization:
@@ -251,13 +265,27 @@ async def get_overview(current_user: Dict[str, Any] = Depends(get_current_user))
     last_sync = db.get_config(uid, "last_sync_time", "")
     climbing = db.get_climbing_curve(user_id=uid, days=365)
     daily_effort = db.get_recent_daily_effort(user_id=uid, days=365)
+    local_code = db.get_local_code_stats(user_id=uid)
     return {
         "stats": stats,
         "platforms_status": status_list,
         "last_sync_time": last_sync,
         "climbing_curve": climbing,
-        "daily_effort": daily_effort
+        "daily_effort": daily_effort,
+        "local_code": local_code
     }
+
+@app.post("/api/stats/local-code")
+async def sync_local_code_stats(payload: LocalCodeSyncPayload, current_user: Dict[str, Any] = Depends(get_current_user)):
+    uid = current_user["id"]
+    res = db.save_local_code_stats(uid, payload.model_dump())
+    return {"success": True, "message": "本地代码行数统计同步成功", "data": res}
+
+@app.get("/api/stats/local-code")
+async def get_local_code_stats_endpoint(current_user: Dict[str, Any] = Depends(get_current_user)):
+    uid = current_user["id"]
+    res = db.get_local_code_stats(uid)
+    return {"success": True, "data": res}
 
 @app.get("/api/stats/heatmap")
 async def get_heatmap(platform: str = "all", year: Optional[int] = None, current_user: Dict[str, Any] = Depends(get_current_user)):

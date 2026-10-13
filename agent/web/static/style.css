@@ -1,0 +1,153 @@
+/* OIBoard Agent - Apple Bento Design System */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-canvas: #f5f5f7;
+  --bg-surface: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.90);
+  --bg-subtle: #f0f0f2;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-hover: rgba(0, 0, 0, 0.16);
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #86868b;
+  --text-muted: #a1a1a6;
+  --apple-blue: #0071e3;
+  --apple-cyan: #00c7be;
+  --apple-green: #34c759;
+  --apple-orange: #ff9500;
+  --apple-red: #ff3b30;
+  --apple-purple: #af52de;
+  --shadow-card: 0 4px 24px -1px rgba(0, 0, 0, 0.06);
+}
+
+html.dark {
+  --bg-canvas: #09090b;
+  --bg-surface: #141416;
+  --bg-card: rgba(20, 20, 22, 0.88);
+  --bg-subtle: rgba(255, 255, 255, 0.05);
+  --border-subtle: rgba(255, 255, 255, 0.09);
+  --border-hover: rgba(255, 255, 255, 0.20);
+  --text-primary: #f5f5f7;
+  --text-secondary: #a1a1a6;
+  --text-tertiary: #6e6e73;
+  --text-muted: #52525b;
+  --apple-blue: #2997ff;
+  --apple-cyan: #30d158;
+  --shadow-card: 0 4px 24px -1px rgba(0, 0, 0, 0.7);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "PingFang SC", sans-serif;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  min-height: 100vh;
+  letter-spacing: -0.012em;
+  -webkit-font-smoothing: antialiased;
+}
+.mono { font-family: 'JetBrains Mono', Menlo, Monaco, monospace; }
+
+.bento-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+  box-shadow: var(--shadow-card);
+  transition: all 0.25s ease;
+}
+.bento-card:hover {
+  border-color: var(--border-hover);
+}
+
+.btn-primary {
+  background: var(--apple-blue);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  font-size: 0.8rem;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  transition: all 0.2s ease;
+}
+.btn-primary:hover { opacity: 0.92; transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-secondary {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.75rem;
+  font-weight: 500;
+  font-size: 0.8rem;
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  transition: all 0.2s ease;
+}
+.btn-secondary:hover { border-color: var(--border-hover); background: var(--bg-surface); }
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ui-input {
+  width: 100%;
+  padding: 0.55rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+.ui-input:focus {
+  border-color: var(--apple-blue);
+  box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.2);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.status-badge.ok {
+  background: rgba(52, 199, 89, 0.12);
+  color: #34c759;
+  border: 1px solid rgba(52, 199, 89, 0.25);
+}
+.status-badge.scanning {
+  background: rgba(0, 113, 227, 0.12);
+  color: #0071e3;
+  border: 1px solid rgba(0, 113, 227, 0.25);
+}
+.status-badge.warn {
+  background: rgba(255, 149, 0, 0.12);
+  color: #ff9500;
+  border: 1px solid rgba(255, 149, 0, 0.25);
+}
+.status-badge.err {
+  background: rgba(255, 59, 48, 0.12);
+  color: #ff3b30;
+  border: 1px solid rgba(255, 59, 48, 0.25);
+}
+
+.pulse-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background-color: currentColor;
+}

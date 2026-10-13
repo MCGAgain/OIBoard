@@ -515,6 +515,25 @@ createApp({
       }
     };
 
+    // --- Local Agent Token Helper ---
+    const isTokenCopied = ref(false);
+    const copySyncToken = () => {
+      const tok = token.value || "";
+      if (!tok) {
+        showToast("暂无可用的登录 Token", "error");
+        return;
+      }
+      navigator.clipboard.writeText(tok).then(() => {
+        isTokenCopied.value = true;
+        showToast("Token 已复制到剪贴板，请前往本地服务粘贴", "success");
+        setTimeout(() => {
+          isTokenCopied.value = false;
+        }, 3000);
+      }).catch(() => {
+        showToast("复制失败，请手动在控制台查看", "error");
+      });
+    };
+
     // --- Submissions Filter & Pagination ---
     const availableTags = computed(() => {
       const set = new Set();
@@ -2410,7 +2429,10 @@ createApp({
       activeMistake,
       openViewNoteModal,
       renderMarkdown,
-      insertCodeSnippet
+      insertCodeSnippet,
+      // Local Agent Token exports
+      isTokenCopied,
+      copySyncToken
     };
   }
 }).mount("#app");

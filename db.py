@@ -344,6 +344,42 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_mistakes_user_review ON mistakes(user_id, status, next_review_at);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_mistakes_user_sub_time ON mistakes(user_id, last_submitted_at);")
 
+        # 10. 本地源码行数统计表 (Local Code Lines Stats - 由 macOS oiboard-agent 同步)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS local_code_stats (
+                user_id INTEGER PRIMARY KEY,
+                total_lines INTEGER DEFAULT 0,
+                today_lines INTEGER DEFAULT 0,
+                total_files INTEGER DEFAULT 0,
+                today_files INTEGER DEFAULT 0,
+                c_lines INTEGER DEFAULT 0,
+                c_files INTEGER DEFAULT 0,
+                cpp_lines INTEGER DEFAULT 0,
+                cpp_files INTEGER DEFAULT 0,
+                java_lines INTEGER DEFAULT 0,
+                java_files INTEGER DEFAULT 0,
+                folders_json TEXT DEFAULT '[]',
+                synced_at TEXT DEFAULT '',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+        """)
+
+        # 11. 本地代码行数历史每日统计表 (Local Code Daily History)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS local_code_daily (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                total_lines INTEGER DEFAULT 0,
+                today_lines INTEGER DEFAULT 0,
+                total_files INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, date),
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+        """)
+
         # 为主账户填充默认配置（如果缺失）
         default_configs = {
             "cf_handle": "",
@@ -1659,3 +1695,94 @@ def get_upcoming_contests(platform: str = "all", limit: int = 60) -> List[Dict[s
                 r["countdown_seconds"] = 0
                 r["status_text"] = "已结束"
         return rows
+
+def save_local_code_stats(user_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    """保存或更新用户本地代码统计数据（由 macOS oiboard-agent 同步）"""
+    total_lines = int(data.get("total_lines", 0))
+    today_lines = int(data.get("today_lines", 0))
+    total_files = int(data.get("total_files", 0))
+    today_files = int(data.get("today_files", 0))
+    c_lines = int(data.get("c_lines", 0))
+    c_files = int(data.get("c_files", 0))
+    cpp_lines = int(data.get("cpp_lines", 0))
+    cpp_files = int(data.get("cpp_files", 0))
+    java_lines = int(data.get("java_lines", 0))
+    java_files = int(data.get("java_files", 0))
+    folders = data.get("folders", [])
+    folders_json = json.dumps(folders, ensure_ascii=False) if isinstance(folders, list) else str(folders)
+    synced_at = data.get("synced_at") or get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
+    today_str = get_beijing_now().strftime("%Y-%m-%d")
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO local_code_stats (
+                user_id, total_lines, today_lines, total_files, today_files,
+                c_lines, c_files, cpp_lines, cpp_files, java_lines, java_files,
+                folders_json, synced_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+                total_lines = excluded.total_lines,
+                today_lines = excluded.today_lines,
+                total_files = excluded.total_files,
+                today_files = excluded.today_files,
+                c_lines = excluded.c_lines,
+                c_files = excluded.c_files,
+                cpp_lines = excluded.cpp_lines,
+                cpp_files = excluded.cpp_files,
+                java_lines = excluded.java_lines,
+                java_files = excluded.java_files,
+                folders_json = excluded.folders_json,
+                synced_at = excluded.synced_at,
+                updated_at = CURRENT_TIMESTAMP;
+        """, (
+            user_id, total_lines, today_lines, total_files, today_files,
+            c_lines, c_files, cpp_lines, cpp_files, java_lines, java_files,
+            folders_json, synced_at
+        ))
+
+        # 同步写入每日历史记录
+        cursor.execute("""
+            INSERT INTO local_code_daily (user_id, date, total_lines, today_lines, total_files)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, date) DO UPDATE SET
+                total_lines = excluded.total_lines,
+                today_lines = excluded.today_lines,
+                total_files = excluded.total_files;
+        """, (user_id, today_str, total_lines, today_lines, total_files))
+        conn.commit()
+
+    return get_local_code_stats(user_id)
+
+def get_local_code_stats(user_id: int) -> Dict[str, Any]:
+    """获取用户的本地代码统计数据"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM local_code_stats WHERE user_id = ?;
+        """, (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return {
+                "total_lines": 0,
+                "today_lines": 0,
+                "total_files": 0,
+                "today_files": 0,
+                "c_lines": 0,
+                "c_files": 0,
+                "cpp_lines": 0,
+                "cpp_files": 0,
+                "java_lines": 0,
+                "java_files": 0,
+                "folders": [],
+                "synced_at": "",
+                "has_data": False
+            }
+        d = dict(row)
+        try:
+            d["folders"] = json.loads(d.get("folders_json") or "[]")
+        except Exception:
+            d["folders"] = []
+        d["has_data"] = (d["total_lines"] > 0 or d["total_files"] > 0)
+        return d
+
