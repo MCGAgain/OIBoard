@@ -31,7 +31,8 @@ createApp({
       platforms_status: [],
       last_sync_time: "",
       climbing_curve: [],
-      daily_effort: []
+      daily_effort: [],
+      local_code: { total_lines: 0, today_lines: 0, total_files: 0, today_files: 0, c_lines: 0, cpp_lines: 0, java_lines: 0, has_data: false }
     });
 
     const currentTab = ref("overview"); // 'overview', 'submissions', 'mistakes', 'settings'
@@ -768,7 +769,8 @@ createApp({
             platforms_status: data.platforms_status || [],
             last_sync_time: newSync || overview.value.last_sync_time || "",
             climbing_curve: data.climbing_curve || [],
-            daily_effort: data.daily_effort || []
+            daily_effort: data.daily_effort || [],
+            local_code: data.local_code || { total_lines: 0, today_lines: 0, total_files: 0, today_files: 0, c_lines: 0, cpp_lines: 0, java_lines: 0, has_data: false }
           };
 
           if (currentTab.value === "overview") {
