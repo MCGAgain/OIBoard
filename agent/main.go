@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"oiboard-agent/server"
 	"oiboard-agent/store"
 	"oiboard-agent/syncer"
+	"oiboard-agent/watcher"
 )
 
 const (
@@ -98,10 +100,46 @@ func main() {
 	log.Printf("  数据存储目录: %s", *dataDirFlag)
 	log.Printf("==================================================")
 
-	// 启动时在后台执行一次扫描与同步
+	// 事件驱动与变动防抖自动同步
+	var syncDebounceTimer *time.Timer
+	var syncMu sync.Mutex
+
+	triggerSync := func() {
+		cfgSnap := cfg.Get()
+		if cfgSnap.AutoSync && cfgSnap.SyncToken != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := syn.SyncNow(ctx); err != nil {
+				log.Printf("[EventSync] 自动同步失败: %v", err)
+			} else {
+				log.Printf("[EventSync] 代码变动已自动同步至看板")
+			}
+		}
+	}
+
+	onFileChange := func() {
+		syncMu.Lock()
+		defer syncMu.Unlock()
+		if syncDebounceTimer != nil {
+			syncDebounceTimer.Stop()
+		}
+		// 用户编辑可能连续保存，防抖 1.5 秒后仅执行一次网络同步
+		syncDebounceTimer = time.AfterFunc(1500*time.Millisecond, triggerSync)
+	}
+
+	// 启动基于 macOS 原生 kqueue/FSEvents 的文件变动监听器
+	fWatcher, err := watcher.NewWatcher(cfg, sc, onFileChange)
+	if err != nil {
+		log.Printf("[Watcher] 初始化文件监听失败，将回退至定时增量轮询: %v", err)
+	} else {
+		fWatcher.Start()
+		log.Printf("[Watcher] 原生文件变动监听已启动 (基于 macOS kqueue/FSEvents，仅对改动文件进行微秒级增量统计)")
+	}
+
+	// 启动时在后台执行一次基线初始化扫描与初始同步
 	go func() {
-		time.Sleep(1 * time.Second)
-		log.Printf("[Daemon] 正在执行启动初始化扫描...")
+		time.Sleep(500 * time.Millisecond)
+		log.Printf("[Daemon] 正在执行启动基线扫描...")
 		stats, err := sc.ScanAll(false)
 		if err != nil {
 			log.Printf("[Daemon] 初始扫描失败: %v", err)
@@ -116,87 +154,35 @@ func main() {
 		}
 	}()
 
-	// 定时扫描 Ticker
+	// 低开销巡检 Ticker (仅在无事件时作为兜底健康检查，默认 5 分钟，绝大部分时间 0 CPU)
 	stopChan := make(chan struct{})
 	go func() {
-		scanSec := cfg.Get().AutoScanIntervalSec
-		if scanSec < 5 {
-			scanSec = 30
-		}
-		scanTicker := time.NewTicker(time.Duration(scanSec) * time.Second)
-		defer scanTicker.Stop()
+		idleCheckTicker := time.NewTicker(5 * time.Minute)
+		defer idleCheckTicker.Stop()
 
 		for {
 			select {
 			case <-stopChan:
 				return
-			case <-scanTicker.C:
+			case <-idleCheckTicker.C:
 				cfgSnap := cfg.Get()
 				if !cfgSnap.AutoScan {
 					continue
 				}
-				curSec := cfgSnap.AutoScanIntervalSec
-				if curSec < 5 {
-					curSec = 30
-				}
-				if curSec != scanSec {
-					scanSec = curSec
-					scanTicker.Reset(time.Duration(scanSec) * time.Second)
-				}
-
-				stats, err := sc.ScanAll(false)
-				if err != nil {
-					log.Printf("[AutoScan] 扫描失败: %v", err)
-				} else {
-					if cfgSnap.AutoSync && cfgSnap.SyncToken != "" {
-						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-						_ = syn.SyncNow(ctx)
-						cancel()
-					}
-					_ = stats
-				}
+				// 兜底校验
+				_, _ = sc.ScanAll(false)
 			}
 		}
 	}()
 
-	// 定时同步 Ticker
-	go func() {
-		syncSec := cfg.Get().AutoSyncIntervalSec
-		if syncSec < 10 {
-			syncSec = 60
-		}
-		syncTicker := time.NewTicker(time.Duration(syncSec) * time.Second)
-		defer syncTicker.Stop()
-
-		for {
-			select {
-			case <-stopChan:
-				return
-			case <-syncTicker.C:
-				cfgSnap := cfg.Get()
-				if !cfgSnap.AutoSync || cfgSnap.SyncToken == "" {
-					continue
-				}
-				curSec := cfgSnap.AutoSyncIntervalSec
-				if curSec < 10 {
-					curSec = 60
-				}
-				if curSec != syncSec {
-					syncSec = curSec
-					syncTicker.Reset(time.Duration(syncSec) * time.Second)
-				}
-
-				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-				if err := syn.SyncNow(ctx); err != nil {
-					log.Printf("[AutoSync] 定时同步失败: %v", err)
-				}
-				cancel()
-			}
-		}
-	}()
-
-	// 启动 HTTP 服务器
+	// 启动 HTTP 后台管理服务
 	srv := server.NewServer(cfg, st, sc, syn)
+	if fWatcher != nil {
+		srv.SetFolderChangedHook(func() {
+			fWatcher.ReloadFolders()
+		})
+	}
+
 	go func() {
 		if err := srv.Start(activePort); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP 服务异常退出: %v", err)
@@ -210,6 +196,9 @@ func main() {
 	sig := <-sigChan
 	log.Printf("收到退出信号 (%v)，正在优雅关闭 Agent 服务...", sig)
 	close(stopChan)
+	if fWatcher != nil {
+		fWatcher.Stop()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

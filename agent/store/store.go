@@ -158,6 +158,58 @@ func (s *Store) GetStats() GlobalStats {
 	return s.stats
 }
 
+func (s *Store) GetFilesByFolder(folder string) []FileRecord {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	cleanFolder := filepath.Clean(folder)
+	var list []FileRecord
+	for _, rec := range s.files {
+		if filepath.Clean(rec.Folder) == cleanFolder {
+			list = append(list, rec)
+		}
+	}
+	return list
+}
+
+func (s *Store) RecalculateStats(now time.Time) GlobalStats {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stats := GlobalStats{
+		LastScanAt:  now,
+		LastSyncAt:  s.stats.LastSyncAt,
+		LastSyncErr: s.stats.LastSyncErr,
+	}
+
+	y, m, d := now.Date()
+	todayStartNano := time.Date(y, m, d, 0, 0, 0, 0, now.Location()).UnixNano()
+
+	for _, rec := range s.files {
+		stats.TotalFiles++
+		stats.TotalLines += rec.Lines
+
+		if rec.ModTime >= todayStartNano {
+			stats.TodayFiles++
+			stats.TodayLines += rec.Lines
+		}
+
+		switch rec.Ext {
+		case "c":
+			stats.CFiles++
+			stats.CLines += rec.Lines
+		case "cpp":
+			stats.CPPFiles++
+			stats.CPPLines += rec.Lines
+		case "java":
+			stats.JavaFiles++
+			stats.JavaLines += rec.Lines
+		}
+	}
+
+	s.stats = stats
+	return stats
+}
+
 func (s *Store) SetStats(stats GlobalStats) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

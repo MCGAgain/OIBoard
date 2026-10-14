@@ -204,44 +204,135 @@ func (s *Scanner) ScanAll(forceFull bool) (store.GlobalStats, error) {
 		s.cfg.UpdateFolderStats(folderPath, folderFileCount, folderLineCount, now)
 	}
 
-	// 汇总指标
-	allRecords := s.st.GetAllFiles()
-	stats := store.GlobalStats{
-		LastScanAt: now,
-	}
-
-	// 计算今日起始时间戳 (当前本地日期的 00:00:00)
-	y, m, d := now.Date()
-	todayStartNano := time.Date(y, m, d, 0, 0, 0, 0, now.Location()).UnixNano()
-
-	for _, rec := range allRecords {
-		stats.TotalFiles++
-		stats.TotalLines += rec.Lines
-
-		if rec.ModTime >= todayStartNano {
-			stats.TodayFiles++
-			stats.TodayLines += rec.Lines
-		}
-
-		switch rec.Ext {
-		case "c":
-			stats.CFiles++
-			stats.CLines += rec.Lines
-		case "cpp":
-			stats.CPPFiles++
-			stats.CPPLines += rec.Lines
-		case "java":
-			stats.JavaFiles++
-			stats.JavaLines += rec.Lines
-		}
-	}
-
-	// 保留原有的同步状态记录
-	oldStats := s.st.GetStats()
-	stats.LastSyncAt = oldStats.LastSyncAt
-	stats.LastSyncErr = oldStats.LastSyncErr
-
-	s.st.SetStats(stats)
+	stats := s.st.RecalculateStats(now)
 	_ = s.st.Save()
 	return stats, nil
+}
+
+// IsIgnoredPath 检查路径是否包含默认忽略目录或临时文件
+func IsIgnoredPath(path string) bool {
+	clean := filepath.Clean(path)
+	parts := strings.Split(clean, string(filepath.Separator))
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			continue
+		}
+		if defaultIgnoredDirs[strings.ToLower(part)] || (strings.HasPrefix(part, ".") && part != ".") {
+			return true
+		}
+	}
+	base := filepath.Base(clean)
+	if strings.HasPrefix(base, ".") || strings.HasSuffix(base, "~") || strings.HasSuffix(base, ".tmp") || strings.HasSuffix(base, ".swp") {
+		return true
+	}
+	return false
+}
+
+// FindFolderForPath 查找包含该文件的监控目录
+func (s *Scanner) FindFolderForPath(path string) (string, bool) {
+	clean := filepath.Clean(path)
+	cfgSnap := s.cfg.Get()
+	for _, f := range cfgSnap.Folders {
+		if !f.Enabled {
+			continue
+		}
+		cleanFolder := filepath.Clean(f.Path)
+		if clean == cleanFolder {
+			return cleanFolder, true
+		}
+		rel, err := filepath.Rel(cleanFolder, clean)
+		if err == nil && !strings.HasPrefix(rel, "..") && !strings.HasPrefix(rel, "/") {
+			return cleanFolder, true
+		}
+	}
+	return "", false
+}
+
+// ProcessChangedFile 仅针对变动或新增的单个文件进行精确增量分析（极致轻量，无需遍历任何目录）
+func (s *Scanner) ProcessChangedFile(path string) (bool, error) {
+	cleanPath := filepath.Clean(path)
+	if IsIgnoredPath(cleanPath) {
+		return false, nil
+	}
+	lang, ok := ClassifyLanguage(cleanPath)
+	if !ok {
+		return false, nil
+	}
+
+	folderPath, inFolder := s.FindFolderForPath(cleanPath)
+	if !inFolder {
+		return false, nil
+	}
+
+	info, err := os.Stat(cleanPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return s.ProcessDeletedFile(cleanPath)
+		}
+		return false, err
+	}
+	if info.IsDir() {
+		return false, nil
+	}
+
+	// 增量命中判定：文件大小与修改时间与缓存一致则直接跳过，零 CPU / 零磁盘读取开销
+	cached, exists := s.st.GetFile(cleanPath)
+	if exists && cached.Size == info.Size() && cached.ModTime == info.ModTime().UnixNano() {
+		return false, nil
+	}
+
+	// 仅读取并统计该单个变动文件
+	lines, err := FastCountLines(cleanPath)
+	if err != nil {
+		return false, err
+	}
+
+	now := time.Now()
+	rec := store.FileRecord{
+		Path:        cleanPath,
+		Folder:      folderPath,
+		Ext:         lang,
+		Size:        info.Size(),
+		ModTime:     info.ModTime().UnixNano(),
+		Lines:       lines,
+		LastScanned: now,
+	}
+	s.st.SetFile(rec)
+	s.st.RecalculateStats(now)
+
+	// 更新对应监控目录统计
+	folderRecs := s.st.GetFilesByFolder(folderPath)
+	folderLines := 0
+	for _, fr := range folderRecs {
+		folderLines += fr.Lines
+	}
+	s.cfg.UpdateFolderStats(folderPath, len(folderRecs), folderLines, now)
+	_ = s.st.Save()
+
+	return true, nil
+}
+
+// ProcessDeletedFile 仅对被删除的单个文件记录进行清理
+func (s *Scanner) ProcessDeletedFile(path string) (bool, error) {
+	cleanPath := filepath.Clean(path)
+	cached, exists := s.st.GetFile(cleanPath)
+	if !exists {
+		return false, nil
+	}
+
+	s.st.DeleteFile(cleanPath)
+	now := time.Now()
+	s.st.RecalculateStats(now)
+
+	if cached.Folder != "" {
+		folderRecs := s.st.GetFilesByFolder(cached.Folder)
+		folderLines := 0
+		for _, fr := range folderRecs {
+			folderLines += fr.Lines
+		}
+		s.cfg.UpdateFolderStats(cached.Folder, len(folderRecs), folderLines, now)
+	}
+	_ = s.st.Save()
+
+	return true, nil
 }

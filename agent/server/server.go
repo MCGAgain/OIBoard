@@ -20,11 +20,12 @@ import (
 )
 
 type Server struct {
-	cfg     *config.Config
-	st      *store.Store
-	sc      *scanner.Scanner
-	sync    *syncer.Syncer
-	httpSrv *http.Server
+	cfg             *config.Config
+	st              *store.Store
+	sc              *scanner.Scanner
+	sync            *syncer.Syncer
+	onFolderChanged func()
+	httpSrv         *http.Server
 }
 
 func NewServer(cfg *config.Config, st *store.Store, sc *scanner.Scanner, syn *syncer.Syncer) *Server {
@@ -34,6 +35,10 @@ func NewServer(cfg *config.Config, st *store.Store, sc *scanner.Scanner, syn *sy
 		sc:   sc,
 		sync: syn,
 	}
+}
+
+func (s *Server) SetFolderChangedHook(fn func()) {
+	s.onFolderChanged = fn
 }
 
 func (s *Server) Start(port int) error {
@@ -188,6 +193,10 @@ func (s *Server) handleFolders(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if s.onFolderChanged != nil {
+			s.onFolderChanged()
+		}
+
 		// 添加后立即触发扫描
 		go func() {
 			_, _ = s.sc.ScanAll(false)
@@ -218,6 +227,10 @@ func (s *Server) handleFolders(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.st.DeleteFilesByFolder(p)
+
+		if s.onFolderChanged != nil {
+			s.onFolderChanged()
+		}
 
 		// 重新统计并保存
 		go func() {
@@ -252,6 +265,10 @@ func (s *Server) handleFolderToggle(w http.ResponseWriter, r *http.Request) {
 	if err := s.cfg.ToggleFolder(req.Path, req.Enabled); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
+	}
+
+	if s.onFolderChanged != nil {
+		s.onFolderChanged()
 	}
 
 	go func() {
