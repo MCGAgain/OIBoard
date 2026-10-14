@@ -449,6 +449,9 @@ function renderFileList() {
 
   container.innerHTML = filtered.slice(0, 100).map(f => `
     <tr class="text-xs">
+      <td class="font-mono text-[11px] text-[var(--text-muted)] font-semibold">
+        #${f.id || '-'}
+      </td>
       <td class="font-mono truncate" style="max-width: 24rem;" title="${f.path}">
         ${f.path}
       </td>
