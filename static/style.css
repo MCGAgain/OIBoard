@@ -594,3 +594,26 @@ html.dark .markdown-body code:not(pre code) {
   background: var(--bg-subtle);
 }
 
+/* ================= View Note Resizable Modal Enhancements ================= */
+#view-note-modal-dialog {
+  box-sizing: border-box;
+}
+
+#mistake-markdown-content::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+#mistake-markdown-content::-webkit-scrollbar-thumb {
+  background: var(--border-bold);
+  border-radius: 9999px;
+}
+
+#mistake-markdown-content::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+#mistake-markdown-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+

@@ -84,6 +84,91 @@ createApp({
     const viewNoteModalOpen = ref(false);
     const activeMistake = ref(null);
 
+    // --- View Mistake Note Modal Sizing & Persistence ---
+    const savedNoteModalSize = localStorage.getItem("oiboard_note_modal_size") || "default";
+    const noteModalSize = ref(savedNoteModalSize); // 'default', 'wide', 'full', 'custom'
+    let initialNoteW = null;
+    let initialNoteH = null;
+    if (savedNoteModalSize === "custom") {
+      const savedW = parseInt(localStorage.getItem("oiboard_note_modal_w") || "0", 10);
+      const savedH = parseInt(localStorage.getItem("oiboard_note_modal_h") || "0", 10);
+      if (savedW && savedW >= 360) {
+        initialNoteW = Math.min(savedW, window.innerWidth - 24);
+      }
+      if (savedH && savedH >= 280) {
+        initialNoteH = Math.min(savedH, window.innerHeight - 24);
+      }
+    }
+    const noteModalCustomWidth = ref(initialNoteW);
+    const noteModalCustomHeight = ref(initialNoteH);
+
+    const setNoteModalSize = (size) => {
+      noteModalSize.value = size;
+      localStorage.setItem("oiboard_note_modal_size", size);
+    };
+
+    const toggleNoteModalMaximize = () => {
+      if (noteModalSize.value === "full") {
+        setNoteModalSize("default");
+      } else {
+        setNoteModalSize("full");
+      }
+    };
+
+    const startNoteModalResize = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const modalEl = document.getElementById("view-note-modal-dialog");
+      if (!modalEl) return;
+
+      const rect = modalEl.getBoundingClientRect();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startWidth = rect.width;
+      const startHeight = rect.height;
+
+      const onMouseMove = (moveEvent) => {
+        moveEvent.preventDefault();
+        const deltaX = moveEvent.clientX - startX;
+        const deltaY = moveEvent.clientY - startY;
+
+        const minW = 460;
+        const maxW = Math.max(minW, window.innerWidth - 24);
+        const minH = 320;
+        const maxH = Math.max(minH, window.innerHeight - 24);
+
+        const newW = Math.round(Math.min(Math.max(startWidth + deltaX, minW), maxW));
+        const newH = Math.round(Math.min(Math.max(startHeight + deltaY, minH), maxH));
+
+        noteModalSize.value = "custom";
+        noteModalCustomWidth.value = newW;
+        noteModalCustomHeight.value = newH;
+      };
+
+      const onMouseUp = () => {
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+        document.body.style.userSelect = "";
+        document.body.style.cursor = "";
+
+        if (noteModalSize.value === "custom") {
+          localStorage.setItem("oiboard_note_modal_size", "custom");
+          if (noteModalCustomWidth.value) {
+            localStorage.setItem("oiboard_note_modal_w", String(noteModalCustomWidth.value));
+          }
+          if (noteModalCustomHeight.value) {
+            localStorage.setItem("oiboard_note_modal_h", String(noteModalCustomHeight.value));
+          }
+        }
+      };
+
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "nwse-resize";
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    };
+
     const submissions = ref([]);
     const subFilter = ref("all");
 
@@ -2218,6 +2303,13 @@ createApp({
         syncSegmentedThumbs();
       });
 
+      // ESC 键快捷关闭错题笔记等浮层弹窗
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && viewNoteModalOpen.value) {
+          viewNoteModalOpen.value = false;
+        }
+      });
+
       nextTick(() => {
         syncSegmentedThumbs();
       });
@@ -2429,6 +2521,12 @@ createApp({
       toggleMistakeMaster,
       viewNoteModalOpen,
       activeMistake,
+      noteModalSize,
+      noteModalCustomWidth,
+      noteModalCustomHeight,
+      setNoteModalSize,
+      toggleNoteModalMaximize,
+      startNoteModalResize,
       openViewNoteModal,
       renderMarkdown,
       insertCodeSnippet,

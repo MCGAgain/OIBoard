@@ -1998,10 +1998,22 @@
     </div>
 
     <!-- 查看错题代码与思路笔记弹窗 (View Mistake Code & Notes Modal) -->
-    <div v-if="viewNoteModalOpen && activeMistake" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
-      <div class="w-full max-w-3xl bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 font-sans my-8">
+    <div v-if="viewNoteModalOpen && activeMistake" 
+         @click.self="viewNoteModalOpen = false"
+         class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+      <div id="view-note-modal-dialog"
+           :class="[
+             'bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-4 sm:p-6 font-sans relative flex flex-col transition-[width,height,max-width] duration-150',
+             noteModalSize === 'full' ? 'w-[96vw] max-w-[96vw] h-[92vh] max-h-[92vh] my-auto' :
+             noteModalSize === 'wide' ? 'w-full max-w-5xl lg:max-w-6xl my-4 sm:my-8' :
+             noteModalSize === 'custom' ? 'my-auto max-w-[98vw] max-h-[94vh]' :
+             'w-full max-w-3xl my-4 sm:my-8'
+           ]"
+           :style="noteModalSize === 'custom' ? { width: (noteModalCustomWidth ? noteModalCustomWidth + 'px' : '90vw'), height: (noteModalCustomHeight ? noteModalCustomHeight + 'px' : '82vh') } : {}">
         <!-- 弹窗标题与元信息 -->
-        <div class="flex items-start justify-between pb-3 border-b border-[var(--border-subtle)] gap-2">
+        <div @dblclick="toggleNoteModalMaximize" 
+             title="双击顶部栏可快速最大化 / 还原窗口"
+             class="flex items-start justify-between pb-3 border-b border-[var(--border-subtle)] gap-2 flex-shrink-0 select-none">
           <div class="space-y-1">
             <div class="flex items-center flex-wrap gap-2">
               <!-- 平台 Badge -->
@@ -2030,30 +2042,88 @@
             </div>
           </div>
 
-          <button @click="viewNoteModalOpen = false" class="p-1 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors">
-            <svg class="w-4 h-4 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
+          <!-- 右侧控件区：窗口尺寸调节与关闭按钮 -->
+          <div class="flex items-center space-x-1 sm:space-x-1.5 flex-shrink-0 pt-0.5">
+            <!-- 尺寸分段切换器 (标准 / 宽屏 / 全屏) -->
+            <div class="hidden sm:inline-flex items-center p-0.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[11px] font-medium mr-1 shadow-sm">
+              <button @click.stop="setNoteModalSize('default')" 
+                      type="button"
+                      :class="['px-2 py-0.5 rounded-md transition-all', noteModalSize === 'default' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm font-semibold' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]']"
+                      title="标准窗口尺寸 (768px)">
+                标准
+              </button>
+              <button @click.stop="setNoteModalSize('wide')" 
+                      type="button"
+                      :class="['px-2 py-0.5 rounded-md transition-all', noteModalSize === 'wide' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm font-semibold' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]']"
+                      title="宽屏显示 (1152px)">
+                宽屏
+              </button>
+              <button @click.stop="setNoteModalSize('full')" 
+                      type="button"
+                      :class="['px-2 py-0.5 rounded-md transition-all', noteModalSize === 'full' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm font-semibold' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]']"
+                      title="全屏铺满窗口">
+                全屏
+              </button>
+              <span v-if="noteModalSize === 'custom'" class="px-2 py-0.5 text-[10px] text-blue-500 font-mono font-semibold" title="当前为鼠标自由拖拽尺寸">
+                自定义
+              </span>
+            </div>
+
+            <!-- 最大化 / 还原快捷切换按钮 -->
+            <button @click.stop="toggleNoteModalMaximize" 
+                    type="button"
+                    class="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors"
+                    :title="noteModalSize === 'full' ? '还原窗口' : '最大化窗口'">
+              <svg v-if="noteModalSize === 'full'" class="w-4 h-4 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <polyline points="4 14 10 14 10 20"></polyline>
+                <polyline points="20 10 14 10 14 4"></polyline>
+                <line x1="14" y1="10" x2="21" y2="3"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+              <svg v-else class="w-4 h-4 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <polyline points="9 21 3 21 3 15"></polyline>
+                <line x1="21" y1="3" x2="14" y2="10"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+            </button>
+
+            <!-- 关闭按钮 -->
+            <button @click.stop="viewNoteModalOpen = false" 
+                    type="button"
+                    class="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors"
+                    title="关闭 (Esc)">
+              <svg class="w-4 h-4 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
         </div>
 
         <!-- 核心卡点 -->
-        <div v-if="activeMistake.key_point" class="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs space-y-1">
+        <div v-if="activeMistake.key_point" class="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs space-y-1 flex-shrink-0 my-2">
           <div class="font-medium text-[var(--text-tertiary)] text-[11px]">核心卡点</div>
           <p class="leading-relaxed text-[var(--text-secondary)]">{{ activeMistake.key_point }}</p>
         </div>
 
         <!-- 详细 Markdown 代码与解题笔记渲染容器 -->
-        <div class="space-y-1.5">
-          <div class="flex items-center justify-between text-xs text-[var(--text-tertiary)] font-medium">
+        <div :class="[
+          'flex flex-col min-h-0 my-2',
+          noteModalSize === 'full' || noteModalSize === 'custom' ? 'flex-1' : 'space-y-1.5'
+        ]">
+          <div class="flex items-center justify-between text-xs text-[var(--text-tertiary)] font-medium mb-1.5 flex-shrink-0">
             <span>思路与代码</span>
+            <span class="text-[10px] text-[var(--text-muted)] font-mono hidden sm:inline">可按住右下角自由拖拽缩放大小</span>
           </div>
           <div id="mistake-markdown-content" 
-               class="markdown-body p-4 sm:p-5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-[var(--border-subtle)] max-h-[52vh] overflow-y-auto"
+               :class="[
+                 'markdown-body p-4 sm:p-5 rounded-2xl bg-black/[0.02] dark:bg-white/[0.02] border border-[var(--border-subtle)] overflow-y-auto',
+                 noteModalSize === 'full' || noteModalSize === 'custom' ? 'flex-1 min-h-[240px]' : (noteModalSize === 'wide' ? 'max-h-[68vh]' : 'max-h-[52vh]')
+               ]"
                v-html="renderMarkdown(activeMistake.notes)">
           </div>
         </div>
 
         <!-- 弹窗底部操作按钮 -->
-        <div class="pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2.5">
+        <div class="pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2.5 flex-shrink-0">
           <div class="flex items-center space-x-2">
             <!-- 原题直达去做题 -->
             <a v-if="activeMistake.problem_url" :href="activeMistake.problem_url" target="_blank"
@@ -2081,6 +2151,18 @@
               关闭
             </button>
           </div>
+        </div>
+
+        <!-- 右下角自由缩放拖动手柄 (Corner Resize Handle) -->
+        <div @mousedown="startNoteModalResize"
+             @dblclick.stop="setNoteModalSize('default')"
+             title="按住拖拽调整弹窗大小，双击还原默认大小"
+             class="absolute bottom-1 right-1 w-6 h-6 flex items-end justify-end p-1 cursor-nwse-resize select-none text-[var(--text-tertiary)] hover:text-blue-500 opacity-60 hover:opacity-100 transition-opacity z-10">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="5" x2="5" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="17" x2="17" y2="19"></line>
+          </svg>
         </div>
       </div>
     </div>
