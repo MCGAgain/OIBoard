@@ -87,6 +87,8 @@ createApp({
     // --- View Mistake Note Modal Sizing & Persistence ---
     const savedNoteModalSize = localStorage.getItem("oiboard_note_modal_size") || "default";
     const noteModalSize = ref(savedNoteModalSize); // 'default', 'wide', 'full', 'custom'
+    const isResizingNoteModal = ref(false);
+    const noteBackdropPress = ref(false);
     let initialNoteW = null;
     let initialNoteH = null;
     if (savedNoteModalSize === "custom") {
@@ -123,34 +125,66 @@ createApp({
       if (!modalEl) return;
 
       const rect = modalEl.getBoundingClientRect();
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const startWidth = rect.width;
-      const startHeight = rect.height;
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
 
-      const onMouseMove = (moveEvent) => {
+      isResizingNoteModal.value = true;
+      modalEl.style.transition = "none";
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "nwse-resize";
+
+      const handleEl = e.currentTarget || e.target;
+      const hasPointerCapture = e.pointerId && typeof handleEl.setPointerCapture === "function";
+      if (hasPointerCapture) {
+        try {
+          handleEl.setPointerCapture(e.pointerId);
+        } catch (err) {}
+      }
+
+      const onPointerMove = (moveEvent) => {
         moveEvent.preventDefault();
-        const deltaX = moveEvent.clientX - startX;
-        const deltaY = moveEvent.clientY - startY;
 
         const minW = 460;
         const maxW = Math.max(minW, window.innerWidth - 24);
         const minH = 320;
         const maxH = Math.max(minH, window.innerHeight - 24);
 
-        const newW = Math.round(Math.min(Math.max(startWidth + deltaX, minW), maxW));
-        const newH = Math.round(Math.min(Math.max(startHeight + deltaY, minH), maxH));
+        // 视口居中弹窗：根据鼠标相对于中心点距离等比计算宽高，实现 1:1 绝对贴手拖拽
+        const targetW = Math.round((moveEvent.clientX - centerX) * 2);
+        const targetH = Math.round((moveEvent.clientY - centerY) * 2);
+
+        const newW = Math.min(Math.max(targetW, minW), maxW);
+        const newH = Math.min(Math.max(targetH, minH), maxH);
 
         noteModalSize.value = "custom";
         noteModalCustomWidth.value = newW;
         noteModalCustomHeight.value = newH;
       };
 
-      const onMouseUp = () => {
-        window.removeEventListener("mousemove", onMouseMove);
-        window.removeEventListener("mouseup", onMouseUp);
+      const onPointerUp = (upEvent) => {
+        if (hasPointerCapture && upEvent && upEvent.pointerId) {
+          try {
+            handleEl.releasePointerCapture(upEvent.pointerId);
+          } catch (err) {}
+        }
+
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", onPointerUp);
+        window.removeEventListener("mousemove", onPointerMove);
+        window.removeEventListener("mouseup", onPointerUp);
+
+        if (handleEl) {
+          handleEl.removeEventListener("pointermove", onPointerMove);
+          handleEl.removeEventListener("pointerup", onPointerUp);
+        }
+
+        modalEl.style.transition = "";
         document.body.style.userSelect = "";
         document.body.style.cursor = "";
+
+        setTimeout(() => {
+          isResizingNoteModal.value = false;
+        }, 120);
 
         if (noteModalSize.value === "custom") {
           localStorage.setItem("oiboard_note_modal_size", "custom");
@@ -163,10 +197,14 @@ createApp({
         }
       };
 
-      document.body.style.userSelect = "none";
-      document.body.style.cursor = "nwse-resize";
-      window.addEventListener("mousemove", onMouseMove);
-      window.addEventListener("mouseup", onMouseUp);
+      if (hasPointerCapture) {
+        handleEl.addEventListener("pointermove", onPointerMove);
+        handleEl.addEventListener("pointerup", onPointerUp);
+      }
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("mousemove", onPointerMove);
+      window.addEventListener("mouseup", onPointerUp);
     };
 
     const submissions = ref([]);
@@ -2524,6 +2562,8 @@ createApp({
       noteModalSize,
       noteModalCustomWidth,
       noteModalCustomHeight,
+      isResizingNoteModal,
+      noteBackdropPress,
       setNoteModalSize,
       toggleNoteModalMaximize,
       startNoteModalResize,

@@ -45,7 +45,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=2.9.0">
+  <link rel="stylesheet" href="/static/style.css?v=2.9.6">
 </head>
 <body :class="[isDark ? 'dark text-[#f5f5f7]' : 'text-[#1d1d1f]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white transition-colors duration-300">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -1999,7 +1999,8 @@
 
     <!-- 查看错题代码与思路笔记弹窗 (View Mistake Code & Notes Modal) -->
     <div v-if="viewNoteModalOpen && activeMistake" 
-         @click.self="viewNoteModalOpen = false"
+         @mousedown.self="noteBackdropPress = true"
+         @mouseup.self="noteBackdropPress && !isResizingNoteModal && (viewNoteModalOpen = false); noteBackdropPress = false"
          class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
       <div id="view-note-modal-dialog"
            :class="[
@@ -2045,7 +2046,7 @@
           <!-- 右侧控件区：窗口尺寸调节与关闭按钮 -->
           <div class="flex items-center space-x-1 sm:space-x-1.5 flex-shrink-0 pt-0.5">
             <!-- 尺寸分段切换器 (标准 / 宽屏 / 全屏) -->
-            <div class="hidden sm:inline-flex items-center p-0.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[11px] font-medium mr-1 shadow-sm">
+            <div class="inline-flex items-center p-0.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[11px] font-medium mr-1 shadow-sm">
               <button @click.stop="setNoteModalSize('default')" 
                       type="button"
                       :class="['px-2 py-0.5 rounded-md transition-all', noteModalSize === 'default' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm font-semibold' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]']"
@@ -2155,9 +2156,10 @@
 
         <!-- 右下角自由缩放拖动手柄 (Corner Resize Handle) -->
         <div @mousedown="startNoteModalResize"
+             @pointerdown="startNoteModalResize"
              @dblclick.stop="setNoteModalSize('default')"
              title="按住拖拽调整弹窗大小，双击还原默认大小"
-             class="absolute bottom-1 right-1 w-6 h-6 flex items-end justify-end p-1 cursor-nwse-resize select-none text-[var(--text-tertiary)] hover:text-blue-500 opacity-60 hover:opacity-100 transition-opacity z-10">
+             class="absolute bottom-1 right-1 w-6 h-6 flex items-end justify-end p-1 cursor-nwse-resize select-none text-[var(--text-tertiary)] hover:text-blue-500 opacity-60 hover:opacity-100 transition-opacity z-20">
           <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
             <line x1="19" y1="5" x2="5" y2="19"></line>
             <line x1="19" y1="11" x2="11" y2="19"></line>
@@ -2182,6 +2184,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.9.1"></script>
+  <script src="/static/app.js?v=2.9.6"></script>
 </body>
 </html>
