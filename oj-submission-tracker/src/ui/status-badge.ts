@@ -1,4 +1,4 @@
-import { Storage } from '../core/storage';
+import { Storage, BadgePosition } from '../core/storage';
 import { Transport } from '../core/transport';
 import { Logger } from '../core/sandbox';
 
@@ -39,13 +39,23 @@ export class StatusBadge {
     try {
       this.hostElement = document.createElement('div');
       this.hostElement.id = 'oj-tracker-badge-host';
-      this.hostElement.style.cssText = 'all: initial; position: fixed; z-index: 2147483647; bottom: 20px; right: 20px;';
+
+      // 尝试恢复用户自定义拖拽位置，默认停靠在右下角
+      const savedPos = Storage.getBadgePosition();
+      let initPosCss = 'bottom: 24px; right: 24px;';
+      if (savedPos) {
+        const clampedLeft = Math.max(10, Math.min(window.innerWidth - 160, savedPos.left));
+        const clampedTop = Math.max(10, Math.min(window.innerHeight - 50, savedPos.top));
+        initPosCss = `left: ${clampedLeft}px; top: ${clampedTop}px; right: auto; bottom: auto;`;
+      }
+
+      this.hostElement.style.cssText = `all: initial; position: fixed; z-index: 2147483647; ${initPosCss}`;
 
       this.shadowRoot = this.hostElement.attachShadow({ mode: 'open' });
       this.renderShadowContent();
 
       document.body.appendChild(this.hostElement);
-      Logger.info('[StatusBadge] Mounted Shadow DOM UI successfully.');
+      Logger.info('[StatusBadge] Mounted Shadow DOM UI successfully with draggable support.');
     } catch (e) {
       Logger.error('[StatusBadge] Failed to mount UI:', e);
     }
@@ -66,26 +76,35 @@ export class StatusBadge {
         box-sizing: border-box;
       }
 
-      /* 胶囊状态栏 */
+      .badge-container {
+        position: relative;
+        display: inline-block;
+      }
+
+      /* 可拖拽胶囊状态栏 */
       .badge-capsule {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 8px;
-        background: rgba(255, 255, 255, 0.94);
+        background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(229, 231, 235, 0.9);
-        box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.1), 0 2px 6px -1px rgba(0, 0, 0, 0.06);
+        border: 1px solid rgba(226, 232, 240, 0.95);
+        box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.1), 0 2px 6px -1px rgba(0, 0, 0, 0.05);
         border-radius: 9999px;
-        padding: 6px 12px;
-        cursor: pointer;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 6px 14px;
+        cursor: grab;
         user-select: none;
+        touch-action: none;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
       }
       .badge-capsule:hover {
-        transform: translateY(-2px);
         box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.14), 0 4px 10px -2px rgba(0, 0, 0, 0.08);
+        border-color: rgba(203, 213, 225, 1);
         background: #ffffff;
+      }
+      .badge-capsule:active {
+        cursor: grabbing;
       }
 
       /* 状态圆点 */
@@ -96,6 +115,7 @@ export class StatusBadge {
         background-color: #10b981;
         transition: background-color 0.3s ease;
         position: relative;
+        flex-shrink: 0;
       }
       .status-dot.pulse {
         background-color: #3b82f6;
@@ -135,41 +155,46 @@ export class StatusBadge {
 
       .badge-text {
         font-weight: 500;
-        color: #374151;
+        color: #334155;
         max-width: 220px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        font-size: 13px;
+        letter-spacing: -0.01em;
       }
 
       .btn-settings {
         background: none;
         border: none;
-        padding: 2px 4px;
+        padding: 3px;
+        margin-left: 2px;
         cursor: pointer;
-        font-size: 13px;
-        color: #9ca3af;
-        transition: color 0.2s;
+        color: #94a3b8;
+        transition: color 0.2s ease, transform 0.2s ease;
         display: flex;
         align-items: center;
         justify-content: center;
+        border-radius: 50%;
       }
       .btn-settings:hover {
-        color: #4b5563;
+        color: #475569;
+        transform: rotate(30deg);
       }
 
       /* 配置弹窗 */
       .modal-overlay {
-        position: fixed;
-        bottom: 60px;
-        right: 20px;
+        position: absolute;
+        bottom: calc(100% + 10px);
+        right: 0;
         width: 330px;
         background: #ffffff;
         border-radius: 12px;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-        border: 1px solid #e5e7eb;
+        box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.16), 0 6px 12px -2px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e2e8f0;
         padding: 16px;
         display: none;
+        z-index: 2147483647;
         animation: modal-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       }
       .modal-overlay.open {
@@ -178,7 +203,7 @@ export class StatusBadge {
       @keyframes modal-fade-in {
         from {
           opacity: 0;
-          transform: scale(0.95) translateY(8px);
+          transform: scale(0.96) translateY(6px);
         }
         to {
           opacity: 1;
@@ -192,27 +217,32 @@ export class StatusBadge {
         align-items: center;
         margin-bottom: 12px;
         padding-bottom: 8px;
-        border-bottom: 1px solid #f3f4f6;
+        border-bottom: 1px solid #f1f5f9;
       }
       .modal-title {
         font-size: 14px;
         font-weight: 600;
-        color: #111827;
+        color: #0f172a;
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 7px;
       }
       .modal-close {
         background: none;
         border: none;
-        font-size: 16px;
         cursor: pointer;
-        color: #9ca3af;
-        padding: 2px;
+        color: #94a3b8;
+        padding: 4px;
         line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        transition: background-color 0.15s, color 0.15s;
       }
       .modal-close:hover {
-        color: #4b5563;
+        background-color: #f1f5f9;
+        color: #334155;
       }
 
       .form-group {
@@ -222,32 +252,33 @@ export class StatusBadge {
         display: block;
         font-size: 11px;
         font-weight: 600;
-        color: #4b5563;
+        color: #475569;
         margin-bottom: 4px;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.04em;
       }
       .form-input {
         width: 100%;
-        padding: 6px 10px;
-        border: 1px solid #d1d5db;
+        padding: 7px 10px;
+        border: 1px solid #cbd5e1;
         border-radius: 6px;
         font-size: 12px;
-        color: #111827;
+        color: #0f172a;
         outline: none;
-        transition: border-color 0.2s;
+        transition: border-color 0.2s, box-shadow 0.2s;
       }
       .form-input:focus {
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
       }
 
       .stats-box {
-        background: #f9fafb;
+        background: #f8fafc;
+        border: 1px solid #f1f5f9;
         border-radius: 6px;
         padding: 8px 10px;
         font-size: 11px;
-        color: #6b7280;
+        color: #64748b;
         margin-bottom: 12px;
         display: flex;
         justify-content: space-between;
@@ -276,11 +307,11 @@ export class StatusBadge {
         background: #1d4ed8;
       }
       .btn-secondary {
-        background: #f3f4f6;
-        color: #374151;
+        background: #f1f5f9;
+        color: #334155;
       }
       .btn-secondary:hover {
-        background: #e5e7eb;
+        background: #e2e8f0;
       }
       .btn-danger {
         background: #fee2e2;
@@ -299,64 +330,248 @@ export class StatusBadge {
       }
     `;
 
+    // 使用现代高保真 SVG 取代系统 Emoji
+    const gearSvg = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    `;
+
+    const serverSvg = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+      </svg>
+    `;
+
+    const closeSvg = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    `;
+
     this.shadowRoot.innerHTML = `
       <style>${styles}</style>
       
-      <!-- 胶囊状态栏 -->
-      <div class="badge-capsule" id="capsule">
-        <span class="status-dot" id="status-dot"></span>
-        <span class="badge-text" id="status-text">${this.currentPlatform} Ready</span>
-        <button class="btn-settings" id="btn-open-settings" title="配置 OJ Tracker">⚙️</button>
-      </div>
+      <div class="badge-container" id="container">
+        <!-- 可拖拽胶囊状态栏 -->
+        <div class="badge-capsule" id="capsule" title="可长按拖拽任意位置">
+          <span class="status-dot" id="status-dot"></span>
+          <span class="badge-text" id="status-text">${this.currentPlatform} Ready</span>
+          <button class="btn-settings" id="btn-open-settings" title="配置 OJ Tracker">${gearSvg}</button>
+        </div>
 
-      <!-- 配置弹窗 -->
-      <div class="modal-overlay" id="modal">
-        <div class="modal-header">
-          <div class="modal-title">
-            <span>⚡ OJ Tracker 配置</span>
+        <!-- 配置弹窗 -->
+        <div class="modal-overlay" id="modal">
+          <div class="modal-header">
+            <div class="modal-title">
+              ${serverSvg}
+              <span>OJ Tracker 配置</span>
+            </div>
+            <button class="modal-close" id="btn-close-modal" title="关闭">${closeSvg}</button>
           </div>
-          <button class="modal-close" id="btn-close-modal">&times;</button>
-        </div>
 
-        <div class="form-group">
-          <label class="form-label">后端接收 API URL</label>
-          <input type="text" class="form-input" id="input-backend-url" placeholder="http://localhost:8000/api/v1/submissions/push" />
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">个人认证 Token / 凭据 (Bearer)</label>
-          <input type="password" class="form-input" id="input-user-token" placeholder="留空或输入 OIBoard 同步 Token / 用户名" />
-          <div style="font-size: 10px; color: #9ca3af; margin-top: 3px; line-height: 1.4;">
-            提示: 可在 OIBoard「设置 -> 账号设置」中复制当前同步凭据 (Sync Token) 填入此处，亦可留空或输入登录用户名。
+          <div class="form-group">
+            <label class="form-label">后端接收 API URL</label>
+            <input type="text" class="form-input" id="input-backend-url" placeholder="http://localhost:8000/api/v1/submissions/push" />
           </div>
-        </div>
 
-        <div class="stats-box">
-          <span>平台: <b>${this.currentPlatform}</b></span>
-          <span id="cache-stats">缓存: ${Storage.getReportedCount()}/500</span>
-        </div>
+          <div class="form-group">
+            <label class="form-label">个人认证 Token / 凭据 (Bearer)</label>
+            <input type="password" class="form-input" id="input-user-token" placeholder="留空或输入 OIBoard 同步 Token / 用户名" />
+            <div style="font-size: 10px; color: #94a3b8; margin-top: 4px; line-height: 1.4;">
+              提示: 可在 OIBoard「设置 -> 账号设置」中复制当前同步凭据 (Sync Token) 填入此处，亦可留空或输入登录用户名。
+            </div>
+          </div>
 
-        <div class="btn-row" style="margin-bottom: 8px;">
-          <button class="btn btn-secondary" id="btn-test-conn">测试连接</button>
-          <button class="btn btn-primary" id="btn-save">保存配置</button>
-        </div>
+          <div class="stats-box">
+            <span>平台: <b>${this.currentPlatform}</b></span>
+            <span id="cache-stats">缓存: ${Storage.getReportedCount()}/500</span>
+          </div>
 
-        <div class="btn-row">
-          <button class="btn btn-danger" id="btn-clear-cache">清空去重缓存</button>
-        </div>
+          <div class="btn-row" style="margin-bottom: 8px;">
+            <button class="btn btn-secondary" id="btn-test-conn">测试连接</button>
+            <button class="btn btn-primary" id="btn-save">保存配置</button>
+          </div>
 
-        <div class="feedback-msg" id="feedback"></div>
+          <div class="btn-row">
+            <button class="btn btn-danger" id="btn-clear-cache">清空去重缓存</button>
+          </div>
+
+          <div class="feedback-msg" id="feedback"></div>
+        </div>
       </div>
     `;
 
     this.bindEvents();
+    this.bindDraggable();
+  }
+
+  /**
+   * 绑定平滑拖拽功能（支持边界吸附与点击/拖拽防误触区分）
+   */
+  private static bindDraggable(): void {
+    if (!this.shadowRoot || !this.hostElement) return;
+
+    const capsule = this.shadowRoot.getElementById('capsule');
+    if (!capsule) return;
+
+    let isPointerDown = false;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let initialLeft = 0;
+    let initialTop = 0;
+    let draggedDistance = 0;
+
+    const onPointerDown = (clientX: number, clientY: number) => {
+      isPointerDown = true;
+      isDragging = false;
+      draggedDistance = 0;
+      startX = clientX;
+      startY = clientY;
+
+      const rect = this.hostElement!.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+    };
+
+    const onPointerMove = (clientX: number, clientY: number) => {
+      if (!isPointerDown) return;
+
+      const dx = clientX - startX;
+      const dy = clientY - startY;
+      draggedDistance = Math.hypot(dx, dy);
+
+      if (draggedDistance > 5) {
+        if (!isDragging) {
+          isDragging = true;
+          capsule.style.cursor = 'grabbing';
+          document.body.style.userSelect = 'none';
+        }
+
+        let newLeft = initialLeft + dx;
+        let newTop = initialTop + dy;
+
+        // 限制在视口边界内（保持至少 10px 边距）
+        const rect = this.hostElement!.getBoundingClientRect();
+        const badgeWidth = rect.width || 150;
+        const badgeHeight = rect.height || 36;
+        const minLeft = 10;
+        const maxLeft = Math.max(minLeft, window.innerWidth - badgeWidth - 10);
+        const minTop = 10;
+        const maxTop = Math.max(minTop, window.innerHeight - badgeHeight - 10);
+
+        newLeft = Math.max(minLeft, Math.min(newLeft, maxLeft));
+        newTop = Math.max(minTop, Math.min(newTop, maxTop));
+
+        this.hostElement!.style.left = `${newLeft}px`;
+        this.hostElement!.style.top = `${newTop}px`;
+        this.hostElement!.style.right = 'auto';
+        this.hostElement!.style.bottom = 'auto';
+      }
+    };
+
+    const onPointerUp = () => {
+      if (!isPointerDown) return;
+      isPointerDown = false;
+      document.body.style.userSelect = '';
+      capsule.style.cursor = 'grab';
+
+      if (isDragging) {
+        const finalRect = this.hostElement!.getBoundingClientRect();
+        Storage.setBadgePosition({
+          left: Math.round(finalRect.left),
+          top: Math.round(finalRect.top),
+        });
+        this.repositionModal();
+      }
+    };
+
+    // 鼠标事件绑定
+    capsule.addEventListener('mousedown', (e: MouseEvent) => {
+      if (e.button !== 0) return; // 仅响应鼠标左键
+      onPointerDown(e.clientX, e.clientY);
+
+      const moveHandler = (moveEvent: MouseEvent) => {
+        onPointerMove(moveEvent.clientX, moveEvent.clientY);
+      };
+
+      const upHandler = () => {
+        document.removeEventListener('mousemove', moveHandler, true);
+        document.removeEventListener('mouseup', upHandler, true);
+        onPointerUp();
+      };
+
+      document.addEventListener('mousemove', moveHandler, true);
+      document.addEventListener('mouseup', upHandler, true);
+    });
+
+    // 触屏手势支持
+    capsule.addEventListener('touchstart', (e: TouchEvent) => {
+      const touch = e.touches[0];
+      if (!touch) return;
+      onPointerDown(touch.clientX, touch.clientY);
+    }, { passive: true });
+
+    capsule.addEventListener('touchmove', (e: TouchEvent) => {
+      const touch = e.touches[0];
+      if (!touch) return;
+      onPointerMove(touch.clientX, touch.clientY);
+    }, { passive: true });
+
+    capsule.addEventListener('touchend', () => {
+      onPointerUp();
+    });
+
+    // 点击事件过滤：如果是拖拽结束产生的 click 则忽略，防止误开弹窗
+    capsule.addEventListener('click', (e) => {
+      if (draggedDistance > 5) {
+        e.stopPropagation();
+        e.preventDefault();
+        draggedDistance = 0;
+      }
+    }, true);
+  }
+
+  /**
+   * 根据当前胶囊位置智能调整配置弹窗的展开朝向（防止溢出视口）
+   */
+  private static repositionModal(): void {
+    if (!this.shadowRoot || !this.hostElement) return;
+    const modal = this.shadowRoot.getElementById('modal');
+    if (!modal) return;
+
+    const rect = this.hostElement.getBoundingClientRect();
+    const modalHeight = 350;
+    const modalWidth = 330;
+
+    // 垂直方向判断：视口下半部分向上展开，上半部分向下展开
+    if (rect.top > window.innerHeight / 2 && rect.top > modalHeight + 20) {
+      modal.style.top = 'auto';
+      modal.style.bottom = 'calc(100% + 10px)';
+    } else {
+      modal.style.top = 'calc(100% + 10px)';
+      modal.style.bottom = 'auto';
+    }
+
+    // 水平方向判断：靠右时向左对齐，靠左时向右对齐
+    if (rect.left + modalWidth > window.innerWidth - 20) {
+      modal.style.left = 'auto';
+      modal.style.right = '0px';
+    } else {
+      modal.style.left = '0px';
+      modal.style.right = 'auto';
+    }
   }
 
   private static bindEvents(): void {
     if (!this.shadowRoot) return;
 
     const capsule = this.shadowRoot.getElementById('capsule');
-    const modal = this.shadowRoot.getElementById('modal');
     const btnOpenSettings = this.shadowRoot.getElementById('btn-open-settings');
     const btnCloseModal = this.shadowRoot.getElementById('btn-close-modal');
     const btnSave = this.shadowRoot.getElementById('btn-save');
@@ -367,7 +582,6 @@ export class StatusBadge {
 
     // 点击胶囊展开/收起配置
     capsule?.addEventListener('click', (e) => {
-      // 若点击的是设置小按钮则由其自身处理
       if (e.target !== btnOpenSettings) {
         this.toggleModal(!this.isModalOpen);
       }
@@ -389,7 +603,7 @@ export class StatusBadge {
       const token = inputToken?.value || '';
       Storage.setBackendUrl(url);
       Storage.setUserToken(token);
-      this.showFeedback('配置已保存 ✓', '#059669');
+      this.showFeedback('配置已保存', '#059669');
     });
 
     // 测试连接
@@ -406,7 +620,7 @@ export class StatusBadge {
           timeout: 5000,
           onload: (res: any) => {
             if (res.status >= 200 && res.status < 400) {
-              this.showFeedback(`连接成功 (HTTP ${res.status}) ✓`, '#059669');
+              this.showFeedback(`连接成功 (HTTP ${res.status})`, '#059669');
             } else {
               this.showFeedback(`服务响应 HTTP ${res.status}`, '#d97706');
             }
@@ -441,6 +655,7 @@ export class StatusBadge {
 
     if (modal) {
       if (open) {
+        this.repositionModal();
         modal.classList.add('open');
         if (inputUrl) inputUrl.value = Storage.getBackendUrl();
         if (inputToken) inputToken.value = Storage.getUserToken();
@@ -479,7 +694,7 @@ export class StatusBadge {
         break;
       case 'synced':
         dot.classList.add('synced');
-        text.textContent = message || 'Synced ✓';
+        text.textContent = message || 'Synced';
         // 4秒后自动恢复默认就绪状态
         setTimeout(() => {
           this.updateStatus('idle');

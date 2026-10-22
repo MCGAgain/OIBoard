@@ -9,7 +9,13 @@ const KEY_REPORTED_IDS = 'reported_ids';
 const KEY_BACKEND_URL = 'backend_url';
 const KEY_USER_TOKEN = 'user_token';
 const KEY_FAILED_QUEUE = 'failed_payload_queue';
+const KEY_BADGE_POS = 'badge_position';
 const MAX_DEDUPLICATION_CAPACITY = 500;
+
+export interface BadgePosition {
+  left: number;
+  top: number;
+}
 
 export class Storage {
   private static cachedReportedSet: Set<string> | null = null;
@@ -19,8 +25,40 @@ export class Storage {
    */
   public static init(onOpenConfigModal?: () => void): void {
     if (typeof GM_registerMenuCommand === 'function' && onOpenConfigModal) {
-      GM_registerMenuCommand('⚙️ 打开 OJ Tracker 配置面板', onOpenConfigModal);
+      GM_registerMenuCommand('打开 OJ Tracker 配置面板', onOpenConfigModal);
     }
+  }
+
+  /**
+   * 获取悬浮标保存位置
+   */
+  public static getBadgePosition(): BadgePosition | null {
+    try {
+      const raw = typeof GM_getValue === 'function'
+        ? GM_getValue<string>(KEY_BADGE_POS, '')
+        : localStorage.getItem(KEY_BADGE_POS) || '';
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.left === 'number' && typeof parsed.top === 'number') {
+          return parsed;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /**
+   * 保存悬浮标拖拽位置
+   */
+  public static setBadgePosition(pos: BadgePosition): void {
+    try {
+      const json = JSON.stringify(pos);
+      if (typeof GM_setValue === 'function') {
+        GM_setValue(KEY_BADGE_POS, json);
+      } else {
+        localStorage.setItem(KEY_BADGE_POS, json);
+      }
+    } catch (_) {}
   }
 
   /**
