@@ -27,3 +27,8 @@ logs/
 
 # Agent binaries
 agent/oiboard-agent
+
+# Node
+node_modules/
+oj-submission-tracker/node_modules/
+

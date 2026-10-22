@@ -41,6 +41,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from backend_spec.api_router import router as oj_submissions_router
+app.include_router(oj_submissions_router)
+
 # 强制 API 响应与首页禁止缓存中间件 (杜绝前端同步后读到旧缓存的问题)
 @app.middleware("http")
 async def add_no_cache_headers(request: Request, call_next):

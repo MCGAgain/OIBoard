@@ -1,0 +1,15 @@
+{
+  "name": "oj-submission-tracker",
+  "version": "1.0.0",
+  "description": "多平台 OJ 提交采集与端云核实油猴插件",
+  "main": "src/main.ts",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vite": "^5.1.4",
+    "vite-plugin-monkey": "^4.0.0"
+  }
+}
