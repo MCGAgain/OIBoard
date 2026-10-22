@@ -220,6 +220,70 @@ async def push_submission(
                 record_id = cursor.lastrowid
                 action = "inserted"
 
+            # --- 2. 同步写入 OIBoard 前端主表 submissions ---
+            import json
+            unified_platform = "leetcode" if payload.platform in ("leetcode_cn", "leetcode") else payload.platform
+            main_sub_id = f"u1_{unified_platform}_{payload.platformSubmissionId}"
+            
+            # 计算归属日期 (凌晨 4 点前算作昨日打卡)
+            try:
+                eff_dt = sub_dt - datetime.timedelta(hours=4)
+                sub_date = eff_dt.strftime("%Y-%m-%d")
+            except Exception:
+                sub_date = datetime.datetime.now().strftime("%Y-%m-%d")
+
+            extra_data = {
+                "execution_time_ms": payload.executionTimeMs,
+                "memory_used_kb": payload.memoryUsedKb,
+                "score": payload.score,
+                "source_code": payload.sourceCode,
+                "verify_status": target_verify if 'target_verify' in locals() else VerificationStatus.OPTIMISTIC,
+            }
+
+            cursor.execute("""
+                INSERT INTO submissions (
+                    id, user_id, platform, raw_id, problem_id, problem_title, verdict, tags,
+                    difficulty, difficulty_score, submitted_at, date, submission_url,
+                    code_language, extra_data, account_handle
+                ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    problem_title = COALESCE(excluded.problem_title, submissions.problem_title),
+                    verdict = excluded.verdict,
+                    submitted_at = CASE WHEN excluded.submitted_at != '' THEN excluded.submitted_at ELSE submissions.submitted_at END,
+                    date = CASE WHEN excluded.date != '' THEN excluded.date ELSE submissions.date END,
+                    submission_url = excluded.submission_url,
+                    code_language = excluded.code_language,
+                    extra_data = excluded.extra_data,
+                    account_handle = CASE WHEN excluded.account_handle != '' THEN excluded.account_handle ELSE submissions.account_handle END;
+            """, (
+                main_sub_id,
+                unified_platform,
+                payload.platformSubmissionId,
+                payload.problemId,
+                payload.problemTitle or payload.problemId,
+                payload.verdict,
+                json.dumps([], ensure_ascii=False),
+                "中等" if unified_platform == "leetcode" else "未知",
+                submitted_at_str,
+                sub_date,
+                payload.problemUrl,
+                payload.language,
+                json.dumps(extra_data, ensure_ascii=False),
+                payload.platformUserHandle or ""
+            ))
+
+            # --- 3. 激活更新 platform_status 表 ---
+            cursor.execute("""
+                INSERT INTO platform_status (user_id, platform, status, message, last_checked_at, item_count, rating, updated_at)
+                VALUES (1, ?, 'ok', '油猴实时同步', datetime('now', 'localtime'), 1, '', datetime('now', 'localtime'))
+                ON CONFLICT(user_id, platform) DO UPDATE SET
+                    status = 'ok',
+                    message = '油猴实时同步',
+                    last_checked_at = datetime('now', 'localtime'),
+                    updated_at = datetime('now', 'localtime');
+            """, (unified_platform,))
+            conn.commit()
+
     except Exception as e:
         logger.error(f"[Push API] Database write error: {e}")
         raise HTTPException(status_code=500, detail=f"Database write failure: {str(e)}")
@@ -323,6 +387,10 @@ async def run_async_verification(
                     """,
                     (new_status, reason, record_id),
                 )
+                unified_platform = "leetcode" if platform in ("leetcode_cn", "leetcode") else platform
+                main_sub_id = f"u1_{unified_platform}_{platform_submission_id}"
+                if new_status == VerificationStatus.REJECTED:
+                    cursor.execute("UPDATE submissions SET verdict = 'REJECTED' WHERE id = ?;", (main_sub_id,))
                 conn.commit()
     except Exception as e:
         logger.error(f"[Async Verification] Failed to update DB status for record {record_id}: {e}")

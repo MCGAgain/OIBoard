@@ -250,11 +250,12 @@ createApp({
       { id: "codeforces", name: "Codeforces", dotColor: "bg-blue-500" },
       { id: "atcoder", name: "AtCoder", dotColor: "bg-purple-500" },
       { id: "luogu", name: "洛谷 (Luogu)", dotColor: "bg-emerald-500" },
-      { id: "acwing", name: "AcWing", dotColor: "bg-indigo-500" }
+      { id: "acwing", name: "AcWing", dotColor: "bg-indigo-500" },
+      { id: "leetcode", name: "力扣 (LeetCode)", dotColor: "bg-amber-500" }
     ];
 
     const groupedAccounts = computed(() => {
-      const map = { codeforces: [], atcoder: [], luogu: [], acwing: [] };
+      const map = { codeforces: [], atcoder: [], luogu: [], acwing: [], leetcode: [] };
       for (const a of accounts.value) {
         if (map[a.platform]) {
           map[a.platform].push(a);
@@ -1802,7 +1803,8 @@ createApp({
         { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: dark ? "#2997ff" : "#0071e3" } },
         { value: pData.atcoder?.ac || 0, name: "AtCoder", itemStyle: { color: dark ? "#bf5af2" : "#af52de" } },
         { value: pData.luogu?.ac || 0, name: "洛谷", itemStyle: { color: dark ? "#30d158" : "#34c759" } },
-        { value: pData.acwing?.ac || 0, name: "AcWing", itemStyle: { color: dark ? "#ff9f0a" : "#ff9500" } }
+        { value: pData.acwing?.ac || 0, name: "AcWing", itemStyle: { color: dark ? "#ff9f0a" : "#ff9500" } },
+        { value: (pData.leetcode?.ac || 0) + (pData.leetcode_cn?.ac || 0), name: "力扣 (LeetCode)", itemStyle: { color: dark ? "#ffd60a" : "#f59e0b" } }
       ].filter(d => d.value > 0);
 
       const option = {
@@ -2219,6 +2221,11 @@ createApp({
     };
 
     const syncPlatformManual = async (platform) => {
+      if (platform === 'leetcode') {
+        showToast("力扣主要通过油猴脚本实时秒级同步提交与源码，支持云端自动免登核实", "info");
+        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadMistakeKeys()]);
+        return;
+      }
       isVerifying.value[platform] = true;
       try {
         showToast(`正在同步 ${getPlatformName(platform)} 所有账号...`, "info");

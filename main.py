@@ -544,6 +544,8 @@ async def verify_account_direct(payload: VerifyAccountDirectPayload, current_use
         at = AtCoderFetcher()
         valid, msg, extra = await at.verify(payload.handle, proxy=proxy)
         return {"valid": valid, "message": msg, "extra": extra}
+    elif p in ("leetcode", "leetcode_cn"):
+        return {"valid": True, "message": "力扣账号有效 (主要由油猴实时秒级推送并自动核实)", "extra": {}}
     else:
         raise HTTPException(status_code=400, detail="不支持的平台")
 
@@ -599,6 +601,9 @@ async def verify_credentials(payload: VerifyPayload, current_user: Dict[str, Any
         else:
             db.update_platform_status(uid, "atcoder", "error", msg)
         return {"valid": valid, "message": msg, "extra": extra}
+    elif p in ("leetcode", "leetcode_cn"):
+        db.update_platform_status(uid, "leetcode", "ok", "力扣实时/已连接")
+        return {"valid": True, "message": "力扣账号有效 (主要由油猴实时秒级推送并自动核实)", "extra": {}}
     else:
         raise HTTPException(status_code=400, detail="未知平台")
 

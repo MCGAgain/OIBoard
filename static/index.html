@@ -373,6 +373,11 @@
                 <span :class="['pulse-dot', getStatusClass('acwing')]"></span>
                 <span class="font-mono text-[11px]">AW:{{ overview.stats.platforms?.acwing?.ac || 0 }}</span>
               </div>
+              <span class="opacity-20">|</span>
+              <div class="flex items-center space-x-1.5" title="力扣 (LeetCode)">
+                <span :class="['pulse-dot', getStatusClass('leetcode')]"></span>
+                <span class="font-mono text-[11px]">LC:{{ (overview.stats.platforms?.leetcode?.ac || 0) + (overview.stats.platforms?.leetcode_cn?.ac || 0) }}</span>
+              </div>
             </div>
 
             <!-- 冲刺模式开关 -->
@@ -435,6 +440,8 @@
                 <span class="text-emerald-600 dark:text-emerald-400 font-semibold">LG:{{ overview.stats.platforms?.luogu?.ac || 0 }}</span>
                 <span class="opacity-20">/</span>
                 <span class="text-amber-600 dark:text-amber-400 font-semibold">AW:{{ overview.stats.platforms?.acwing?.ac || 0 }}</span>
+                <span class="opacity-20">/</span>
+                <span class="text-yellow-600 dark:text-yellow-400 font-semibold">LC:{{ (overview.stats.platforms?.leetcode?.ac || 0) + (overview.stats.platforms?.leetcode_cn?.ac || 0) }}</span>
               </div>
             </div>
 
@@ -641,6 +648,7 @@
                   <button @click="setHeatmapFilter('atcoder')" :class="['segmented-item', heatmapFilter === 'atcoder' ? 'active' : '']">AtCoder</button>
                   <button @click="setHeatmapFilter('luogu')" :class="['segmented-item', heatmapFilter === 'luogu' ? 'active' : '']">洛谷</button>
                   <button @click="setHeatmapFilter('acwing')" :class="['segmented-item', heatmapFilter === 'acwing' ? 'active' : '']">AcWing</button>
+                  <button @click="setHeatmapFilter('leetcode')" :class="['segmented-item', heatmapFilter === 'leetcode' ? 'active' : '']">力扣 (LeetCode)</button>
                 </div>
               </div>
             </div>
@@ -949,6 +957,7 @@
                   <option value="atcoder">AtCoder</option>
                   <option value="luogu">洛谷</option>
                   <option value="acwing">AcWing</option>
+                  <option value="leetcode">力扣 (LeetCode)</option>
                 </select>
               </div>
 
@@ -1002,8 +1011,10 @@
                       <span :class="['px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0', 
                                      sub.platform === 'codeforces' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' :
                                      sub.platform === 'atcoder' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' :
-                                     sub.platform === 'luogu' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20']">
-                        {{ sub.platform === 'codeforces' ? 'CF' : sub.platform === 'atcoder' ? 'ATCODER' : sub.platform === 'luogu' ? 'LUOGU' : 'ACWING' }}
+                                     sub.platform === 'luogu' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' :
+                                     sub.platform === 'acwing' ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20' :
+                                     'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20']">
+                        {{ sub.platform === 'codeforces' ? 'CF' : sub.platform === 'atcoder' ? 'ATCODER' : sub.platform === 'luogu' ? 'LUOGU' : sub.platform === 'acwing' ? 'ACWING' : 'LEETCODE' }}
                       </span>
                       <span v-if="sub.account_handle" class="px-1.5 py-0.5 rounded text-[9px] bg-[var(--bg-subtle)] text-[var(--text-tertiary)] border border-[var(--border-subtle)] max-w-[85px] truncate" :title="'账号: ' + sub.account_handle">
                         {{ sub.account_handle }}
@@ -1202,6 +1213,7 @@
                   <option value="codeforces">Codeforces</option>
                   <option value="atcoder">AtCoder</option>
                   <option value="acwing">AcWing</option>
+                  <option value="leetcode">力扣 (LeetCode)</option>
                 </select>
 
                 <!-- 排序方式 -->
@@ -1240,8 +1252,10 @@
                     <span :class="['px-2.5 py-0.5 rounded-full text-[10px] font-bold border font-mono', 
                                    item.platform === 'codeforces' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' :
                                    item.platform === 'atcoder' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' :
-                                   item.platform === 'luogu' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20']">
-                      {{ item.platform === 'codeforces' ? 'CF' : item.platform === 'atcoder' ? 'ATCODER' : item.platform === 'luogu' ? 'LUOGU' : 'ACWING' }}
+                                   item.platform === 'luogu' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' :
+                                   item.platform === 'acwing' ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20' :
+                                   'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20']">
+                      {{ item.platform === 'codeforces' ? 'CF' : item.platform === 'atcoder' ? 'ATCODER' : item.platform === 'luogu' ? 'LUOGU' : item.platform === 'acwing' ? 'ACWING' : 'LEETCODE' }}
                     </span>
                     <!-- 题号 & 标题 -->
                     <span class="text-xs font-mono font-bold text-[var(--text-tertiary)]">[{{ item.problem_id }}]</span>
@@ -1833,11 +1847,11 @@
           <!-- 账号标识 / 用户名 / UID -->
           <div>
             <label class="block text-[var(--text-secondary)] font-medium mb-1.5">
-              {{ accountForm.platform === 'luogu' ? '用户 UID (纯数字)' : accountForm.platform === 'acwing' ? '个人空间 ID (纯数字)' : '账号用户名 (Handle)' }}
+              {{ accountForm.platform === 'luogu' ? '用户 UID (纯数字)' : accountForm.platform === 'acwing' ? '个人空间 ID (纯数字)' : accountForm.platform === 'leetcode' ? '力扣用户 Slug (用户名)' : '账号用户名 (Handle)' }}
               <span class="text-rose-500">*</span>
             </label>
             <input v-model="accountForm.handle" type="text"
-                   :placeholder="accountForm.platform === 'luogu' ? '如 1940760' : accountForm.platform === 'acwing' ? '如 360946' : accountForm.platform === 'atcoder' ? '如 FarmingWAs' : '如 MCGA_WJJ'"
+                   :placeholder="accountForm.platform === 'luogu' ? '如 1940760' : accountForm.platform === 'acwing' ? '如 360946' : accountForm.platform === 'leetcode' ? '如 your-leetcode-slug' : accountForm.platform === 'atcoder' ? '如 FarmingWAs' : '如 MCGA_WJJ'"
                    class="ui-input font-mono text-xs w-full">
           </div>
 
@@ -2021,8 +2035,10 @@
               <span :class="['px-2.5 py-0.5 rounded-full text-[10px] font-bold border font-mono', 
                              activeMistake.platform === 'codeforces' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' :
                              activeMistake.platform === 'atcoder' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' :
-                             activeMistake.platform === 'luogu' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20']">
-                {{ activeMistake.platform === 'codeforces' ? 'CF' : activeMistake.platform === 'atcoder' ? 'ATCODER' : activeMistake.platform === 'luogu' ? 'LUOGU' : 'ACWING' }}
+                             activeMistake.platform === 'luogu' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' :
+                             activeMistake.platform === 'acwing' ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20' :
+                             'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20']">
+                {{ activeMistake.platform === 'codeforces' ? 'CF' : activeMistake.platform === 'atcoder' ? 'ATCODER' : activeMistake.platform === 'luogu' ? 'LUOGU' : activeMistake.platform === 'acwing' ? 'ACWING' : 'LEETCODE' }}
               </span>
               <span class="text-xs font-mono font-bold text-[var(--text-tertiary)]">[{{ activeMistake.problem_id }}]</span>
               <h3 class="text-base font-bold text-[var(--text-primary)]">
@@ -2184,6 +2200,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=2.9.6"></script>
+  <script src="/static/app.js?v=2.9.7"></script>
 </body>
 </html>

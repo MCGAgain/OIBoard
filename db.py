@@ -396,7 +396,7 @@ def init_db():
         for k, v in default_configs.items():
             cursor.execute("INSERT OR IGNORE INTO user_configs (user_id, key, value) VALUES (1, ?, ?);", (k, v))
             
-        platforms = ["codeforces", "luogu", "acwing", "atcoder"]
+        platforms = ["codeforces", "luogu", "acwing", "atcoder", "leetcode"]
         for p in platforms:
             cursor.execute("""
                 INSERT OR IGNORE INTO platform_status (user_id, platform, status, message, last_checked_at, item_count, rating)
@@ -490,7 +490,7 @@ def create_user(username: str, password: str, is_admin: bool = False) -> Tuple[b
             }
             for k, v in default_configs.items():
                 cursor.execute("INSERT OR IGNORE INTO user_configs (user_id, key, value) VALUES (?, ?, ?);", (new_id, k, v))
-            for p in ["codeforces", "luogu", "acwing", "atcoder"]:
+            for p in ["codeforces", "luogu", "acwing", "atcoder", "leetcode"]:
                 cursor.execute("""
                     INSERT OR IGNORE INTO platform_status (user_id, platform, status, message, last_checked_at, item_count, rating)
                     VALUES (?, ?, 'unconfigured', '未配置账号', '', 0, '');
@@ -664,7 +664,8 @@ def _sync_primary_to_configs(cursor: sqlite3.Cursor, user_id: int, platform: str
         "codeforces": [("cf_handle", handle)],
         "luogu": [("luogu_uid", handle), ("luogu_cookie", cookie)],
         "acwing": [("acwing_user_id", handle), ("acwing_cookie", cookie)],
-        "atcoder": [("atcoder_handle", handle)]
+        "atcoder": [("atcoder_handle", handle)],
+        "leetcode": [("leetcode_handle", handle)]
     }
     for k, v in mapping.get(platform, []):
         cursor.execute("""
@@ -939,7 +940,7 @@ def get_submission_stats(user_id: int = 1) -> Dict[str, Any]:
             GROUP BY platform;
         """, (user_id,))
         platforms_stats = {r["platform"]: {"ac": r["ac"], "total": r["total"]} for r in cursor.fetchall()}
-        for p in ("codeforces", "luogu", "acwing", "atcoder"):
+        for p in ("codeforces", "luogu", "acwing", "atcoder", "leetcode"):
             if p not in platforms_stats:
                 platforms_stats[p] = {"ac": 0, "total": 0}
 
@@ -972,8 +973,11 @@ def get_daily_counts(user_id: int = 1, platform: str = "", year: Optional[int] =
         params = [user_id]
         
         if platform and platform != "all":
-            conditions.append("platform = ?")
-            params.append(platform)
+            if platform in ("leetcode", "leetcode_cn"):
+                conditions.append("(platform = 'leetcode' OR platform = 'leetcode_cn')")
+            else:
+                conditions.append("platform = ?")
+                params.append(platform)
             
         if year:
             conditions.append("strftime('%Y', date) = ?")
@@ -1602,13 +1606,22 @@ def get_recent_submissions(user_id: int = 1, limit: int = 2000, platform: str = 
     with get_connection() as conn:
         cursor = conn.cursor()
         if platform and platform != "all":
-            cursor.execute("""
-                SELECT * FROM submissions 
-                WHERE user_id = ? AND platform = ?
-                ORDER BY CASE WHEN submitted_at != '' AND submitted_at IS NOT NULL THEN 0 ELSE 1 END, 
-                         submitted_at DESC, id DESC 
-                LIMIT ?;
-            """, (user_id, platform, limit))
+            if platform in ("leetcode", "leetcode_cn"):
+                cursor.execute("""
+                    SELECT * FROM submissions 
+                    WHERE user_id = ? AND (platform = 'leetcode' OR platform = 'leetcode_cn')
+                    ORDER BY CASE WHEN submitted_at != '' AND submitted_at IS NOT NULL THEN 0 ELSE 1 END, 
+                             submitted_at DESC, id DESC 
+                    LIMIT ?;
+                """, (user_id, limit))
+            else:
+                cursor.execute("""
+                    SELECT * FROM submissions 
+                    WHERE user_id = ? AND platform = ?
+                    ORDER BY CASE WHEN submitted_at != '' AND submitted_at IS NOT NULL THEN 0 ELSE 1 END, 
+                             submitted_at DESC, id DESC 
+                    LIMIT ?;
+                """, (user_id, platform, limit))
         else:
             cursor.execute("""
                 SELECT * FROM submissions 
