@@ -42,25 +42,38 @@ export class AcWingAdapter extends BaseAdapter {
       this.initDomObserver();
     }
 
-    // 监听代码提交按钮点击以捕获源码与语言
+    // 监听代码提交按钮点击（事件委托）以捕获源码与语言
     this.bindSubmitButtonListener();
   }
 
+  /**
+   * 使用事件委托监听提交按钮点击，不依赖 DOM 加载时的按钮存在
+   */
   private bindSubmitButtonListener(): void {
-    const bind = () => {
-      const submitBtn = document.querySelector('#submit_code_btn, button.btn-run, button[type="submit"]');
-      if (submitBtn) {
-        submitBtn.addEventListener('click', () => {
-          this.captureEditorState();
-        });
-      }
-    };
+    document.addEventListener('click', (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', bind);
-    } else {
-      bind();
+      const btn = target.closest('#submit_code_btn, button.btn-run, button[type="submit"], .btn-submit-code, button:has(.fa-send)');
+      if (btn) {
+        Logger.info('[AcWingAdapter] Submit button clicked (delegated). Capturing editor state...');
+        this.captureEditorState();
+      }
+    }, true);
+  }
+
+  /**
+   * 获取有效的 pendingSubmission（超过 10 分钟自动过期抛弃，防止数据串线）
+   */
+  private getValidPendingSubmission(): AcWingPendingSubmission | null {
+    if (!this.pendingSubmission) return null;
+    const EXPIRY_MS = 10 * 60 * 1000; // 10 分钟过期
+    if (Date.now() - this.pendingSubmission.timestamp > EXPIRY_MS) {
+      Logger.warn('[AcWingAdapter] Pending submission expired (>10min), discarding.');
+      this.pendingSubmission = null;
+      return null;
     }
+    return this.pendingSubmission;
   }
 
   /**
@@ -71,29 +84,42 @@ export class AcWingAdapter extends BaseAdapter {
       let code = '';
       let language = 'unknown';
 
-      // 尝试从 Ace Editor 获取
+      // 1. 尝试从 Ace Editor 获取代码与语言模式
       const ace = (pageWindow as any).ace;
       if (ace && typeof ace.edit === 'function') {
         const editor = ace.edit('code_editor') || ace.edit(document.querySelector('#code_editor'));
-        if (editor && typeof editor.getValue === 'function') {
-          code = editor.getValue();
+        if (editor) {
+          if (typeof editor.getValue === 'function') {
+            code = editor.getValue();
+          }
+          if (editor.getSession) {
+            const modeId = editor.getSession().getMode()?.$id || '';
+            if (modeId.includes('c_cpp')) language = 'C++';
+            else if (modeId.includes('python')) language = 'Python3';
+            else if (modeId.includes('java')) language = 'Java';
+            else if (modeId.includes('golang')) language = 'Go';
+            else if (modeId.includes('rust')) language = 'Rust';
+            else if (modeId.includes('javascript')) language = 'JavaScript';
+          }
         }
       }
 
       if (!code) {
-        const textarea = document.querySelector('#code_editor textarea, textarea[name="code"]') as HTMLTextAreaElement;
+        const textarea = document.querySelector('#code_editor textarea, textarea[name="code"]') as HTMLTextAreaElement | null;
         if (textarea && textarea.value) {
           code = textarea.value;
         }
       }
 
-      // 提取语言
-      const langSelect = document.querySelector('#code_language, select[name="language"]') as HTMLSelectElement;
-      if (langSelect) {
-        language = langSelect.value || langSelect.options[langSelect.selectedIndex]?.text || 'unknown';
+      // 2. 若编辑器未取到语言，从 DOM select 控件中提取
+      if (!language || language === 'unknown') {
+        const domLang = this.extractLanguageFromDom();
+        if (domLang && domLang !== 'unknown') {
+          language = domLang;
+        }
       }
 
-      // 提取题目 ID 与标题
+      // 3. 提取题目 ID 与标题
       const urlMatch = window.location.pathname.match(/\/problem\/content\/(?:submission\/code_detail\/|submission\/|)(\d+)/);
       const problemId = urlMatch ? `acwing_${urlMatch[1]}` : 'acwing_unknown';
       const titleElem = document.querySelector('.problem-content-title');
@@ -107,31 +133,132 @@ export class AcWingAdapter extends BaseAdapter {
         timestamp: Date.now(),
       };
 
-      Logger.info(`[AcWingAdapter] Captured editor code for ${problemId}, length: ${code.length}`);
+      Logger.info(`[AcWingAdapter] Captured editor code for ${problemId}, lang: ${language}, length: ${code.length}`);
       Transport.notifyStatus('syncing', `AcWing 已提交判题: ${problemTitle || problemId}...`);
     } catch (e) {
       Logger.error('[AcWingAdapter] Error capturing editor state:', e);
     }
   }
 
+  /**
+   * 4级优先级解析语言：
+   * ① 提交请求体里的 language 字段
+   * ② 判题响应或 WS 消息里的语言字段
+   * ③ 页面 DOM 读取 (Select / Ace Editor Mode / 激活按钮)
+   * ④ 从该提交的 code_detail 页或提交列表行里取
+   */
+  private resolveLanguage(reqLang?: string, respLang?: string, sid?: string): string {
+    // 优先级 1: 提交请求体里的 language
+    if (reqLang && reqLang !== 'unknown' && reqLang.trim() !== '') {
+      return reqLang.trim();
+    }
+
+    // 优先级 2: 判题响应或 WS 消息里的语言字段
+    if (respLang && respLang !== 'unknown' && respLang.trim() !== '') {
+      return respLang.trim();
+    }
+
+    // 优先级 3: pendingSubmission 或页面 DOM 读取
+    const pending = this.getValidPendingSubmission();
+    if (pending && pending.language && pending.language !== 'unknown') {
+      return pending.language;
+    }
+
+    const domLang = this.extractLanguageFromDom();
+    if (domLang && domLang !== 'unknown') {
+      return domLang;
+    }
+
+    // 优先级 4: 从该提交的 code_detail 页或提交列表行中提取
+    if (sid) {
+      const listLang = this.extractLanguageFromSubmissionList(sid);
+      if (listLang && listLang !== 'unknown') {
+        return listLang;
+      }
+    }
+
+    return 'unknown';
+  }
+
+  private extractLanguageFromDom(): string {
+    try {
+      const langSelect = document.querySelector('#code_language, select[name="language"]') as HTMLSelectElement | null;
+      if (langSelect) {
+        const opt = langSelect.options[langSelect.selectedIndex];
+        const val = opt?.text?.trim() || opt?.value?.trim() || langSelect.value?.trim();
+        if (val && val !== 'unknown') return val;
+      }
+
+      const activeBtn = document.querySelector('.btn-language.active, [data-language].active');
+      if (activeBtn) {
+        const val = activeBtn.getAttribute('data-language') || activeBtn.textContent?.trim();
+        if (val) return val;
+      }
+
+      // 尝试 Ace Editor Mode
+      const ace = (pageWindow as any).ace;
+      if (ace && typeof ace.edit === 'function') {
+        const editor = ace.edit('code_editor') || ace.edit(document.querySelector('#code_editor'));
+        if (editor && editor.getSession) {
+          const modeId = editor.getSession().getMode()?.$id || '';
+          if (modeId.includes('c_cpp')) return 'C++';
+          if (modeId.includes('python')) return 'Python3';
+          if (modeId.includes('java')) return 'Java';
+          if (modeId.includes('golang')) return 'Go';
+          if (modeId.includes('rust')) return 'Rust';
+          if (modeId.includes('javascript')) return 'JavaScript';
+        }
+      }
+    } catch (_) {}
+    return 'unknown';
+  }
+
+  private extractLanguageFromSubmissionList(sid: string): string {
+    try {
+      const link = document.querySelector(`a[href*="/code_detail/${sid}/"], tr[data-submission-id="${sid}"]`);
+      if (link) {
+        const row = link.closest('tr');
+        if (row) {
+          const langCell = row.querySelector('.submission-language, .language, td:nth-child(4)');
+          const text = langCell?.textContent?.trim();
+          if (text && !text.includes(':') && !text.includes('/')) return text;
+        }
+      }
+    } catch (_) {}
+    return 'unknown';
+  }
+
   private handleHttpEvent(event: InterceptedHttpEvent): void {
-    // 拦截提交请求并捕获可能附带的源码
+    // 拦截提交请求并捕获可能附带的源码与语言（同时支持 URLSearchParams / string / FormData / JSON）
     if (event.method === 'POST' && event.url.includes('/problem/content/submission/')) {
       if (event.requestBody && typeof event.requestBody === 'string') {
         try {
-          const params = new URLSearchParams(event.requestBody);
-          const code = params.get('code');
-          const lang = params.get('language');
-          if (code) {
+          let code: string | null = null;
+          let lang: string | null = null;
+
+          if (event.requestBody.startsWith('{') || event.requestBody.startsWith('[')) {
+            const json = JSON.parse(event.requestBody);
+            code = json.code || null;
+            lang = json.language || json.lang || null;
+          } else {
+            const params = new URLSearchParams(event.requestBody);
+            code = params.get('code');
+            lang = params.get('language');
+          }
+
+          if (code || lang) {
             const urlMatch = event.url.match(/\/problem\/content\/submission\/(\d+)/);
             const problemId = urlMatch ? `acwing_${urlMatch[1]}` : (this.pendingSubmission?.problemId || 'acwing_unknown');
+            const prev = this.getValidPendingSubmission();
+
             this.pendingSubmission = {
               problemId,
-              problemTitle: this.pendingSubmission?.problemTitle || '',
-              code,
-              language: lang || this.pendingSubmission?.language || 'unknown',
+              problemTitle: prev?.problemTitle || '',
+              code: code || prev?.code || '',
+              language: lang || prev?.language || 'unknown',
               timestamp: Date.now(),
             };
+            Logger.info(`[AcWingAdapter] Captured submission POST params. Lang: ${this.pendingSubmission.language}`);
           }
         } catch (_) {}
       }
@@ -157,16 +284,20 @@ export class AcWingAdapter extends BaseAdapter {
       let submissionId = '';
       let timeMs = 0;
       let memoryKb = 0;
+      let respLang = '';
 
       if (text.startsWith('{') || text.startsWith('[')) {
         const json = JSON.parse(text);
         statusStr = json.status || json.result || json.state || '';
         submissionId = String(json.submission_id || json.record_id || json.id || '');
+        respLang = json.language || json.lang || json.code_language || '';
         if (json.time) timeMs = parseInt(String(json.time), 10) || 0;
         if (json.memory) memoryKb = parseInt(String(json.memory), 10) || 0;
       } else {
         const match = text.match(/"status":\s*"([^"]+)"/);
         if (match) statusStr = match[1];
+        const langMatch = text.match(/"(?:language|lang)":\s*"([^"]+)"/);
+        if (langMatch) respLang = langMatch[1];
       }
 
       if (!statusStr) return;
@@ -174,11 +305,20 @@ export class AcWingAdapter extends BaseAdapter {
       const verdict = this.mapStatusStringToVerdict(statusStr);
       if (verdict) {
         // 如果未拿到明确的 submissionId，尝试从 DOM 中检索最新记录链接
-        if (!submissionId) {
-          submissionId = this.findRecentSubmissionIdFromDom() || `acwing_auto_${Date.now()}`;
+        if (!submissionId || !/^\d+$/.test(submissionId)) {
+          const domSid = this.findRecentSubmissionIdFromDom();
+          if (domSid && /^\d+$/.test(domSid)) {
+            submissionId = domSid;
+          }
         }
 
-        this.emitUnifiedSubmission(submissionId, verdict, statusStr, timeMs, memoryKb);
+        // 严禁生成 acwing_auto_* / acwing_dom_* 这类伪造 ID，必须是真实编号
+        if (!submissionId || !/^\d+$/.test(submissionId)) {
+          Logger.warn('[AcWingAdapter] Real submission ID not found in WS/JSON yet. Waiting for DOM update...');
+          return;
+        }
+
+        this.emitUnifiedSubmission(submissionId, verdict, statusStr, timeMs, memoryKb, respLang);
       }
     } catch (_) {}
   }
@@ -219,14 +359,22 @@ export class AcWingAdapter extends BaseAdapter {
     if (!verdict) return;
 
     // 寻找真实 submission_id
-    const detailLink = document.querySelector('a[href*="/problem/content/submission/code_detail/"]');
     let submissionId = '';
+    const detailLink = document.querySelector('a[href*="/problem/content/submission/code_detail/"]');
     if (detailLink) {
       const m = detailLink.getAttribute('href')?.match(/\/problem\/content\/submission\/code_detail\/(\d+)/);
       if (m) submissionId = m[1];
     }
     if (!submissionId) {
-      submissionId = this.findRecentSubmissionIdFromDom() || `acwing_dom_${Date.now()}`;
+      const domSid = this.findRecentSubmissionIdFromDom();
+      if (domSid && /^\d+$/.test(domSid)) {
+        submissionId = domSid;
+      }
+    }
+
+    // 若无法提取到纯数字真实 ID，跳过以避免假数据入库
+    if (!submissionId || !/^\d+$/.test(submissionId)) {
+      return;
     }
 
     // 提取时间与内存
@@ -245,10 +393,11 @@ export class AcWingAdapter extends BaseAdapter {
   }
 
   private findRecentSubmissionIdFromDom(): string | null {
-    const link = document.querySelector('a[href*="/code_detail/"]');
-    if (link) {
-      const m = link.getAttribute('href')?.match(/\/code_detail\/(\d+)/);
-      if (m) return m[1];
+    const links = document.querySelectorAll('a[href*="/code_detail/"]');
+    for (let i = 0; i < links.length; i++) {
+      const href = links[i].getAttribute('href') || '';
+      const m = href.match(/\/code_detail\/(\d+)/);
+      if (m && m[1]) return m[1];
     }
     return null;
   }
@@ -258,13 +407,18 @@ export class AcWingAdapter extends BaseAdapter {
     verdict: VerdictType,
     rawStatus: string,
     timeMs: number,
-    memoryKb: number
+    memoryKb: number,
+    respLang?: string
   ): void {
     if (Storage.isDuplicate(this.platform, submissionId)) return;
 
+    const pending = this.getValidPendingSubmission();
     const urlMatch = window.location.pathname.match(/\/problem\/content\/(?:submission\/code_detail\/|submission\/|)(\d+)/);
-    const problemId = this.pendingSubmission?.problemId || (urlMatch ? `acwing_${urlMatch[1]}` : 'acwing_unknown');
-    const problemTitle = this.pendingSubmission?.problemTitle || document.querySelector('.problem-content-title')?.textContent?.trim() || problemId;
+    const problemId = pending?.problemId || (urlMatch ? `acwing_${urlMatch[1]}` : 'acwing_unknown');
+    const problemTitle = pending?.problemTitle || document.querySelector('.problem-content-title')?.textContent?.trim() || problemId;
+
+    // 解析语言（四层优先级判定）
+    const language = this.resolveLanguage(pending?.language, respLang, submissionId);
 
     const payload: UnifiedSubmissionPayload = {
       platform: 'acwing',
@@ -276,13 +430,16 @@ export class AcWingAdapter extends BaseAdapter {
       verdict,
       rawStatus,
       score: verdict === 'AC' ? 100 : 0,
-      language: this.pendingSubmission?.language || 'unknown',
-      sourceCode: this.pendingSubmission?.code || '',
+      language: language !== 'unknown' ? language : 'C++', // 无法识别时给 AcWing 常见默认而非 unknown
+      sourceCode: pending?.code || '',
       executionTimeMs: timeMs,
       memoryUsedKb: memoryKb,
-      submittedAt: this.pendingSubmission?.timestamp || Date.now(),
+      submittedAt: pending?.timestamp || Date.now(),
       clientVersion: '1.0.0',
     };
+
+    // 关键操作：使用完毕后立即清除 pendingSubmission，防止泄漏到下次提交
+    this.pendingSubmission = null;
 
     this.submitPayload(payload);
   }

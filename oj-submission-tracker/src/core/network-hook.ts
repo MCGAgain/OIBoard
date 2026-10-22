@@ -51,6 +51,16 @@ export class NetworkHookBus {
             requestBody = init.body;
           } else if (init.body instanceof URLSearchParams) {
             requestBody = init.body.toString();
+          } else if (typeof FormData !== 'undefined' && init.body instanceof FormData) {
+            try {
+              const pairs: string[] = [];
+              init.body.forEach((val, key) => {
+                if (typeof val === 'string') {
+                  pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(val)}`);
+                }
+              });
+              requestBody = pairs.join('&');
+            } catch (_) {}
           }
         }
 
@@ -97,7 +107,22 @@ export class NetworkHookBus {
       OriginalXHR.prototype.send = function (
         body?: Document | XMLHttpRequestBodyInit | null
       ): void {
-        const reqBody = typeof body === 'string' ? body : null;
+        let reqBody: string | null = null;
+        if (typeof body === 'string') {
+          reqBody = body;
+        } else if (body instanceof URLSearchParams) {
+          reqBody = body.toString();
+        } else if (typeof FormData !== 'undefined' && body instanceof FormData) {
+          try {
+            const pairs: string[] = [];
+            body.forEach((val, key) => {
+              if (typeof val === 'string') {
+                pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(val)}`);
+              }
+            });
+            reqBody = pairs.join('&');
+          } catch (_) {}
+        }
         this.addEventListener('load', function () {
           try {
             if (this.responseType === '' || this.responseType === 'text') {

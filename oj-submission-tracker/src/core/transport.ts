@@ -26,6 +26,7 @@ export type TransportStatusListener = (
 export class Transport {
   private static statusListeners: TransportStatusListener[] = [];
   private static isFlushingFailedQueue = false;
+  private static inflightSet: Set<string> = new Set();
 
   public static onStatus(listener: TransportStatusListener): void {
     this.statusListeners.push(listener);
@@ -51,12 +52,24 @@ export class Transport {
     payload: UnifiedSubmissionPayload,
     retryCount = 0
   ): Promise<boolean> {
-    // 1. 本地幂等去重检查
+    const flightKey = `${payload.platform}:${payload.platformSubmissionId}`;
+
+    // 1. 本地幂等去重检查与 Inflight 保护
     if (Storage.isDuplicate(payload.platform, payload.platformSubmissionId)) {
       Logger.info(
-        `[Transport] Skipped duplicate submission: ${payload.platform}:${payload.platformSubmissionId}`
+        `[Transport] Skipped duplicate submission: ${flightKey}`
       );
       return true;
+    }
+
+    if (retryCount === 0) {
+      if (this.inflightSet.has(flightKey)) {
+        Logger.info(
+          `[Transport] Skipped inflight submission: ${flightKey}`
+        );
+        return true;
+      }
+      this.inflightSet.add(flightKey);
     }
 
     const backendUrl = Storage.getBackendUrl();
@@ -66,12 +79,13 @@ export class Transport {
       Logger.warn('[Transport] Backend URL is not configured.');
       this.notifyStatus('error', '未配置后端地址');
       Storage.saveFailedPayload(payload);
+      this.inflightSet.delete(flightKey);
       return false;
     }
 
     this.notifyStatus('syncing', `正在同步 ${payload.problemId}...`);
     Logger.info(
-      `[Transport] Sending submission (${payload.platform}:${payload.platformSubmissionId}, attempt ${retryCount + 1})...`
+      `[Transport] Sending submission (${flightKey}, attempt ${retryCount + 1})...`
     );
 
     return new Promise<boolean>((resolve) => {
@@ -79,6 +93,7 @@ export class Transport {
         Logger.error('GM_xmlhttpRequest is not available in current environment!');
         this.notifyStatus('error', 'GM_xmlhttpRequest 未授权');
         Storage.saveFailedPayload(payload);
+        this.inflightSet.delete(flightKey);
         resolve(false);
         return;
       }
@@ -98,9 +113,10 @@ export class Transport {
         data: JSON.stringify(payload),
         timeout: 12000,
         onload: (response) => {
+          this.inflightSet.delete(flightKey);
           if (response.status >= 200 && response.status < 300) {
             Logger.info(
-              `[Transport] Successfully synced: ${payload.platform}:${payload.platformSubmissionId}`
+              `[Transport] Successfully synced: ${flightKey}`
             );
             Storage.markReported(payload.platform, payload.platformSubmissionId);
             Storage.removeFailedPayload(payload.platform, payload.platformSubmissionId);
@@ -137,11 +153,12 @@ export class Transport {
     resolve: (val: boolean) => void,
     reason: string
   ): void {
+    const flightKey = `${payload.platform}:${payload.platformSubmissionId}`;
     const MAX_RETRIES = 3;
     if (retryCount < MAX_RETRIES) {
       const delayMs = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
       Logger.info(
-        `[Transport] Retrying ${payload.platform}:${payload.platformSubmissionId} in ${delayMs}ms (retry ${retryCount + 1}/${MAX_RETRIES})...`
+        `[Transport] Retrying ${flightKey} in ${delayMs}ms (retry ${retryCount + 1}/${MAX_RETRIES})...`
       );
       this.notifyStatus('syncing', `同步失败 (${reason})，${delayMs / 1000}s 后重试...`);
       setTimeout(async () => {
@@ -149,8 +166,9 @@ export class Transport {
         resolve(ok);
       }, delayMs);
     } else {
+      this.inflightSet.delete(flightKey);
       Logger.error(
-        `[Transport] Exceeded max retries for ${payload.platform}:${payload.platformSubmissionId}. Saving to offline queue.`
+        `[Transport] Exceeded max retries for ${flightKey}. Saving to offline queue.`
       );
       Storage.saveFailedPayload(payload);
       this.notifyStatus('error', `同步失败 (${reason})，已加入离线暂存队列`);

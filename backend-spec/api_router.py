@@ -84,10 +84,17 @@ except Exception as e:
 
 
 def map_language_name(platform: str, raw_lang: str) -> str:
-    if not raw_lang:
+    if not raw_lang or not str(raw_lang).strip():
         return "Unknown"
+    
     lang_str = str(raw_lang).strip()
-    if platform == "luogu":
+    if lang_str.lower() in ("unknown", "null", "undefined"):
+        return "Unknown"
+
+    plat = platform.lower()
+
+    # 1. 洛谷 Luogu 语言 ID 映射
+    if plat == "luogu":
         luogu_map = {
             "1": "Pascal", "2": "C", "3": "C++98", "4": "C++11",
             "7": "Python 3", "8": "Python 2", "9": "Java 8",
@@ -96,14 +103,91 @@ def map_language_name(platform: str, raw_lang: str) -> str:
             "19": "Kotlin", "20": "Haskell", "21": "Scala", "22": "Perl",
             "27": "C++20", "28": "C++20 (O2)"
         }
-        return luogu_map.get(lang_str, lang_str)
-    elif platform in ("leetcode_cn", "leetcode"):
+        if lang_str in luogu_map:
+            return luogu_map[lang_str]
+
+    # 2. 力扣 LeetCode 映射
+    elif plat in ("leetcode_cn", "leetcode"):
         lc_map = {
-            "cpp": "C++", "python3": "Python3", "python": "Python",
+            "cpp": "C++", "python3": "Python 3", "python": "Python",
             "java": "Java", "golang": "Go", "rust": "Rust",
-            "javascript": "JavaScript", "typescript": "TypeScript", "c": "C"
+            "javascript": "JavaScript", "typescript": "TypeScript", "c": "C",
+            "csharp": "C#", "swift": "Swift", "ruby": "Ruby", "kotlin": "Kotlin"
         }
-        return lc_map.get(lang_str.lower(), lang_str)
+        if lang_str.lower() in lc_map:
+            return lc_map[lang_str.lower()]
+
+    # 3. AtCoder 语言映射
+    elif plat == "atcoder":
+        low = lang_str.lower()
+        if "c++" in low:
+            if "23" in low: return "C++23"
+            if "20" in low: return "C++20"
+            if "17" in low: return "C++17"
+            if "14" in low: return "C++14"
+            if "11" in low: return "C++11"
+            return "C++"
+        if "pypy" in low:
+            return "PyPy3" if ("3" in low or "pypy3" in low) else "PyPy"
+        if "python" in low:
+            return "Python 3" if ("3" in low or "cpython 3" in low) else "Python"
+        if "java" in low:
+            return "Java"
+        if "rust" in low:
+            return "Rust"
+        if "go" in low or "golang" in low:
+            return "Go"
+        if "c#" in low or "csharp" in low or ".net" in low:
+            return "C#"
+        if "typescript" in low:
+            return "TypeScript"
+        if "javascript" in low or "node" in low:
+            return "JavaScript"
+        if low.startswith("c ") or low.startswith("c(") or low == "c":
+            return "C"
+
+    # 4. AcWing 语言映射
+    elif plat == "acwing":
+        low = lang_str.lower()
+        if low in ("c++", "cpp", "ace/mode/c_cpp", "c++20", "c++17", "c++11"):
+            return "C++"
+        if low in ("python2", "py2"):
+            return "Python 2"
+        if low in ("python3", "python 3", "py3", "ace/mode/python3", "ace/mode/python", "python"):
+            return "Python 3"
+        if low in ("java", "ace/mode/java"):
+            return "Java"
+        if low in ("go", "golang", "ace/mode/golang"):
+            return "Go"
+        if low in ("rust", "ace/mode/rust"):
+            return "Rust"
+        if low in ("javascript", "js", "ace/mode/javascript"):
+            return "JavaScript"
+        if low in ("c", "ace/mode/c"):
+            return "C"
+
+    # 5. 通用别名映射兜底
+    low_all = lang_str.lower()
+    common_aliases = {
+        "python3": "Python 3",
+        "py3": "Python 3",
+        "python": "Python",
+        "cpp": "C++",
+        "c++": "C++",
+        "c": "C",
+        "golang": "Go",
+        "go": "Go",
+        "rust": "Rust",
+        "java": "Java",
+        "javascript": "JavaScript",
+        "js": "JavaScript",
+        "typescript": "TypeScript",
+        "ts": "TypeScript",
+    }
+    if low_all in common_aliases:
+        return common_aliases[low_all]
+
+    # 无法匹配已知别名时保留原始字符串，严禁统一写成 'unknown'
     return lang_str
 
 
