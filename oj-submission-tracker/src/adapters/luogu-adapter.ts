@@ -188,9 +188,9 @@ export class LuoguAdapter extends BaseAdapter {
     const problemTitle = record.problem?.title || '';
     const executionTimeMs = typeof record.time === 'number' ? record.time : 0;
     const memoryUsedKb = typeof record.memory === 'number' ? record.memory : 0;
-    const language = String(record.language || pending?.lang || 'unknown');
+    const language = this.mapLuoguLanguage(record.language || pending?.lang);
     const sourceCode = record.sourceCode || pending?.code || '';
-    const userHandle = record.user?.name || (record.user?.uid ? String(record.user.uid) : undefined);
+    const userHandle = (record.user?.uid ? String(record.user.uid) : '') || record.user?.name || undefined;
     const submittedAt = record.submitTime ? record.submitTime * 1000 : Date.now();
 
     const payload: UnifiedSubmissionPayload = {
@@ -213,6 +213,33 @@ export class LuoguAdapter extends BaseAdapter {
 
     this.pendingMap.delete(rid);
     this.submitPayload(payload);
+  }
+
+  private mapLuoguLanguage(langId: any): string {
+    const map: Record<string, string> = {
+      '1': 'Pascal',
+      '2': 'C',
+      '3': 'C++98',
+      '4': 'C++11',
+      '7': 'Python 3',
+      '8': 'Python 2',
+      '9': 'Java 8',
+      '11': 'C++14',
+      '12': 'C++17',
+      '13': 'Node.js',
+      '14': 'Rust',
+      '15': 'PHP',
+      '16': 'Go',
+      '17': 'C#',
+      '18': 'Ruby',
+      '19': 'Kotlin',
+      '20': 'Haskell',
+      '21': 'Scala',
+      '22': 'Perl',
+      '27': 'C++20',
+      '28': 'C++20 (O2)',
+    };
+    return map[String(langId)] || String(langId || 'unknown');
   }
 
   private mapStatusToVerdict(status: number, score: number): VerdictType {

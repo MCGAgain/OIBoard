@@ -324,8 +324,11 @@ export class StatusBadge {
         </div>
 
         <div class="form-group">
-          <label class="form-label">个人认证 Token (Bearer)</label>
-          <input type="password" class="form-input" id="input-user-token" placeholder="留空或输入校验 Token" />
+          <label class="form-label">个人认证 Token / 凭据 (Bearer)</label>
+          <input type="password" class="form-input" id="input-user-token" placeholder="留空或输入 OIBoard 同步 Token / 用户名" />
+          <div style="font-size: 10px; color: #9ca3af; margin-top: 3px; line-height: 1.4;">
+            提示: 可在 OIBoard「设置 -> 账号设置」中复制当前同步凭据 (Sync Token) 填入此处，亦可留空或输入登录用户名。
+          </div>
         </div>
 
         <div class="stats-box">

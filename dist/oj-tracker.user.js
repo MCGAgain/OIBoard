@@ -614,6 +614,12 @@
       NetworkHookBus.onHttp((event) => {
         this.handleHttpEvent(event);
       });
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => this.initDomObserver());
+      } else {
+        this.initDomObserver();
+      }
     }
 
     handleHttpEvent(event) {
@@ -624,7 +630,7 @@
           return;
         }
 
-        if (event.url.includes('/graphql') && event.requestBody && event.requestBody.includes('submissionDetail')) {
+        if (event.url.includes('/graphql') && event.responseText && (event.responseText.includes('submissionDetail') || event.responseText.includes('statusDisplay'))) {
           this.handleGraphQLSubmissionDetail(event);
           return;
         }
@@ -658,9 +664,55 @@
 
         Transport.notifyStatus('syncing', `力扣已提交判题: ${titleSlug}...`);
         Logger.info(`[LeetCodeAdapter] Cached pending submission: ID=${subIdStr}, Title=${titleSlug}`);
+
+        // 关键增强：主动轮询 check 接口，避免漏掉页面异步请求
+        this.startPollingCheckStatus(subIdStr, titleSlug);
       } catch (e) {
         Logger.error('[LeetCodeAdapter] Error parsing submit request:', e);
       }
+    }
+
+    startPollingCheckStatus(submissionId, titleSlug) {
+      let attempts = 0;
+      const maxAttempts = 25;
+      const pollInterval = 1500;
+
+      const poll = async () => {
+        if (!this.pendingMap.has(submissionId)) return;
+        attempts++;
+        try {
+          const checkUrl = `/submissions/detail/${submissionId}/check/`;
+          const fetchFn = NetworkHookBus.rawFetch || fetch;
+          const res = await fetchFn(checkUrl, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json, text/javascript, */*; q=0.01',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'include',
+          });
+          if (res.status === 200) {
+            const text = await res.text();
+            if (text) {
+              const data = JSON.parse(text);
+              if (data.state === 'SUCCESS') {
+                this.handleCheckResponse(submissionId, text);
+                return;
+              }
+            }
+          }
+        } catch (e) {
+          Logger.warn(`[LeetCodeAdapter] Polling attempt ${attempts} error:`, e);
+        }
+
+        if (attempts < maxAttempts && this.pendingMap.has(submissionId)) {
+          setTimeout(poll, pollInterval);
+        } else if (this.pendingMap.has(submissionId)) {
+          Logger.warn(`[LeetCodeAdapter] Polling timed out for submission ${submissionId}`);
+        }
+      };
+
+      setTimeout(poll, pollInterval);
     }
 
     handleCheckResponse(submissionId, responseText) {
@@ -675,14 +727,15 @@
 
         const runtimeMs = this.cleanRuntime(data.status_runtime);
         const memoryKb = this.cleanMemory(data.status_memory);
-        const problemSlug = pending?.titleSlug || `leetcode_${data.question_id || ''}`;
+        const problemSlug = pending?.titleSlug || this.extractSlugFromUrl();
+        const problemTitle = this.extractProblemTitle() || problemSlug;
         const userHandle = this.extractUserHandle();
 
         const payload = {
           platform: 'leetcode_cn',
           platformSubmissionId: String(submissionId),
           problemId: problemSlug,
-          problemTitle: pending?.titleSlug || problemSlug,
+          problemTitle,
           problemUrl: `https://leetcode.cn/problems/${problemSlug}/`,
           platformUserHandle: userHandle,
           verdict,
@@ -724,14 +777,15 @@
           ? Math.round(detail.memory / 1024)
           : this.cleanMemory(detail.memory || detail.statusMemory);
 
-        const problemSlug = pending?.titleSlug || detail.question?.titleSlug || `leetcode_${detail.question?.questionId || ''}`;
+        const problemSlug = pending?.titleSlug || detail.question?.titleSlug || this.extractSlugFromUrl();
+        const problemTitle = detail.question?.title || this.extractProblemTitle() || problemSlug;
         const userHandle = this.extractUserHandle();
 
         const payload = {
           platform: 'leetcode_cn',
           platformSubmissionId: subIdStr,
           problemId: problemSlug,
-          problemTitle: detail.question?.title || pending?.titleSlug || problemSlug,
+          problemTitle,
           problemUrl: `https://leetcode.cn/problems/${problemSlug}/`,
           platformUserHandle: userHandle,
           verdict,
@@ -750,6 +804,129 @@
       } catch (e) {
         Logger.error('[LeetCodeAdapter] Error handling GraphQL detail:', e);
       }
+    }
+
+    initDomObserver() {
+      if (typeof MutationObserver === 'undefined') return;
+      let debounceTimer = null;
+      const observer = new MutationObserver(() => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          this.scanDomForSubmissionResult();
+        }, 500);
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    scanDomForSubmissionResult() {
+      if (!this.pendingMap.size) return;
+
+      const pageText = document.body.innerText || '';
+      let foundVerdict = null;
+      let foundStatusText = '';
+
+      const resultBadges = document.querySelectorAll(
+        '[data-e2e-locator="submission-result"], .text-green-s, .text-red-s, [class*="result-status"]'
+      );
+
+      for (const el of Array.from(resultBadges)) {
+        const t = el.textContent?.trim() || '';
+        if (t === '通过' || t === 'Accepted') {
+          foundVerdict = 'AC';
+          foundStatusText = t;
+          break;
+        } else if (t === '解答错误' || t === 'Wrong Answer') {
+          foundVerdict = 'WA';
+          foundStatusText = t;
+          break;
+        } else if (t === '超出时间限制' || t === 'Time Limit Exceeded') {
+          foundVerdict = 'TLE';
+          foundStatusText = t;
+          break;
+        } else if (t === '超出内存限制' || t === 'Memory Limit Exceeded') {
+          foundVerdict = 'MLE';
+          foundStatusText = t;
+          break;
+        } else if (t.includes('执行出错') || t.includes('Runtime Error')) {
+          foundVerdict = 'RE';
+          foundStatusText = t;
+          break;
+        } else if (t.includes('编译出错') || t.includes('Compile Error')) {
+          foundVerdict = 'CE';
+          foundStatusText = t;
+          break;
+        }
+      }
+
+      if (!foundVerdict) {
+        if (pageText.includes('执行用时分布') || pageText.includes('消耗内存分布')) {
+          if (/(\n|^)\s*通过\s*(\n|$)/m.test(pageText) || pageText.includes('状态：通过') || pageText.includes('状态: 通过')) {
+            foundVerdict = 'AC';
+            foundStatusText = '通过';
+          } else if (/(\n|^)\s*解答错误\s*(\n|$)/m.test(pageText)) {
+            foundVerdict = 'WA';
+            foundStatusText = '解答错误';
+          }
+        }
+      }
+
+      if (!foundVerdict) return;
+
+      let runtimeMs = 0;
+      let memoryKb = 0;
+      const runtimeMatch = pageText.match(/(?:执行用时|用时|Runtime)[^\d]*(\d+)\s*ms/i) || pageText.match(/(\d+)\s*ms/i);
+      if (runtimeMatch) runtimeMs = parseInt(runtimeMatch[1], 10);
+
+      const memMatch = pageText.match(/(?:消耗内存|内存|Memory)[^\d]*([\d.]+)\s*MB/i) || pageText.match(/([\d.]+)\s*MB/i);
+      if (memMatch) memoryKb = Math.round(parseFloat(memMatch[1]) * 1024);
+
+      const [subIdStr, pending] = Array.from(this.pendingMap.entries())[0];
+      this.pendingMap.delete(subIdStr);
+
+      const problemSlug = pending.titleSlug || this.extractSlugFromUrl();
+      const problemTitle = this.extractProblemTitle() || problemSlug;
+      const userHandle = this.extractUserHandle();
+
+      const payload = {
+        platform: 'leetcode_cn',
+        platformSubmissionId: subIdStr,
+        problemId: problemSlug,
+        problemTitle,
+        problemUrl: `https://leetcode.cn/problems/${problemSlug}/`,
+        platformUserHandle: userHandle,
+        verdict: foundVerdict,
+        rawStatus: foundStatusText,
+        score: foundVerdict === 'AC' ? 100 : 0,
+        language: pending.lang || 'unknown',
+        sourceCode: pending.code || '',
+        executionTimeMs: runtimeMs,
+        memoryUsedKb: memoryKb,
+        submittedAt: pending.timestamp || Date.now(),
+        clientVersion: '1.0.0',
+      };
+
+      Logger.info(`[LeetCodeAdapter] Emitted submission via DOM fallback: ${problemSlug} (${foundVerdict})`);
+      this.submitPayload(payload);
+    }
+
+    extractSlugFromUrl() {
+      const m = window.location.pathname.match(/\/problems\/([^/]+)/);
+      return m ? m[1] : 'unknown';
+    }
+
+    extractProblemTitle() {
+      try {
+        const rawTitle = document.title || '';
+        const cleaned = rawTitle.replace(/\s*-\s*力扣.*$/, '').replace(/^\d+\.\s*/, '').trim();
+        if (cleaned) return cleaned;
+        const h4 = document.querySelector('h4, [data-e2e-locator="question-title"]');
+        if (h4?.textContent) return h4.textContent.replace(/^\d+\.\s*/, '').trim();
+      } catch (_) {}
+      return '';
     }
 
     mapStatusCodeToVerdict(code) {
@@ -804,6 +981,10 @@
         }
         if (pageWindow.userStatus?.username) {
           return pageWindow.userStatus.username;
+        }
+        const nextData = pageWindow.__NEXT_DATA__;
+        if (nextData?.props?.pageProps?.userStatus?.username) {
+          return nextData.props.pageProps.userStatus.username;
         }
       } catch (_) {}
       return undefined;
@@ -969,9 +1150,9 @@
       const problemTitle = record.problem?.title || '';
       const executionTimeMs = typeof record.time === 'number' ? record.time : 0;
       const memoryUsedKb = typeof record.memory === 'number' ? record.memory : 0;
-      const language = String(record.language || pending?.lang || 'unknown');
+      const language = this.mapLuoguLanguage(record.language || pending?.lang);
       const sourceCode = record.sourceCode || pending?.code || '';
-      const userHandle = record.user?.name || (record.user?.uid ? String(record.user.uid) : undefined);
+      const userHandle = (record.user?.uid ? String(record.user.uid) : '') || record.user?.name || undefined;
       const submittedAt = record.submitTime ? record.submitTime * 1000 : Date.now();
 
       const payload = {
@@ -994,6 +1175,33 @@
 
       this.pendingMap.delete(rid);
       this.submitPayload(payload);
+    }
+
+    mapLuoguLanguage(langId) {
+      const map = {
+        '1': 'Pascal',
+        '2': 'C',
+        '3': 'C++98',
+        '4': 'C++11',
+        '7': 'Python 3',
+        '8': 'Python 2',
+        '9': 'Java 8',
+        '11': 'C++14',
+        '12': 'C++17',
+        '13': 'Node.js',
+        '14': 'Rust',
+        '15': 'PHP',
+        '16': 'Go',
+        '17': 'C#',
+        '18': 'Ruby',
+        '19': 'Kotlin',
+        '20': 'Haskell',
+        '21': 'Scala',
+        '22': 'Perl',
+        '27': 'C++20',
+        '28': 'C++20 (O2)',
+      };
+      return map[String(langId)] || String(langId || 'unknown');
     }
 
     mapStatusToVerdict(status, score) {
@@ -1985,8 +2193,11 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">个人认证 Token (Bearer)</label>
-            <input type="password" class="form-input" id="input-user-token" placeholder="留空或输入校验 Token" />
+            <label class="form-label">个人认证 Token / 凭据 (Bearer)</label>
+            <input type="password" class="form-input" id="input-user-token" placeholder="留空或输入 OIBoard 同步 Token / 用户名" />
+            <div style="font-size: 10px; color: #9ca3af; margin-top: 3px; line-height: 1.4;">
+              提示: 可在 OIBoard「设置 -> 账号设置」中复制当前同步凭据 (Sync Token) 填入此处，亦可留空或输入登录用户名。
+            </div>
           </div>
 
           <div class="stats-box">

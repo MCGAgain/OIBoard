@@ -9,12 +9,19 @@
 
 import asyncio
 import os
+import sys
 import sqlite3
 import datetime
 import logging
 from typing import Optional, Literal
 from fastapi import APIRouter, Header, HTTPException, BackgroundTasks, status
 from pydantic import BaseModel, Field
+
+# 确保能正确引入项目根目录的 db 模块
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+import db
 
 from .verification_worker import (
     verification_worker_instance,
@@ -25,7 +32,6 @@ logger = logging.getLogger("oj_api_router")
 router = APIRouter(prefix="/api/v1/submissions", tags=["OJ Submissions"])
 
 # 数据库路径解析 (优先使用 OIBoard 的 data/oiboard.db)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "data", "oiboard.db")
 
 
@@ -77,6 +83,116 @@ except Exception as e:
     logger.warning(f"Could not auto-create table on import: {e}")
 
 
+def map_language_name(platform: str, raw_lang: str) -> str:
+    if not raw_lang:
+        return "Unknown"
+    lang_str = str(raw_lang).strip()
+    if platform == "luogu":
+        luogu_map = {
+            "1": "Pascal", "2": "C", "3": "C++98", "4": "C++11",
+            "7": "Python 3", "8": "Python 2", "9": "Java 8",
+            "11": "C++14", "12": "C++17", "13": "Node.js", "14": "Rust",
+            "15": "PHP", "16": "Go", "17": "C#", "18": "Ruby",
+            "19": "Kotlin", "20": "Haskell", "21": "Scala", "22": "Perl",
+            "27": "C++20", "28": "C++20 (O2)"
+        }
+        return luogu_map.get(lang_str, lang_str)
+    elif platform in ("leetcode_cn", "leetcode"):
+        lc_map = {
+            "cpp": "C++", "python3": "Python3", "python": "Python",
+            "java": "Java", "golang": "Go", "rust": "Rust",
+            "javascript": "JavaScript", "typescript": "TypeScript", "c": "C"
+        }
+        return lc_map.get(lang_str.lower(), lang_str)
+    return lang_str
+
+
+def resolve_user_id(authorization: Optional[str], platform: str, handle: Optional[str]) -> int:
+    """
+    智能判定多租户 user_id:
+    1. 优先校验 Authorization 头部 (Bearer Token / session token / username / user_id)
+    2. 匹配 platform_accounts 中绑定的各平台 Handle (如 Luogu UID 或 Handle)
+    3. 查询当前最活跃的登录 session (单人部署场景直接匹配)
+    4. 回退至首个普通业务用户 (如 user_id=2)，最终兜底 user_id=1
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        # 1. 尝试从 Authorization 头部解析
+        if authorization and isinstance(authorization, str):
+            tok = authorization
+            if tok.startswith("Bearer "):
+                tok = tok[7:].strip()
+            if tok:
+                # 检查 sessions
+                cursor.execute(
+                    "SELECT user_id FROM sessions WHERE token = ? AND expires_at > datetime('now', 'localtime');",
+                    (tok,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    logger.info(f"[Auth] Matched user_id={row['user_id']} via active session token")
+                    return int(row["user_id"])
+
+                # 检查是否直接是 user_id 数字
+                if tok.isdigit():
+                    cursor.execute("SELECT id FROM users WHERE id = ?;", (int(tok),))
+                    row = cursor.fetchone()
+                    if row:
+                        logger.info(f"[Auth] Matched user_id={row['id']} via explicit user_id")
+                        return int(row["id"])
+
+                # 检查是否是 username
+                cursor.execute("SELECT id FROM users WHERE username = ?;", (tok,))
+                row = cursor.fetchone()
+                if row:
+                    logger.info(f"[Auth] Matched user_id={row['id']} via username '{tok}'")
+                    return int(row["id"])
+
+        # 2. 尝试从 platform_accounts 匹配
+        if handle:
+            clean_handle = handle.strip()
+            search_platforms = [platform]
+            if platform in ("leetcode_cn", "leetcode"):
+                search_platforms = ["leetcode", "leetcode_cn"]
+
+            for p in search_platforms:
+                cursor.execute(
+                    "SELECT user_id FROM platform_accounts WHERE platform = ? AND (handle = ? OR alias = ?) ORDER BY is_primary DESC LIMIT 1;",
+                    (p, clean_handle, clean_handle)
+                )
+                row = cursor.fetchone()
+                if row:
+                    logger.info(f"[Auth] Matched user_id={row['user_id']} via platform_accounts ({p}:{clean_handle})")
+                    return int(row["user_id"])
+
+            # 兼容：handle 匹配 users.username
+            cursor.execute("SELECT id FROM users WHERE username = ?;", (clean_handle,))
+            row = cursor.fetchone()
+            if row:
+                logger.info(f"[Auth] Matched user_id={row['id']} via username '{clean_handle}'")
+                return int(row["id"])
+
+        # 3. 查找最近活跃会话 (单人使用场景下的智能适配)
+        cursor.execute(
+            "SELECT user_id FROM sessions WHERE expires_at > datetime('now', 'localtime') ORDER BY created_at DESC LIMIT 1;"
+        )
+        row = cursor.fetchone()
+        if row:
+            logger.info(f"[Auth] Matched user_id={row['user_id']} via latest active session")
+            return int(row["user_id"])
+
+        # 4. 查找首个非 admin 用户 (如用户 2)
+        cursor.execute("SELECT id FROM users WHERE is_admin = 0 ORDER BY id ASC LIMIT 1;")
+        row = cursor.fetchone()
+        if row:
+            logger.info(f"[Auth] Fallback to primary non-admin user_id={row['id']}")
+            return int(row["id"])
+
+        # 兜底 user 1
+        return 1
+
+
 class UnifiedSubmissionPushModel(BaseModel):
     platform: Literal["leetcode_cn", "luogu", "acwing", "codeforces", "atcoder"]
     platformSubmissionId: str = Field(..., description="平台原始提交唯一ID")
@@ -112,8 +228,8 @@ async def push_submission(
 ):
     """
     接收油猴端秒级上报的判题与提交记录
-    1. 校验 Token (可选，留空则采信)
-    2. 幂等插入/更新数据库 (初始 OPTIMISTIC)
+    1. 动态智能解析多租户 user_id (支持 Token、Platform Handle、活跃会话、普通用户智能推断)
+    2. 幂等插入/更新数据库 (与 OIBoard 原生数据库设计 100% 保持一致)
     3. 投递异步核实任务
     """
     logger.info(
@@ -136,20 +252,28 @@ async def push_submission(
                 detail="Invalid authorization token",
             )
 
-    # 2. 转换提交时间为标准格式
+    # 2. 动态智能解析多租户用户归属
+    resolved_user_id = resolve_user_id(authorization, payload.platform, payload.platformUserHandle)
+    unified_platform = "leetcode" if payload.platform in ("leetcode_cn", "leetcode") else payload.platform
+
+    # 3. 转换提交时间为标准北京时间格式
     try:
         sub_dt = datetime.datetime.fromtimestamp(payload.submittedAt / 1000.0)
         submitted_at_str = sub_dt.strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
         submitted_at_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # 3. 幂等入库
+    # 计算符合熬夜机制的归属打卡日期 (凌晨 4 点前算作昨日打卡)
+    sub_date = db.parse_beijing_str_to_date(submitted_at_str)
+    clean_lang = map_language_name(payload.platform, payload.language)
+
+    # 4. 幂等入库
     try:
         ensure_table_exists()
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
-            # 检查是否已存在
+            # 检查 oj_submissions 审计表是否已存在
             cursor.execute(
                 "SELECT id, verify_status FROM oj_submissions WHERE platform = ? AND platform_submission_id = ?",
                 (payload.platform, payload.platformSubmissionId),
@@ -159,13 +283,13 @@ async def push_submission(
             if row:
                 existing_id = row["id"]
                 current_verify = row["verify_status"]
-                # 若已核实通过，保持 VERIFIED
                 target_verify = current_verify if current_verify == VerificationStatus.VERIFIED else VerificationStatus.OPTIMISTIC
 
                 cursor.execute(
                     """
                     UPDATE oj_submissions
-                    SET problem_title = COALESCE(?, problem_title),
+                    SET user_id = ?,
+                        problem_title = COALESCE(?, problem_title),
                         source_code = COALESCE(?, source_code),
                         execution_time_ms = COALESCE(?, execution_time_ms),
                         memory_used_kb = COALESCE(?, memory_used_kb),
@@ -175,6 +299,7 @@ async def push_submission(
                     WHERE id = ?;
                     """,
                     (
+                        resolved_user_id,
                         payload.problemTitle,
                         payload.sourceCode,
                         payload.executionTimeMs,
@@ -188,6 +313,7 @@ async def push_submission(
                 record_id = existing_id
                 action = "updated"
             else:
+                target_verify = VerificationStatus.OPTIMISTIC
                 cursor.execute(
                     """
                     INSERT INTO oj_submissions (
@@ -196,10 +322,11 @@ async def push_submission(
                         language, source_code, execution_time_ms, memory_used_kb,
                         verify_status, verify_retry_count, submitted_at
                     ) VALUES (
-                        1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPTIMISTIC', 0, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPTIMISTIC', 0, ?
                     );
                     """,
                     (
+                        resolved_user_id,
                         payload.platform,
                         payload.platformSubmissionId,
                         payload.problemId,
@@ -209,7 +336,7 @@ async def push_submission(
                         payload.verdict,
                         payload.rawStatus,
                         payload.score,
-                        payload.language,
+                        clean_lang,
                         payload.sourceCode,
                         payload.executionTimeMs,
                         payload.memoryUsedKb,
@@ -220,78 +347,60 @@ async def push_submission(
                 record_id = cursor.lastrowid
                 action = "inserted"
 
-            # --- 2. 同步写入 OIBoard 前端主表 submissions ---
-            import json
-            unified_platform = "leetcode" if payload.platform in ("leetcode_cn", "leetcode") else payload.platform
-            main_sub_id = f"u1_{unified_platform}_{payload.platformSubmissionId}"
-            
-            # 计算归属日期 (凌晨 4 点前算作昨日打卡)
-            try:
-                eff_dt = sub_dt - datetime.timedelta(hours=4)
-                sub_date = eff_dt.strftime("%Y-%m-%d")
-            except Exception:
-                sub_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        # --- 2. 使用原生 db.save_submissions 同步写入 OIBoard 前端主表 submissions ---
+        extra_data = {
+            "execution_time_ms": payload.executionTimeMs,
+            "memory_used_kb": payload.memoryUsedKb,
+            "score": payload.score,
+            "source_code": payload.sourceCode,
+            "verify_status": target_verify,
+            "raw_status": payload.rawStatus,
+            "client_version": payload.clientVersion,
+        }
 
-            extra_data = {
-                "execution_time_ms": payload.executionTimeMs,
-                "memory_used_kb": payload.memoryUsedKb,
-                "score": payload.score,
-                "source_code": payload.sourceCode,
-                "verify_status": target_verify if 'target_verify' in locals() else VerificationStatus.OPTIMISTIC,
-            }
+        sub_dict = {
+            "platform": unified_platform,
+            "raw_id": str(payload.platformSubmissionId),
+            "problem_id": str(payload.problemId),
+            "problem_title": payload.problemTitle or str(payload.problemId),
+            "verdict": payload.verdict,
+            "tags": [],
+            "difficulty": "简单" if unified_platform == "leetcode" else "未知",
+            "difficulty_score": 0,
+            "submitted_at": submitted_at_str,
+            "date": sub_date,
+            "submission_url": payload.problemUrl,
+            "code_language": clean_lang,
+            "extra_data": extra_data,
+            "account_handle": payload.platformUserHandle or "",
+        }
 
-            cursor.execute("""
-                INSERT INTO submissions (
-                    id, user_id, platform, raw_id, problem_id, problem_title, verdict, tags,
-                    difficulty, difficulty_score, submitted_at, date, submission_url,
-                    code_language, extra_data, account_handle
-                ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    problem_title = COALESCE(excluded.problem_title, submissions.problem_title),
-                    verdict = excluded.verdict,
-                    submitted_at = CASE WHEN excluded.submitted_at != '' THEN excluded.submitted_at ELSE submissions.submitted_at END,
-                    date = CASE WHEN excluded.date != '' THEN excluded.date ELSE submissions.date END,
-                    submission_url = excluded.submission_url,
-                    code_language = excluded.code_language,
-                    extra_data = excluded.extra_data,
-                    account_handle = CASE WHEN excluded.account_handle != '' THEN excluded.account_handle ELSE submissions.account_handle END;
-            """, (
-                main_sub_id,
-                unified_platform,
-                payload.platformSubmissionId,
-                payload.problemId,
-                payload.problemTitle or payload.problemId,
-                payload.verdict,
-                json.dumps([], ensure_ascii=False),
-                "中等" if unified_platform == "leetcode" else "未知",
-                submitted_at_str,
-                sub_date,
-                payload.problemUrl,
-                payload.language,
-                json.dumps(extra_data, ensure_ascii=False),
-                payload.platformUserHandle or ""
-            ))
+        db.save_submissions([sub_dict], user_id=resolved_user_id)
 
-            # --- 3. 激活更新 platform_status 表 ---
-            cursor.execute("""
-                INSERT INTO platform_status (user_id, platform, status, message, last_checked_at, item_count, rating, updated_at)
-                VALUES (1, ?, 'ok', '油猴实时同步', datetime('now', 'localtime'), 1, '', datetime('now', 'localtime'))
-                ON CONFLICT(user_id, platform) DO UPDATE SET
-                    status = 'ok',
-                    message = '油猴实时同步',
-                    last_checked_at = datetime('now', 'localtime'),
-                    updated_at = datetime('now', 'localtime');
-            """, (unified_platform,))
-            conn.commit()
+        # --- 3. 激活更新 platform_status 表 ---
+        db.update_platform_status(
+            user_id=resolved_user_id,
+            platform=unified_platform,
+            status="ok",
+            message="油猴实时秒级同步",
+            rating="",
+        )
+
+        # --- 4. 触发错题本自动联动推进复习进度 ---
+        try:
+            db.sync_mistakes_with_submissions(user_id=resolved_user_id)
+        except Exception as me:
+            logger.warning(f"Error syncing mistakes for user {resolved_user_id}: {me}")
 
     except Exception as e:
         logger.error(f"[Push API] Database write error: {e}")
         raise HTTPException(status_code=500, detail=f"Database write failure: {str(e)}")
 
-    # 4. 投递后台异步单点核实任务 (延迟 5 秒后执行，留出各大 OJ 服务端状态稳定期)
+    # 5. 投递后台异步单点核实任务 (附带 resolved_user_id)
     background_tasks.add_task(
         run_async_verification,
         record_id=record_id,
+        user_id=resolved_user_id,
         platform=payload.platform,
         platform_submission_id=payload.platformSubmissionId,
         problem_id=payload.problemId,
@@ -305,6 +414,7 @@ async def push_submission(
         "message": "Submission optimistically recorded and queued for verification",
         "data": {
             "recordId": record_id,
+            "userId": resolved_user_id,
             "platform": payload.platform,
             "submissionId": payload.platformSubmissionId,
             "action": action,
@@ -315,6 +425,7 @@ async def push_submission(
 
 async def run_async_verification(
     record_id: int,
+    user_id: int,
     platform: str,
     platform_submission_id: str,
     problem_id: str,
@@ -367,6 +478,7 @@ async def run_async_verification(
                 await asyncio.sleep(delay_sec)
                 await run_async_verification(
                     record_id,
+                    user_id,
                     platform,
                     platform_submission_id,
                     problem_id,
@@ -388,9 +500,23 @@ async def run_async_verification(
                     (new_status, reason, record_id),
                 )
                 unified_platform = "leetcode" if platform in ("leetcode_cn", "leetcode") else platform
-                main_sub_id = f"u1_{unified_platform}_{platform_submission_id}"
+                main_sub_id = f"u{user_id}_{unified_platform}_{platform_submission_id}"
+                
+                # 如果伪造核实失败，置为 REJECTED
                 if new_status == VerificationStatus.REJECTED:
                     cursor.execute("UPDATE submissions SET verdict = 'REJECTED' WHERE id = ?;", (main_sub_id,))
+                else:
+                    # 更新 extra_data 中的 verify_status
+                    cursor.execute("SELECT extra_data FROM submissions WHERE id = ?;", (main_sub_id,))
+                    sub_row = cursor.fetchone()
+                    if sub_row and sub_row["extra_data"]:
+                        try:
+                            import json
+                            ed = json.loads(sub_row["extra_data"])
+                            ed["verify_status"] = new_status
+                            cursor.execute("UPDATE submissions SET extra_data = ? WHERE id = ?;", (json.dumps(ed, ensure_ascii=False), main_sub_id))
+                        except Exception:
+                            pass
                 conn.commit()
     except Exception as e:
         logger.error(f"[Async Verification] Failed to update DB status for record {record_id}: {e}")

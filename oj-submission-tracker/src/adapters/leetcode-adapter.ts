@@ -26,6 +26,12 @@ export class LeetCodeAdapter extends BaseAdapter {
     NetworkHookBus.onHttp((event: InterceptedHttpEvent) => {
       this.handleHttpEvent(event);
     });
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => this.initDomObserver());
+    } else {
+      this.initDomObserver();
+    }
   }
 
   private handleHttpEvent(event: InterceptedHttpEvent): void {
@@ -38,7 +44,7 @@ export class LeetCodeAdapter extends BaseAdapter {
       }
 
       // 拦截 GraphQL 判题结果
-      if (event.url.includes('/graphql') && event.requestBody && event.requestBody.includes('submissionDetail')) {
+      if (event.url.includes('/graphql') && event.responseText && (event.responseText.includes('submissionDetail') || event.responseText.includes('statusDisplay'))) {
         this.handleGraphQLSubmissionDetail(event);
         return;
       }
@@ -54,7 +60,7 @@ export class LeetCodeAdapter extends BaseAdapter {
   }
 
   /**
-   * 拦截提交请求，记录提交的代码和语言
+   * 拦截提交请求，记录提交的代码和语言并立即启动主动轮询
    */
   private handleSubmitRequest(titleSlug: string, event: InterceptedHttpEvent): void {
     try {
@@ -77,9 +83,58 @@ export class LeetCodeAdapter extends BaseAdapter {
 
       Transport.notifyStatus('syncing', `力扣已提交判题: ${titleSlug}...`);
       Logger.info(`[LeetCodeAdapter] Cached pending submission: ID=${subIdStr}, Title=${titleSlug}`);
+
+      // 关键增强：主动轮询 check 接口，避免漏掉页面异步请求
+      this.startPollingCheckStatus(subIdStr, titleSlug);
     } catch (e) {
       Logger.error('[LeetCodeAdapter] Error parsing submit request:', e);
     }
+  }
+
+  /**
+   * 端侧主动轮询 check 接口 (每 1.5 秒轮询一次，最多 25 次)
+   */
+  private startPollingCheckStatus(submissionId: string, titleSlug: string): void {
+    let attempts = 0;
+    const maxAttempts = 25;
+    const pollInterval = 1500;
+
+    const poll = async () => {
+      if (!this.pendingMap.has(submissionId)) return;
+      attempts++;
+      try {
+        const checkUrl = `/submissions/detail/${submissionId}/check/`;
+        const fetchFn = NetworkHookBus.rawFetch || fetch;
+        const res = await fetchFn(checkUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          credentials: 'include',
+        });
+        if (res.status === 200) {
+          const text = await res.text();
+          if (text) {
+            const data = JSON.parse(text);
+            if (data.state === 'SUCCESS') {
+              this.handleCheckResponse(submissionId, text);
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        Logger.warn(`[LeetCodeAdapter] Polling attempt ${attempts} error:`, e);
+      }
+
+      if (attempts < maxAttempts && this.pendingMap.has(submissionId)) {
+        setTimeout(poll, pollInterval);
+      } else if (this.pendingMap.has(submissionId)) {
+        Logger.warn(`[LeetCodeAdapter] Polling timed out for submission ${submissionId}`);
+      }
+    };
+
+    setTimeout(poll, pollInterval);
   }
 
   /**
@@ -100,14 +155,15 @@ export class LeetCodeAdapter extends BaseAdapter {
 
       const runtimeMs = this.cleanRuntime(data.status_runtime);
       const memoryKb = this.cleanMemory(data.status_memory);
-      const problemSlug = pending?.titleSlug || `leetcode_${data.question_id || ''}`;
+      const problemSlug = pending?.titleSlug || this.extractSlugFromUrl();
+      const problemTitle = this.extractProblemTitle() || problemSlug;
       const userHandle = this.extractUserHandle();
 
       const payload: UnifiedSubmissionPayload = {
         platform: 'leetcode_cn',
         platformSubmissionId: String(submissionId),
         problemId: problemSlug,
-        problemTitle: pending?.titleSlug || problemSlug,
+        problemTitle,
         problemUrl: `https://leetcode.cn/problems/${problemSlug}/`,
         platformUserHandle: userHandle,
         verdict,
@@ -152,14 +208,15 @@ export class LeetCodeAdapter extends BaseAdapter {
         ? Math.round(detail.memory / 1024)
         : this.cleanMemory(detail.memory || detail.statusMemory);
 
-      const problemSlug = pending?.titleSlug || detail.question?.titleSlug || `leetcode_${detail.question?.questionId || ''}`;
+      const problemSlug = pending?.titleSlug || detail.question?.titleSlug || this.extractSlugFromUrl();
+      const problemTitle = detail.question?.title || this.extractProblemTitle() || problemSlug;
       const userHandle = this.extractUserHandle();
 
       const payload: UnifiedSubmissionPayload = {
         platform: 'leetcode_cn',
         platformSubmissionId: subIdStr,
         problemId: problemSlug,
-        problemTitle: detail.question?.title || pending?.titleSlug || problemSlug,
+        problemTitle,
         problemUrl: `https://leetcode.cn/problems/${problemSlug}/`,
         platformUserHandle: userHandle,
         verdict,
@@ -178,6 +235,132 @@ export class LeetCodeAdapter extends BaseAdapter {
     } catch (e) {
       Logger.error('[LeetCodeAdapter] Error handling GraphQL detail:', e);
     }
+  }
+
+  /**
+   * DOM MutationObserver 双保险监听
+   */
+  private initDomObserver(): void {
+    if (typeof MutationObserver === 'undefined') return;
+    let debounceTimer: any = null;
+    const observer = new MutationObserver(() => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        this.scanDomForSubmissionResult();
+      }, 500);
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
+  private scanDomForSubmissionResult(): void {
+    if (!this.pendingMap.size) return;
+
+    const pageText = document.body.innerText || '';
+    let foundVerdict: VerdictType | null = null;
+    let foundStatusText = '';
+
+    const resultBadges = document.querySelectorAll(
+      '[data-e2e-locator="submission-result"], .text-green-s, .text-red-s, [class*="result-status"]'
+    );
+
+    for (const el of Array.from(resultBadges)) {
+      const t = el.textContent?.trim() || '';
+      if (t === '通过' || t === 'Accepted') {
+        foundVerdict = 'AC';
+        foundStatusText = t;
+        break;
+      } else if (t === '解答错误' || t === 'Wrong Answer') {
+        foundVerdict = 'WA';
+        foundStatusText = t;
+        break;
+      } else if (t === '超出时间限制' || t === 'Time Limit Exceeded') {
+        foundVerdict = 'TLE';
+        foundStatusText = t;
+        break;
+      } else if (t === '超出内存限制' || t === 'Memory Limit Exceeded') {
+        foundVerdict = 'MLE';
+        foundStatusText = t;
+        break;
+      } else if (t.includes('执行出错') || t.includes('Runtime Error')) {
+        foundVerdict = 'RE';
+        foundStatusText = t;
+        break;
+      } else if (t.includes('编译出错') || t.includes('Compile Error')) {
+        foundVerdict = 'CE';
+        foundStatusText = t;
+        break;
+      }
+    }
+
+    if (!foundVerdict) {
+      if (pageText.includes('执行用时分布') || pageText.includes('消耗内存分布')) {
+        if (/(\n|^)\s*通过\s*(\n|$)/m.test(pageText) || pageText.includes('状态：通过') || pageText.includes('状态: 通过')) {
+          foundVerdict = 'AC';
+          foundStatusText = '通过';
+        } else if (/(\n|^)\s*解答错误\s*(\n|$)/m.test(pageText)) {
+          foundVerdict = 'WA';
+          foundStatusText = '解答错误';
+        }
+      }
+    }
+
+    if (!foundVerdict) return;
+
+    let runtimeMs = 0;
+    let memoryKb = 0;
+    const runtimeMatch = pageText.match(/(?:执行用时|用时|Runtime)[^\d]*(\d+)\s*ms/i) || pageText.match(/(\d+)\s*ms/i);
+    if (runtimeMatch) runtimeMs = parseInt(runtimeMatch[1], 10);
+
+    const memMatch = pageText.match(/(?:消耗内存|内存|Memory)[^\d]*([\d.]+)\s*MB/i) || pageText.match(/([\d.]+)\s*MB/i);
+    if (memMatch) memoryKb = Math.round(parseFloat(memMatch[1]) * 1024);
+
+    const [subIdStr, pending] = Array.from(this.pendingMap.entries())[0];
+    this.pendingMap.delete(subIdStr);
+
+    const problemSlug = pending.titleSlug || this.extractSlugFromUrl();
+    const problemTitle = this.extractProblemTitle() || problemSlug;
+    const userHandle = this.extractUserHandle();
+
+    const payload: UnifiedSubmissionPayload = {
+      platform: 'leetcode_cn',
+      platformSubmissionId: subIdStr,
+      problemId: problemSlug,
+      problemTitle,
+      problemUrl: `https://leetcode.cn/problems/${problemSlug}/`,
+      platformUserHandle: userHandle,
+      verdict: foundVerdict,
+      rawStatus: foundStatusText,
+      score: foundVerdict === 'AC' ? 100 : 0,
+      language: pending.lang || 'unknown',
+      sourceCode: pending.code || '',
+      executionTimeMs: runtimeMs,
+      memoryUsedKb: memoryKb,
+      submittedAt: pending.timestamp || Date.now(),
+      clientVersion: '1.0.0',
+    };
+
+    Logger.info(`[LeetCodeAdapter] Emitted submission via DOM fallback: ${problemSlug} (${foundVerdict})`);
+    this.submitPayload(payload);
+  }
+
+  private extractSlugFromUrl(): string {
+    const m = window.location.pathname.match(/\/problems\/([^/]+)/);
+    return m ? m[1] : 'unknown';
+  }
+
+  private extractProblemTitle(): string {
+    try {
+      const rawTitle = document.title || '';
+      const cleaned = rawTitle.replace(/\s*-\s*力扣.*$/, '').replace(/^\d+\.\s*/, '').trim();
+      if (cleaned) return cleaned;
+      const h4 = document.querySelector('h4, [data-e2e-locator="question-title"]');
+      if (h4?.textContent) return h4.textContent.replace(/^\d+\.\s*/, '').trim();
+    } catch (_) {}
+    return '';
   }
 
   private mapStatusCodeToVerdict(code: number): VerdictType {
@@ -236,7 +419,6 @@ export class LeetCodeAdapter extends BaseAdapter {
 
   private extractUserHandle(): string | undefined {
     try {
-      // 尝试从页面全局变量或用户头像链接提取
       const userAvatar = document.querySelector('a[href^="/u/"]');
       if (userAvatar) {
         const href = userAvatar.getAttribute('href');
@@ -245,6 +427,10 @@ export class LeetCodeAdapter extends BaseAdapter {
       }
       if ((pageWindow as any).userStatus?.username) {
         return (pageWindow as any).userStatus.username;
+      }
+      const nextData = (pageWindow as any).__NEXT_DATA__;
+      if (nextData?.props?.pageProps?.userStatus?.username) {
+        return nextData.props.pageProps.userStatus.username;
       }
     } catch (_) {}
     return undefined;
