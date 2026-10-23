@@ -5,14 +5,49 @@ import { pageWindow, Logger } from '../core/sandbox';
 import { Storage } from '../core/storage';
 import { Transport } from '../core/transport';
 
+declare function GM_xmlhttpRequest(details: any): void;
+
 interface AcWingPendingSubmission {
   problemId: string;
   problemTitle: string;
   rawPid: string;
   code: string;
   language: string;
+  userHandle?: string;
   timestamp: number;
   submissionId?: string;
+}
+
+/**
+ * 通用跨域/沙箱安全文本拉取工具
+ * 优先使用 GM_xmlhttpRequest，绕过页面 CSP 与 fetch 跨上下文 Illegal invocation 限制
+ */
+function fetchUrlText(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const fullUrl = url.startsWith('http') ? url : window.location.origin + url;
+    if (typeof GM_xmlhttpRequest === 'function') {
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url: fullUrl,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        timeout: 10000,
+        onload: (res: any) => {
+          if (res.status >= 200 && res.status < 400) {
+            resolve(res.responseText || '');
+          } else {
+            reject(new Error(`HTTP ${res.status}`));
+          }
+        },
+        onerror: (err: any) => reject(err),
+        ontimeout: () => reject(new Error('Timeout')),
+      });
+    } else {
+      fetch(fullUrl, { credentials: 'include', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then((r) => r.text())
+        .then(resolve)
+        .catch(reject);
+    }
+  });
 }
 
 export class AcWingAdapter extends BaseAdapter {
@@ -27,7 +62,10 @@ export class AcWingAdapter extends BaseAdapter {
   }
 
   public init(): void {
-    Logger.info('[AcWingAdapter] Initialized with dual WS/DOM + Active Polling pipeline.');
+    Logger.info('[AcWingAdapter] Initialized with 4-way redundant detection (Native Hook + WS + DOM + Active Poll).');
+
+    // 0. 直接劫持 AcWing 全局状态分发函数 handle_problem_submit_code_status
+    this.hookNativeAcWingHandler();
 
     // 1. 监听 HTTP / XHR 请求 (捕获 POST 请求及可能返回的 JSON)
     NetworkHookBus.onHttp((event: InterceptedHttpEvent) => {
@@ -39,7 +77,7 @@ export class AcWingAdapter extends BaseAdapter {
       this.handleWsMessage(url, data);
     });
 
-    // 3. 监听 WebSocket 上行发送 (实时监控提交行为)
+    // 3. 监听 WebSocket 上行发送 (实时监控提交行为并捕获源码)
     NetworkHookBus.onWsSend((url: string, data: string) => {
       this.handleWsSend(url, data);
     });
@@ -53,6 +91,76 @@ export class AcWingAdapter extends BaseAdapter {
 
     // 5. 监听代码提交按钮点击
     this.bindSubmitButtonListener();
+  }
+
+  /**
+   * 劫持 AcWing 原生 handle_problem_submit_code_status 函数
+   * AcWing 在 WebSocket 收到判题结果时会直接调用该全局函数
+   */
+  private hookNativeAcWingHandler(): void {
+    const wrapHandler = (targetFunc: Function) => {
+      const wrapped = (data: any) => {
+        try {
+          Logger.info('[AcWingAdapter] Intercepted native handle_problem_submit_code_status payload:', data);
+          if (data && data.status) {
+            this.onNativeStatusReceived(data.status, data);
+          }
+        } catch (e) {
+          Logger.error('[AcWingAdapter] Error in hooked handle_problem_submit_code_status:', e);
+        }
+        return targetFunc.apply(pageWindow, [data]);
+      };
+      (wrapped as any).__oj_hooked = true;
+      return wrapped;
+    };
+
+    // 1. 立即检查并挂载
+    const current = (pageWindow as any).handle_problem_submit_code_status;
+    if (typeof current === 'function' && !(current as any).__oj_hooked) {
+      (pageWindow as any).handle_problem_submit_code_status = wrapHandler(current);
+      Logger.info('[AcWingAdapter] Hooked existing handle_problem_submit_code_status.');
+    }
+
+    // 2. 利用 setter 拦截后续脚本 (如 debug_code.js) 的赋值覆盖
+    try {
+      let storedFunc = (pageWindow as any).handle_problem_submit_code_status;
+      Object.defineProperty(pageWindow, 'handle_problem_submit_code_status', {
+        configurable: true,
+        enumerable: true,
+        get: () => storedFunc,
+        set: (newFunc) => {
+          if (typeof newFunc === 'function' && !(newFunc as any).__oj_hooked) {
+            Logger.info('[AcWingAdapter] Setter intercepted handle_problem_submit_code_status definition.');
+            storedFunc = wrapHandler(newFunc);
+          } else {
+            storedFunc = newFunc;
+          }
+        },
+      });
+    } catch (_) {}
+  }
+
+  /**
+   * 原生状态回调触发终态响应
+   */
+  private onNativeStatusReceived(status: string, data?: any): void {
+    const upper = String(status).toUpperCase();
+    if (upper === 'UPLOADING' || upper === 'PENDING' || upper === 'JUDGING' || upper === 'RUNNING') {
+      Logger.info(`[AcWingAdapter] Native status update: ${status}`);
+      return;
+    }
+
+    const verdict = this.mapStatusStringToVerdict(status);
+    if (!verdict) return;
+
+    Logger.info(`[AcWingAdapter] Native terminal status reached: ${status} -> ${verdict}`);
+    Transport.notifyStatus('syncing', `AcWing 评测完成 (${status})，正在获取真实提交编号...`);
+
+    const pending = this.getValidPendingSubmission();
+    const rawPid = pending?.rawPid || this.extractProblemInfo().rawPid;
+    if (rawPid) {
+      this.pollSubmissionUntilDone(rawPid);
+    }
   }
 
   /**
@@ -83,7 +191,7 @@ export class AcWingAdapter extends BaseAdapter {
             (btnText.includes('提交') && (btnText.includes('代码') || btnText === '提交'));
 
           if (isSubmitBtn) {
-            Logger.info('[AcWingAdapter] Real submit button clicked. Capturing editor state...');
+            Logger.info('[AcWingAdapter] Submit button clicked. Capturing editor state and pre-existing IDs...');
             this.captureEditorState();
           }
         }
@@ -94,19 +202,29 @@ export class AcWingAdapter extends BaseAdapter {
 
   /**
    * 鲁棒解析题目编号与标题，覆盖普通题库、打卡活动、分栏、讨论等各类 URL 结构
+   * 严格保证 problemId 与后端数据库和爬虫格式 100% 保持一致 (AcWing-xxx)
    */
   private extractProblemInfo(): { problemId: string; problemTitle: string; rawPid: string } {
-    const path = window.location.pathname;
     let rawPid = '';
 
+    // 0. 优先从全局变量 PROBLEM_ID 获取 (AcWing 题目页均挂载了此变量)
+    const pageProblemId = (pageWindow as any).PROBLEM_ID;
+    if (pageProblemId && /^\d+$/.test(String(pageProblemId))) {
+      rawPid = String(pageProblemId);
+    }
+
     // 规则 1: /problem/content/(?:xxx/)?(\d+) 或 /activity/problem/content/...
-    const m1 = path.match(/(?:problem\/content|activity\/problem\/content)(?:.*?\/)?(\d+)/i);
-    if (m1 && m1[1]) {
-      rawPid = m1[1];
+    if (!rawPid) {
+      const path = window.location.pathname;
+      const m1 = path.match(/(?:problem\/content|activity\/problem\/content)(?:.*?\/)?(\d+)/i);
+      if (m1 && m1[1]) {
+        rawPid = m1[1];
+      }
     }
 
     // 规则 2: URL 末尾纯数字段
     if (!rawPid) {
+      const path = window.location.pathname;
       const m2 = path.match(/\/(\d+)\/?(?:[?#]|$)/);
       if (m2 && m2[1]) {
         rawPid = m2[1];
@@ -121,9 +239,10 @@ export class AcWingAdapter extends BaseAdapter {
       }
     }
 
-    const problemId = rawPid ? `acwing_${rawPid}` : 'acwing_unknown';
+    // 题目 ID 与爬虫标准保持 100% 一致：AcWing-{rawPid}
+    const problemId = rawPid ? `AcWing-${rawPid}` : 'AcWing-unknown';
 
-    // 提取标题
+    // 提取标题：优先 .problem-content-title
     const titleElem = document.querySelector('.problem-content-title, #problem-title, h1.title, .fs-headline');
     let problemTitle = titleElem ? titleElem.textContent?.trim() || '' : '';
     if (!problemTitle) {
@@ -134,19 +253,17 @@ export class AcWingAdapter extends BaseAdapter {
   }
 
   /**
-   * 收集当前 DOM 中已存在的全部 submissionId，防止将历史提交错认为本次提交
+   * 收集当前 DOM 中已存在的全部 submissionId
    */
   private getAllSubmissionIdsInDom(): string[] {
     const ids: string[] = [];
     try {
-      // 检查 submission-result-XXXX
       const resultSpans = document.querySelectorAll('[id*="submission-result-"]');
       resultSpans.forEach((el) => {
         const m = el.id.match(/submission-result-(\d+)/);
         if (m && m[1]) ids.push(m[1]);
       });
 
-      // 检查 code_detail 链接
       const links = document.querySelectorAll('a[href*="/code_detail/"]');
       links.forEach((a) => {
         const href = a.getAttribute('href') || '';
@@ -162,7 +279,7 @@ export class AcWingAdapter extends BaseAdapter {
    */
   private getValidPendingSubmission(): AcWingPendingSubmission | null {
     if (!this.pendingSubmission) return null;
-    const EXPIRY_MS = 10 * 60 * 1000; // 10 分钟
+    const EXPIRY_MS = 10 * 60 * 1000; // 10 分钟有效期
     if (Date.now() - this.pendingSubmission.timestamp > EXPIRY_MS) {
       this.pendingSubmission = null;
       return null;
@@ -171,7 +288,7 @@ export class AcWingAdapter extends BaseAdapter {
   }
 
   /**
-   * 捕获编辑器源码与语言，记录旧提交 ID 快照，启动主动轮询看门狗
+   * 捕获编辑器源码与语言，快照记录提交前状态，启动轮询看门狗
    */
   private captureEditorState(): void {
     try {
@@ -180,7 +297,7 @@ export class AcWingAdapter extends BaseAdapter {
       let code = '';
       let language = 'unknown';
 
-      // 1. 从 Ace Editor 获取
+      // 1. 从 Ace Editor 获取源码
       const ace = (pageWindow as any).ace;
       if (ace && typeof ace.edit === 'function') {
         const editor = ace.edit('code_editor') || ace.edit(document.querySelector('#code_editor'));
@@ -191,7 +308,7 @@ export class AcWingAdapter extends BaseAdapter {
           if (editor.getSession) {
             const modeId = editor.getSession().getMode()?.$id || '';
             if (modeId.includes('c_cpp')) language = 'C++';
-            else if (modeId.includes('python')) language = 'Python3';
+            else if (modeId.includes('python')) language = 'Python 3';
             else if (modeId.includes('java')) language = 'Java';
             else if (modeId.includes('golang')) language = 'Go';
             else if (modeId.includes('rust')) language = 'Rust';
@@ -206,15 +323,15 @@ export class AcWingAdapter extends BaseAdapter {
         if (textarea && textarea.value) code = textarea.value;
       }
 
-      // 兜底语言
+      // 从页面原生下拉选框获取精确语言
       if (!language || language === 'unknown') {
-        const domLang = this.extractLanguageFromDom();
-        if (domLang && domLang !== 'unknown') language = domLang;
+        language = this.extractLanguageFromDom();
       }
 
       const { problemId, problemTitle, rawPid } = this.extractProblemInfo();
+      const userHandle = this.extractUserHandle();
 
-      // 快照记录提交前 DOM 里已经存在的提交 ID，防范错位挂载
+      // 快照记录提交前 DOM 里的历史 ID
       this.preExistingSubmissionIds = new Set(this.getAllSubmissionIdsInDom());
 
       this.pendingSubmission = {
@@ -223,14 +340,26 @@ export class AcWingAdapter extends BaseAdapter {
         rawPid,
         code,
         language,
+        userHandle,
         timestamp: Date.now(),
       };
 
       Logger.info(`[AcWingAdapter] Captured editor state for ${problemId} (${problemTitle}), lang: ${language}, code len: ${code.length}`);
       Transport.notifyStatus('syncing', `AcWing 正在判题: ${problemTitle}...`);
 
-      // 启动主动查询保底轮询（若 WebSocket 在 2.5s、5s、8s、13s 未能送达终态，直接端侧查接口）
+      // 提交时同时尝试快照记录当前第一条提交 ID，以防后续轮询串号
       if (rawPid) {
+        fetchUrlText(`/problem/content/submission/${rawPid}/`)
+          .then((html) => {
+            const m = html.match(/\/code_detail\/(\d+)\//) || html.match(/id=['"]submission-result-(\d+)['"]/);
+            if (m && m[1]) {
+              this.preExistingSubmissionIds.add(m[1]);
+              Logger.info(`[AcWingAdapter] Snapshotted existing latest submission ID before submit: ${m[1]}`);
+            }
+          })
+          .catch(() => {});
+
+        // 启动兜底轮询
         this.scheduleActivePolling(rawPid);
       }
     } catch (e) {
@@ -246,10 +375,10 @@ export class AcWingAdapter extends BaseAdapter {
   }
 
   /**
-   * 启动类似 Luogu 的轻量主动轮询，作为 WebSocket 的 100% 可靠保障
+   * 启动保底轮询（在 2s、4s、7s、11s、16s 查询提交列表）
    */
   private scheduleActivePolling(rawPid: string): void {
-    const delays = [2500, 5000, 8500, 13000];
+    const delays = [2000, 4000, 7000, 11000, 16000];
     for (const d of delays) {
       const t = setTimeout(() => {
         if (this.pendingSubmission && this.pendingSubmission.rawPid === rawPid) {
@@ -261,41 +390,52 @@ export class AcWingAdapter extends BaseAdapter {
   }
 
   /**
+   * 判题终态后密集轮询提交记录直至获取成功
+   */
+  private pollSubmissionUntilDone(rawPid: string): void {
+    this.clearPollTimers();
+    const intervals = [300, 900, 1800, 3200, 5500, 8500];
+    for (const delay of intervals) {
+      const t = setTimeout(async () => {
+        try {
+          const html = await fetchUrlText(`/problem/content/submission/${rawPid}/`);
+          const done = this.parseSubmissionListHtml(html, rawPid);
+          if (done) {
+            this.clearPollTimers();
+          }
+        } catch (_) {}
+      }, delay);
+      this.pollTimers.push(t);
+    }
+  }
+
+  /**
    * 主动查询题目的提交历史列表 (/problem/content/submission/{pid}/)
-   * 拥有用户当前网页会话 Cookie，首行即为刚刚判完的真实提交
    */
   private async pollRecentProblemSubmission(rawPid: string): Promise<void> {
     try {
-      const fetchFn = NetworkHookBus.rawFetch || fetch;
-      const url = `/problem/content/submission/${rawPid}/`;
-      const res = await fetchFn(url, {
-        method: 'GET',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        credentials: 'include',
-      });
-
-      if (res.status === 200) {
-        const html = await res.text();
+      const html = await fetchUrlText(`/problem/content/submission/${rawPid}/`);
+      if (html) {
         this.parseSubmissionListHtml(html, rawPid);
       }
     } catch (_) {}
   }
 
   /**
-   * 解析提交列表 HTML，提取首行最新记录
+   * 解析提交列表 HTML，提取首行最新真实记录
    */
-  private parseSubmissionListHtml(html: string, rawPid: string): void {
+  private parseSubmissionListHtml(html: string, rawPid: string): boolean {
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
       const rows = doc.querySelectorAll('table tbody tr, table tr');
-      if (!rows || rows.length === 0) return;
+      if (!rows || rows.length === 0) return false;
 
       const firstRow = rows[0];
       const tds = firstRow.querySelectorAll('td');
-      if (tds.length < 3) return;
+      if (tds.length < 4) return false;
 
-      // 提取 submission ID
+      // 1. 提取真实 submission ID
       let sid = '';
       const codeLink = firstRow.querySelector("a[href*='code_detail'], a[href*='submission']");
       if (codeLink) {
@@ -310,45 +450,71 @@ export class AcWingAdapter extends BaseAdapter {
         }
       }
 
-      if (!sid || !/^\d+$/.test(sid)) return;
+      if (!sid || !/^\d+$/.test(sid)) return false;
 
-      // 如果这个 ID 恰好是在提交之前就已经存在的旧记录，直接跳过
-      if (this.preExistingSubmissionIds.has(sid) || Storage.isDuplicate(this.platform, sid)) {
-        return;
+      // 2. 提取判题结果状态 (优先从 span 获取，剔除 script 标签内容)
+      let rawStatus = '';
+      const resSpan = firstRow.querySelector("[id*='submission-result-']");
+      if (resSpan) {
+        rawStatus = resSpan.textContent?.trim() || '';
+      }
+      if (!rawStatus) {
+        const tdClone = tds[1].cloneNode(true) as HTMLElement;
+        tdClone.querySelectorAll('script').forEach((s) => s.remove());
+        rawStatus = tdClone.textContent?.trim() || '';
       }
 
-      // 提取 verdict
-      const statusText = tds[1]?.textContent?.trim() || '';
-      const verdict = this.mapStatusStringToVerdict(statusText);
-      if (!verdict) return;
+      // 若仍处于评测中状态，告知轮询继续
+      const upperStatus = rawStatus.toUpperCase();
+      if (upperStatus === 'UPLOADING' || upperStatus === 'PENDING' || upperStatus === 'JUDGING' || upperStatus === 'RUNNING') {
+        Logger.info(`[AcWingAdapter] Submission ${sid} is still judging (${rawStatus}). Waiting...`);
+        return false;
+      }
 
-      // 提取耗时与内存
+      const verdict = this.mapStatusStringToVerdict(rawStatus);
+      if (!verdict) return false;
+
+      // 3. 避免将提交前已存在的旧记录错认
+      if (this.preExistingSubmissionIds.has(sid) || Storage.isDuplicate(this.platform, sid)) {
+        return false;
+      }
+
+      // 4. 提取耗时 (第 2 列: tds[2])
       let timeMs = 0;
-      let memoryKb = 0;
       const timeStr = tds[2]?.textContent?.trim() || '';
       const tm = timeStr.match(/(\d+)\s*ms/i);
       if (tm) timeMs = parseInt(tm[1], 10);
 
-      const memStr = tds.length >= 4 ? tds[3]?.textContent?.trim() || '' : '';
-      const mm = memStr.match(/([\d.]+)\s*(KB|MB)/i);
-      if (mm) {
-        memoryKb = mm[2].toUpperCase() === 'MB' ? Math.round(parseFloat(mm[1]) * 1024) : Math.round(parseFloat(mm[1]));
+      // 5. 提取语言 (第 3 列: tds[3])
+      let langStr = tds[3]?.textContent?.trim() || '';
+      if (!langStr || langStr === 'N/A') {
+        langStr = this.pendingSubmission?.language || 'C++';
       }
 
-      const langStr = tds.length >= 5 ? tds[4]?.textContent?.trim() : undefined;
+      // 6. 提取官方精准北京时间 (第 0 列: tds[0] 的 span[title])
+      let submittedAtTs: number | undefined;
+      const timeSpan = tds[0].querySelector('span[title]');
+      const titleTime = timeSpan?.getAttribute('title')?.trim();
+      if (titleTime) {
+        const d = new Date(titleTime.replace(/-/g, '/'));
+        if (!isNaN(d.getTime())) {
+          submittedAtTs = d.getTime();
+        }
+      }
 
-      Logger.info(`[AcWingAdapter] Successfully extracted latest submission via active poll: ${sid} (${verdict})`);
+      Logger.info(`[AcWingAdapter] Successfully extracted authentic submission: ${sid} (${verdict})`);
       this.clearPollTimers();
-      this.emitUnifiedSubmission(sid, verdict, statusText, timeMs, memoryKb, langStr);
+      this.emitUnifiedSubmission(sid, verdict, rawStatus, timeMs, 0, langStr, submittedAtTs);
+      return true;
     } catch (e) {
       Logger.error('[AcWingAdapter] Error parsing submission list HTML:', e);
+      return false;
     }
   }
 
   private handleHttpEvent(event: InterceptedHttpEvent): void {
-    // 拦截 POST 请求
     if (event.method === 'POST') {
-      // 1. 从提交请求体提取源码与语言
+      // 1. 从 POST 请求体中提取源码与语言
       if (event.requestBody && typeof event.requestBody === 'string') {
         try {
           let code: string | null = null;
@@ -367,13 +533,15 @@ export class AcWingAdapter extends BaseAdapter {
           if (code || lang) {
             const prev = this.getValidPendingSubmission();
             const { problemId, problemTitle, rawPid } = this.extractProblemInfo();
+            const userHandle = this.extractUserHandle();
 
             this.pendingSubmission = {
               problemId: prev?.problemId || problemId,
               problemTitle: prev?.problemTitle || problemTitle,
               rawPid: prev?.rawPid || rawPid,
               code: code || prev?.code || '',
-              language: lang || prev?.language || 'unknown',
+              language: lang || prev?.language || 'C++',
+              userHandle: prev?.userHandle || userHandle,
               timestamp: Date.now(),
               submissionId: prev?.submissionId,
             };
@@ -381,7 +549,7 @@ export class AcWingAdapter extends BaseAdapter {
         } catch (_) {}
       }
 
-      // 2. 从 POST 响应提取真实的 submission_id
+      // 2. 从 POST 响应体中检索可能返回的 submissionId
       if (event.responseText) {
         this.inspectTextForId(event.responseText);
       }
@@ -394,21 +562,23 @@ export class AcWingAdapter extends BaseAdapter {
   }
 
   private handleWsSend(url: string, data: string): void {
-    // 监控上行 WebSocket 是否发送代码
     if (!data) return;
     try {
       if (data.startsWith('{') || data.startsWith('[')) {
         const json = JSON.parse(data);
-        if (json.code) {
-          Logger.info('[AcWingAdapter] Captured code from outgoing WS frame.');
+        if (json.activity === 'problem_submit_code' || json.code) {
+          Logger.info('[AcWingAdapter] Captured code from outgoing WebSocket frame.');
           const prev = this.getValidPendingSubmission();
           const { problemId, problemTitle, rawPid } = this.extractProblemInfo();
+          const userHandle = this.extractUserHandle();
+
           this.pendingSubmission = {
             problemId: prev?.problemId || problemId,
             problemTitle: prev?.problemTitle || problemTitle,
             rawPid: prev?.rawPid || rawPid,
-            code: json.code,
-            language: json.language || json.lang || prev?.language || 'unknown',
+            code: json.code || prev?.code || '',
+            language: json.language || json.lang || prev?.language || 'C++',
+            userHandle: prev?.userHandle || userHandle,
             timestamp: Date.now(),
             submissionId: prev?.submissionId,
           };
@@ -419,19 +589,12 @@ export class AcWingAdapter extends BaseAdapter {
 
   private handleWsMessage(url: string, data: string): void {
     if (!data) return;
-    // 深度打印收到的 WebSocket 帧，告别黑盒盲猜
-    Logger.debug('[AcWingAdapter] Ingoing WS Message:', data.length > 300 ? data.slice(0, 300) + '...' : data);
+    Logger.debug('[AcWingAdapter] Ingoing WS Message:', data.length > 200 ? data.slice(0, 200) + '...' : data);
 
-    // 首先尝试从中抓取并保存任何可能出现的 submissionId
     this.inspectTextForId(data);
-
-    // 检查是否包含终态判题结果
     this.checkTerminalResultInText(data);
   }
 
-  /**
-   * 递归检索任何 JSON 对象中的 submission ID，一旦出现立即保存
-   */
   private inspectTextForId(text: string): void {
     try {
       if (text.startsWith('{') || text.startsWith('[')) {
@@ -476,15 +639,11 @@ export class AcWingAdapter extends BaseAdapter {
     return null;
   }
 
-  /**
-   * 检查文本是否包含终态，并完成上报
-   */
   private checkTerminalResultInText(text: string): void {
     try {
       let statusStr = '';
       let submissionId = '';
       let timeMs = 0;
-      let memoryKb = 0;
       let respLang = '';
 
       if (text.startsWith('{') || text.startsWith('[')) {
@@ -495,9 +654,6 @@ export class AcWingAdapter extends BaseAdapter {
 
         const rawTime = json.time ?? json.execution_time ?? (json.data && json.data.time);
         if (rawTime) timeMs = parseInt(String(rawTime), 10) || 0;
-
-        const rawMem = json.memory ?? json.memory_used ?? (json.data && json.data.memory);
-        if (rawMem) memoryKb = parseInt(String(rawMem), 10) || 0;
       } else {
         const match = text.match(/"(?:status|result|state)":\s*"([^"]+)"/i);
         if (match) statusStr = match[1];
@@ -505,39 +661,26 @@ export class AcWingAdapter extends BaseAdapter {
 
       if (!statusStr) return;
 
+      const upper = statusStr.toUpperCase();
+      if (upper === 'UPLOADING' || upper === 'PENDING' || upper === 'JUDGING' || upper === 'RUNNING') {
+        return;
+      }
+
       const verdict = this.mapStatusStringToVerdict(statusStr);
       if (!verdict) return;
 
-      // 1. 如果当前消息未带 submissionId，使用 pendingSubmission 中捕获的值
+      // 若未直接获得真实 submissionId，通过主动查询接口获取
       if (!submissionId || !/^\d+$/.test(submissionId)) {
         const pending = this.getValidPendingSubmission();
-        if (pending?.submissionId && /^\d+$/.test(pending.submissionId)) {
-          submissionId = pending.submissionId;
-        }
-      }
-
-      // 2. 检查 DOM 中刚生成的新 ID (排除提交前的历史旧 ID)
-      if (!submissionId || !/^\d+$/.test(submissionId)) {
-        const domSid = this.findNewlyAppearedSubmissionIdFromDom();
-        if (domSid && /^\d+$/.test(domSid)) {
-          submissionId = domSid;
-        }
-      }
-
-      // 3. 若尚未捕获到 ID，记录状态并在 1 秒后触发一次主动查询补全
-      if (!submissionId || !/^\d+$/.test(submissionId)) {
-        Logger.warn(`[AcWingAdapter] Verdict detected (${verdict}) but real submission ID pending. Polling submission API...`);
-        const pending = this.getValidPendingSubmission();
-        if (pending?.rawPid) {
-          setTimeout(() => {
-            this.pollRecentProblemSubmission(pending.rawPid);
-          }, 800);
+        const rawPid = pending?.rawPid || this.extractProblemInfo().rawPid;
+        if (rawPid) {
+          this.pollSubmissionUntilDone(rawPid);
         }
         return;
       }
 
       this.clearPollTimers();
-      this.emitUnifiedSubmission(submissionId, verdict, statusStr, timeMs, memoryKb, respLang);
+      this.emitUnifiedSubmission(submissionId, verdict, statusStr, timeMs, 0, respLang);
     } catch (_) {}
   }
 
@@ -575,88 +718,64 @@ export class AcWingAdapter extends BaseAdapter {
   }
 
   /**
-   * 扫描页面 DOM 容器中的状态变动
+   * 扫描页面 DOM 容器中的状态变动 (#submit-code-status-block)
    */
   private scanDomForStatus(): void {
-    const statusBlock = document.querySelector(
-      '#submit-code-status-block, #submission-status-block, .submission-status-text, #submit_code_result, #run_code_result, .run-code-result, #code_result, [id*="submission-result-"]'
-    );
-    if (!statusBlock) return;
+    const statusValElem = document.querySelector('#submit-code-status-value-id');
+    const loadingGif = document.querySelector('#submit-code-status-loading-gif-id') as HTMLElement | null;
+    if (!statusValElem) return;
 
-    const text = statusBlock.textContent?.trim() || '';
-    if (!text || text.includes('Running') || text.includes('Pending') || text.includes('Compiling') || text.includes('判题中') || text.includes('排队中') || text.includes('运行中')) {
+    // 若加载图标仍显示，说明判题未结束
+    if (loadingGif && loadingGif.style.display !== 'none' && !loadingGif.hidden) {
+      return;
+    }
+
+    const text = statusValElem.textContent?.trim() || '';
+    if (!text) return;
+
+    const upper = text.toUpperCase();
+    if (upper === 'UPLOADING' || upper === 'PENDING' || upper === 'JUDGING' || upper === 'RUNNING') {
       return;
     }
 
     const verdict = this.mapStatusStringToVerdict(text);
     if (!verdict) return;
 
-    let submissionId = '';
     const pending = this.getValidPendingSubmission();
-    if (pending?.submissionId && /^\d+$/.test(pending.submissionId)) {
-      submissionId = pending.submissionId;
+    const rawPid = pending?.rawPid || this.extractProblemInfo().rawPid;
+    if (rawPid) {
+      this.pollSubmissionUntilDone(rawPid);
     }
-
-    if (!submissionId) {
-      const domSid = this.findNewlyAppearedSubmissionIdFromDom();
-      if (domSid && /^\d+$/.test(domSid)) {
-        submissionId = domSid;
-      }
-    }
-
-    // 若无法提取到纯数字真实 ID，且在提交中，则尝试通过接口核实补全
-    if (!submissionId || !/^\d+$/.test(submissionId)) {
-      if (pending?.rawPid) {
-        this.pollRecentProblemSubmission(pending.rawPid);
-      }
-      return;
-    }
-
-    // 提取耗时与内存
-    let timeMs = 0;
-    let memoryKb = 0;
-    const timeMatch = (statusBlock.textContent || document.body.textContent || '').match(/耗时[：:]\s*(\d+)\s*ms/i);
-    if (timeMatch) timeMs = parseInt(timeMatch[1], 10);
-    const memMatch = (statusBlock.textContent || document.body.textContent || '').match(/内存[：:]\s*([\d.]+)\s*(KB|MB)/i);
-    if (memMatch) {
-      memoryKb = memMatch[2].toUpperCase() === 'MB' ? Math.round(parseFloat(memMatch[1]) * 1024) : Math.round(parseFloat(memMatch[1]));
-    }
-
-    this.clearPollTimers();
-    this.emitUnifiedSubmission(submissionId, verdict, text, timeMs, memoryKb);
-  }
-
-  /**
-   * 仅查找提交之后新出现的 submissionId（严格避开 preExistingSubmissionIds）
-   */
-  private findNewlyAppearedSubmissionIdFromDom(): string | null {
-    try {
-      const allCurrent = this.getAllSubmissionIdsInDom();
-      for (const id of allCurrent) {
-        if (!this.preExistingSubmissionIds.has(id) && !Storage.isDuplicate(this.platform, id)) {
-          return id;
-        }
-      }
-    } catch (_) {}
-    return null;
   }
 
   private extractLanguageFromDom(): string {
     try {
-      const langSelect = document.querySelector('#code_language, select[name="language"]') as HTMLSelectElement | null;
-      if (langSelect) {
+      // 1. 真实下拉选框
+      const langSelect = document.querySelector(
+        '.code_editor_option_language select, select[name="language"], #code_language'
+      ) as HTMLSelectElement | null;
+      if (langSelect && langSelect.selectedIndex >= 0) {
         const opt = langSelect.options[langSelect.selectedIndex];
         const val = opt?.text?.trim() || opt?.value?.trim() || langSelect.value?.trim();
         if (val && val !== 'unknown') return val;
       }
 
-      const activeBtn = document.querySelector('.btn-language.active, [data-language].active');
-      if (activeBtn) {
-        const val = activeBtn.getAttribute('data-language') || activeBtn.textContent?.trim();
-        if (val) return val;
+      // 2. Ace editor session mode
+      const ace = (pageWindow as any).ace;
+      if (ace && typeof ace.edit === 'function') {
+        const editor = ace.edit('code_editor') || ace.edit(document.querySelector('#code_editor'));
+        if (editor && editor.getSession) {
+          const modeId = editor.getSession().getMode()?.$id || '';
+          if (modeId.includes('c_cpp')) return 'C++';
+          if (modeId.includes('python')) return 'Python 3';
+          if (modeId.includes('java')) return 'Java';
+          if (modeId.includes('golang')) return 'Go';
+          if (modeId.includes('rust')) return 'Rust';
+          if (modeId.includes('javascript')) return 'JavaScript';
+        }
       }
     } catch (_) {}
-    return 'unknown';
+    return 'C++';
   }
 
   private emitUnifiedSubmission(
@@ -665,17 +784,25 @@ export class AcWingAdapter extends BaseAdapter {
     rawStatus: string,
     timeMs: number,
     memoryKb: number,
-    respLang?: string
+    respLang?: string,
+    submittedAtTs?: number
   ): void {
     if (Storage.isDuplicate(this.platform, submissionId)) return;
 
     const pending = this.getValidPendingSubmission();
     const { problemId, problemTitle } = this.extractProblemInfo();
 
-    const finalProblemId = pending?.problemId && pending.problemId !== 'acwing_unknown' ? pending.problemId : problemId;
-    const finalTitle = pending?.problemTitle && pending.problemTitle !== 'acwing_unknown' ? pending.problemTitle : problemTitle;
+    const finalProblemId = pending?.problemId && pending.problemId !== 'AcWing-unknown' ? pending.problemId : problemId;
+    const finalTitle = pending?.problemTitle && pending.problemTitle !== 'AcWing-unknown' ? pending.problemTitle : problemTitle;
 
-    const language = (respLang && respLang !== 'unknown') ? respLang : (pending?.language && pending.language !== 'unknown' ? pending.language : 'C++');
+    const language =
+      respLang && respLang !== 'unknown' && respLang !== 'N/A'
+        ? respLang
+        : pending?.language && pending.language !== 'unknown'
+        ? pending.language
+        : 'C++';
+
+    const userHandle = pending?.userHandle || this.extractUserHandle();
 
     const payload: UnifiedSubmissionPayload = {
       platform: 'acwing',
@@ -683,7 +810,7 @@ export class AcWingAdapter extends BaseAdapter {
       problemId: finalProblemId,
       problemTitle: finalTitle,
       problemUrl: window.location.href,
-      platformUserHandle: this.extractUserHandle(),
+      platformUserHandle: userHandle,
       verdict,
       rawStatus,
       score: verdict === 'AC' ? 100 : 0,
@@ -691,7 +818,7 @@ export class AcWingAdapter extends BaseAdapter {
       sourceCode: pending?.code || '',
       executionTimeMs: timeMs,
       memoryUsedKb: memoryKb,
-      submittedAt: pending?.timestamp || Date.now(),
+      submittedAt: submittedAtTs || pending?.timestamp || Date.now(),
       clientVersion: '1.0.0',
     };
 
@@ -703,30 +830,57 @@ export class AcWingAdapter extends BaseAdapter {
     this.submitPayload(payload);
   }
 
+  /**
+   * 健全规范化判题状态映射
+   * 兼容 AcWing 原生大写下划线、带空格以及中文别名
+   */
   private mapStatusStringToVerdict(status: string): VerdictType | null {
     if (!status) return null;
-    const s = String(status).toLowerCase().trim();
+    const s = String(status).toUpperCase().replace(/\s+/g, '_').trim();
 
-    if (s.includes('accepted') || s.includes('通过') || s === 'ac' || s === '0' || s === 'ok') return 'AC';
-    if (s.includes('wrong answer') || s.includes('答案错误') || s === 'wa') return 'WA';
-    if (s.includes('time limit') || s.includes('时间超限') || s === 'tle') return 'TLE';
-    if (s.includes('memory limit') || s.includes('内存超限') || s === 'mle') return 'MLE';
-    if (s.includes('runtime error') || s.includes('运行时错误') || s === 're') return 'RE';
-    if (s.includes('compile error') || s.includes('编译错误') || s === 'ce') return 'CE';
+    if (s.includes('ACCEPTED') || s === 'AC' || s.includes('通过') || s === 'OK') return 'AC';
+    if (s.includes('WRONG_ANSWER') || s === 'WA' || s.includes('答案错误')) return 'WA';
+    if (s.includes('TIME_LIMIT') || s === 'TLE' || s.includes('超时') || s.includes('时间超限')) return 'TLE';
+    if (s.includes('MEMORY_LIMIT') || s === 'MLE' || s.includes('内存超限')) return 'MLE';
+    if (
+      s.includes('RUNTIME_ERROR') ||
+      s.includes('SEGMENTATION_FAULT') ||
+      s.includes('FLOAT_POINT') ||
+      s.includes('NON_ZERO') ||
+      s === 'RE' ||
+      s.includes('运行错误') ||
+      s.includes('运行时错误')
+    ) {
+      return 'RE';
+    }
+    if (s.includes('COMPILE_ERROR') || s === 'CE' || s.includes('编译错误')) return 'CE';
+    if (s.includes('OUTPUT_LIMIT') || s === 'OLE' || s.includes('输出超限')) return 'OLE';
+    if (s.includes('PRESENTATION_ERROR') || s === 'PE' || s.includes('格式错误')) return 'PE';
     return null;
   }
 
   private extractUserHandle(): string | undefined {
     try {
+      // 0. 优先从全局 user_state 获取 (AcWing 原生挂载)
+      const ustate = (pageWindow as any).user_state;
+      if (ustate && ustate.user_id) {
+        return String(ustate.user_id);
+      }
+
+      // 1. 从导航栏用户个人空间链接提取 /user/myspace/index/{uid}/
       const userElem = document.querySelector(
         '#user-menu a[href*="/user/myspace/index/"], a[href*="/user/myspace/index/"], a.navbar-user-name, #navbar-user-name'
       );
       if (userElem) {
         const href = userElem.getAttribute('href') || '';
         const m = href.match(/\/user\/myspace\/index\/(\d+)/);
-        if (m && m[1]) return m[1];
+        if (m && m[1]) {
+          return m[1]; // 返回 AcWing 数字 UID
+        }
         const text = userElem.textContent?.trim();
-        if (text && !text.includes('登录') && !text.includes('注册')) return text;
+        if (text && !text.includes('登录') && !text.includes('注册')) {
+          return text;
+        }
       }
     } catch (_) {}
     return undefined;

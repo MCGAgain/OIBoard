@@ -626,3 +626,17 @@ async def serve_favicon():
     return Response(status_code=204)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dist")
+if os.path.exists(DIST_DIR):
+    app.mount("/dist", StaticFiles(directory=DIST_DIR), name="dist")
+
+@app.api_route("/oj-tracker.user.js", methods=["GET", "HEAD"])
+async def serve_tracker_script():
+    dist_script = os.path.join(DIST_DIR, "oj-tracker.user.js")
+    if os.path.exists(dist_script):
+        return FileResponse(dist_script, media_type="application/javascript")
+    static_script = os.path.join(STATIC_DIR, "oj-tracker.user.js")
+    if os.path.exists(static_script):
+        return FileResponse(static_script, media_type="application/javascript")
+    raise HTTPException(status_code=404, detail="oj-tracker.user.js not found")

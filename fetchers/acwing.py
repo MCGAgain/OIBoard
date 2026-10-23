@@ -205,7 +205,7 @@ class AcWingFetcher(BaseFetcher):
 
                             # 官方 ID 保证全局唯一且绝对幂等，不会因反复同步而重复插入
                             if sub_record_id:
-                                raw_id = f"rec_{sub_record_id}"
+                                raw_id = str(sub_record_id)
                             else:
                                 clean_ts = sub_at[:19].replace("-", "").replace(":", "").replace(" ", "_")
                                 raw_id = f"sub_{pid}_{clean_ts}_{idx}"

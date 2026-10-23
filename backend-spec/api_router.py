@@ -13,7 +13,7 @@ import sys
 import sqlite3
 import datetime
 import logging
-from typing import Optional, Literal
+from typing import Optional, Literal, Any, Union
 from fastapi import APIRouter, Header, HTTPException, BackgroundTasks, status
 from pydantic import BaseModel, Field
 
@@ -191,6 +191,29 @@ def map_language_name(platform: str, raw_lang: str) -> str:
     return lang_str
 
 
+def normalize_submission_id(platform: str, raw_id: Any) -> str:
+    s = str(raw_id).strip()
+    if platform == "acwing":
+        if s.startswith("rec_"):
+            s = s[4:]
+        elif s.startswith("sub_"):
+            s = s[4:]
+    elif platform in ("leetcode", "leetcode_cn"):
+        if s.startswith("lc_"):
+            s = s[3:]
+    return s
+
+
+def normalize_problem_id(platform: str, problem_id: Any) -> str:
+    p = str(problem_id).strip()
+    if platform == "acwing":
+        if p.lower().startswith("acwing_"):
+            p = f"AcWing-{p[7:]}"
+        elif p.isdigit():
+            p = f"AcWing-{p}"
+    return p
+
+
 def resolve_user_id(authorization: Optional[str], platform: str, handle: Optional[str]) -> int:
     """
     智能判定多租户 user_id:
@@ -339,6 +362,8 @@ async def push_submission(
     # 2. 动态智能解析多租户用户归属
     resolved_user_id = resolve_user_id(authorization, payload.platform, payload.platformUserHandle)
     unified_platform = "leetcode" if payload.platform in ("leetcode_cn", "leetcode") else payload.platform
+    clean_sub_id = normalize_submission_id(unified_platform, payload.platformSubmissionId)
+    clean_prob_id = normalize_problem_id(unified_platform, payload.problemId)
 
     # 3. 转换提交时间为标准北京时间格式
     try:
@@ -360,7 +385,7 @@ async def push_submission(
             # 检查 oj_submissions 审计表是否已存在
             cursor.execute(
                 "SELECT id, verify_status FROM oj_submissions WHERE platform = ? AND platform_submission_id = ?",
-                (payload.platform, payload.platformSubmissionId),
+                (unified_platform, clean_sub_id),
             )
             row = cursor.fetchone()
 
@@ -373,6 +398,7 @@ async def push_submission(
                     """
                     UPDATE oj_submissions
                     SET user_id = ?,
+                        problem_id = ?,
                         problem_title = COALESCE(?, problem_title),
                         source_code = COALESCE(?, source_code),
                         execution_time_ms = COALESCE(?, execution_time_ms),
@@ -384,6 +410,7 @@ async def push_submission(
                     """,
                     (
                         resolved_user_id,
+                        clean_prob_id,
                         payload.problemTitle,
                         payload.sourceCode,
                         payload.executionTimeMs,
@@ -411,9 +438,9 @@ async def push_submission(
                     """,
                     (
                         resolved_user_id,
-                        payload.platform,
-                        payload.platformSubmissionId,
-                        payload.problemId,
+                        unified_platform,
+                        clean_sub_id,
+                        clean_prob_id,
                         payload.problemTitle,
                         payload.problemUrl,
                         payload.platformUserHandle,
@@ -444,9 +471,9 @@ async def push_submission(
 
         sub_dict = {
             "platform": unified_platform,
-            "raw_id": str(payload.platformSubmissionId),
-            "problem_id": str(payload.problemId),
-            "problem_title": payload.problemTitle or str(payload.problemId),
+            "raw_id": clean_sub_id,
+            "problem_id": clean_prob_id,
+            "problem_title": payload.problemTitle or str(clean_prob_id),
             "verdict": payload.verdict,
             "tags": [],
             "difficulty": "简单" if unified_platform == "leetcode" else "未知",
@@ -485,9 +512,9 @@ async def push_submission(
         run_async_verification,
         record_id=record_id,
         user_id=resolved_user_id,
-        platform=payload.platform,
-        platform_submission_id=payload.platformSubmissionId,
-        problem_id=payload.problemId,
+        platform=unified_platform,
+        platform_submission_id=clean_sub_id,
+        problem_id=clean_prob_id,
         verdict=payload.verdict,
         platform_user_handle=payload.platformUserHandle,
         problem_url=payload.problemUrl,
@@ -499,8 +526,8 @@ async def push_submission(
         "data": {
             "recordId": record_id,
             "userId": resolved_user_id,
-            "platform": payload.platform,
-            "submissionId": payload.platformSubmissionId,
+            "platform": unified_platform,
+            "submissionId": clean_sub_id,
             "action": action,
             "verifyStatus": VerificationStatus.OPTIMISTIC,
         },
