@@ -1553,11 +1553,6 @@ createApp({
         return;
       }
       lastHeatmapRenderKey = currentKey;
-      if (typeof window !== "undefined") {
-        window.__chartClearCounters = window.__chartClearCounters || { heatmap: 0, climbing: 0, daily: 0, tag: 0, pie: 0 };
-        window.__chartClearCounters.heatmap++;
-        console.log(`[ChartClear] heatmap.clear() called, total: ${window.__chartClearCounters.heatmap}`);
-      }
       chart.clear();
 
       const startDateStr = `${targetYear}-01-01`;
@@ -1668,11 +1663,6 @@ createApp({
         return;
       }
       lastClimbingKey = currentKey;
-      if (typeof window !== "undefined") {
-        window.__chartClearCounters = window.__chartClearCounters || { heatmap: 0, climbing: 0, daily: 0, tag: 0, pie: 0 };
-        window.__chartClearCounters.climbing++;
-        console.log(`[ChartClear] climbing.clear() called, total: ${window.__chartClearCounters.climbing}`);
-      }
       chart.clear();
       
       // 保证数据序列严格按日历连续，最小刻度单位为严格 1 天（杜绝跳天导致非等距）
@@ -1872,11 +1862,6 @@ createApp({
         return;
       }
       lastDailyKey = currentKey;
-      if (typeof window !== "undefined") {
-        window.__chartClearCounters = window.__chartClearCounters || { heatmap: 0, climbing: 0, daily: 0, tag: 0, pie: 0 };
-        window.__chartClearCounters.daily++;
-        console.log(`[ChartClear] daily.clear() called, total: ${window.__chartClearCounters.daily}`);
-      }
       chart.clear();
 
       let dates = [];
@@ -2012,11 +1997,6 @@ createApp({
         return;
       }
       lastTagChartKey = currentKey;
-      if (typeof window !== "undefined") {
-        window.__chartClearCounters = window.__chartClearCounters || { heatmap: 0, climbing: 0, daily: 0, tag: 0, pie: 0 };
-        window.__chartClearCounters.tag++;
-        console.log(`[ChartClear] tag.clear() called, total: ${window.__chartClearCounters.tag}`);
-      }
       chart.clear();
       const categories = topTags.map(t => t.tag);
       const acData = topTags.map(t => t.ac_count);
@@ -2102,11 +2082,6 @@ createApp({
         return;
       }
       lastPieKey = currentKey;
-      if (typeof window !== "undefined") {
-        window.__chartClearCounters = window.__chartClearCounters || { heatmap: 0, climbing: 0, daily: 0, tag: 0, pie: 0 };
-        window.__chartClearCounters.pie++;
-        console.log(`[ChartClear] pie.clear() called, total: ${window.__chartClearCounters.pie}`);
-      }
       chart.clear();
       const data = [
         { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: dark ? "#2997ff" : "#0071e3" } },
