@@ -678,6 +678,8 @@ export class StatusBadge {
     }
   }
 
+  private static syncingTimeoutTimer: any = null;
+
   public static updateStatus(status: 'idle' | 'syncing' | 'synced' | 'error', message?: string): void {
     if (!this.shadowRoot) return;
 
@@ -685,12 +687,22 @@ export class StatusBadge {
     const text = this.shadowRoot.getElementById('status-text');
     if (!dot || !text) return;
 
+    if (this.syncingTimeoutTimer) {
+      clearTimeout(this.syncingTimeoutTimer);
+      this.syncingTimeoutTimer = null;
+    }
+
     dot.className = 'status-dot';
 
     switch (status) {
       case 'syncing':
         dot.classList.add('pulse');
         text.textContent = message || 'Syncing...';
+        // 关键安全防线：若 28 秒未收到终态结果，自动超时复位，彻底防止胶囊卡死在 Judging
+        this.syncingTimeoutTimer = setTimeout(() => {
+          Logger.warn('[StatusBadge] Syncing state timed out (28s). Auto-reverting to idle.');
+          this.updateStatus('idle');
+        }, 28000);
         break;
       case 'synced':
         dot.classList.add('synced');
@@ -703,6 +715,10 @@ export class StatusBadge {
       case 'error':
         dot.classList.add('error');
         text.textContent = message || 'Sync Error';
+        // 5秒后自动恢复默认就绪状态
+        setTimeout(() => {
+          this.updateStatus('idle');
+        }, 5000);
         break;
       case 'idle':
       default:

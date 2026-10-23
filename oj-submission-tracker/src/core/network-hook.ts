@@ -15,6 +15,7 @@ export type WsMessageListener = (url: string, data: string) => void;
 export class NetworkHookBus {
   private static httpListeners: HttpListener[] = [];
   private static wsListeners: WsMessageListener[] = [];
+  private static wsSendListeners: WsMessageListener[] = [];
   private static initialized = false;
   public static rawFetch: typeof fetch;
 
@@ -162,8 +163,22 @@ export class NetworkHookBus {
           wsInstance.addEventListener('message', (event: MessageEvent) => {
             if (typeof event.data === 'string') {
               NetworkHookBus.emitWs(String(url), event.data);
+            } else if (typeof Blob !== 'undefined' && event.data instanceof Blob) {
+              event.data.text().then((txt) => {
+                NetworkHookBus.emitWs(String(url), txt);
+              }).catch(() => {});
             }
           });
+
+          const origWsSend = wsInstance.send;
+          wsInstance.send = function (data: any) {
+            try {
+              if (typeof data === 'string') {
+                NetworkHookBus.emitWsSend(String(url), data);
+              }
+            } catch (_) {}
+            return origWsSend.apply(this, arguments as any);
+          };
         } catch (_) {}
 
         return wsInstance;
@@ -185,6 +200,10 @@ export class NetworkHookBus {
     this.wsListeners.push(listener);
   }
 
+  public static onWsSend(listener: WsMessageListener): void {
+    this.wsSendListeners.push(listener);
+  }
+
   private static emitHttp(event: InterceptedHttpEvent): void {
     for (const fn of this.httpListeners) {
       try {
@@ -201,6 +220,16 @@ export class NetworkHookBus {
         fn(url, data);
       } catch (e) {
         Logger.error('WS listener error:', e);
+      }
+    }
+  }
+
+  private static emitWsSend(url: string, data: string): void {
+    for (const fn of this.wsSendListeners) {
+      try {
+        fn(url, data);
+      } catch (e) {
+        Logger.error('WS Send listener error:', e);
       }
     }
   }
