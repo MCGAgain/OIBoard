@@ -466,7 +466,7 @@ createApp({
       }, 3500);
     };
 
-    // --- 安全统一 API 请求包装器 (彻底杜绝浏览器/CDN缓存) ---
+    // --- 安全统一 API 请求包装器 (彻底杜绝浏览器/CDN缓存 + 20s 自动超时熔断) ---
     const apiFetch = async (url, options = {}) => {
       options.headers = options.headers || {};
       options.headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
@@ -486,17 +486,30 @@ createApp({
         const sep = reqUrl.includes("?") ? "&" : "?";
         reqUrl = `${reqUrl}${sep}_t=${Date.now()}`;
       }
-      
-      const res = await fetch(reqUrl, options);
-      if (res.status === 401) {
-        token.value = "";
-        localStorage.removeItem("oiboard_token");
-        localStorage.removeItem("oiboard_user");
-        currentUser.value = null;
-        authError.value = "登录会话已过期，请重新登录";
-        throw new Error("UNAUTHORIZED");
+
+      // A6-1: 增加 20 秒请求超时控制，防止单次请求无限挂起占用连接与轮询锁
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 20000);
+      if (!options.signal) {
+        options.signal = controller.signal;
       }
-      return res;
+      
+      try {
+        const res = await fetch(reqUrl, options);
+        if (res.status === 401) {
+          token.value = "";
+          localStorage.removeItem("oiboard_token");
+          localStorage.removeItem("oiboard_user");
+          currentUser.value = null;
+          authError.value = "登录会话已过期，请重新登录";
+          throw new Error("UNAUTHORIZED");
+        }
+        return res;
+      } finally {
+        clearTimeout(timeoutId);
+      }
     };
 
     // --- Captcha Actions ---
@@ -2483,24 +2496,35 @@ createApp({
       isPollingInProgress = true;
       try {
         const tab = currentTab.value;
+        let tasks = [];
         if (tab === "overview") {
-          await Promise.all([loadOverview(), loadHeatmap(), loadTags(), loadContests()]);
+          tasks = [loadOverview(), loadHeatmap(), loadTags(), loadContests()];
         } else if (tab === "submissions") {
-          await Promise.all([loadSubmissions(), loadMistakeKeys()]);
+          tasks = [loadSubmissions(), loadMistakeKeys()];
         } else if (tab === "mistakes") {
-          await loadMistakes();
+          tasks = [loadMistakes()];
         } else if (tab === "contests") {
-          await loadContests();
+          tasks = [loadContests()];
         } else if (tab === "settings") {
-          await pollSettingsReadOnly();
+          tasks = [pollSettingsReadOnly()];
         }
+
+        // A6-1: 使用 Promise.allSettled 并发执行，单个请求超时或失败不阻塞其他数据域，且保证锁百分之百释放
+        const results = await Promise.allSettled(tasks);
+        const hasSuccess = results.some(r => r.status === "fulfilled");
+        const allRejected = results.length > 0 && results.every(r => r.status === "rejected");
 
         // 低频刷新当前用户信息 (60 秒间隔)，401 时自动回到登录态
         await refreshCurrentUser(false);
 
-        // 轮询成功，重置退避状态
-        consecutivePollFailures = 0;
-        currentPollInterval = BASE_POLL_INTERVAL;
+        if (hasSuccess || results.length === 0) {
+          // 至少有成功项，重置退避
+          consecutivePollFailures = 0;
+          currentPollInterval = BASE_POLL_INTERVAL;
+        } else if (allRejected) {
+          consecutivePollFailures++;
+          currentPollInterval = Math.min(60000, BASE_POLL_INTERVAL * Math.pow(2, consecutivePollFailures));
+        }
       } catch (err) {
         consecutivePollFailures++;
         // 连续失败退避：15s -> 30s -> 最多 60s
