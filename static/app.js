@@ -2459,6 +2459,7 @@ createApp({
     const BASE_POLL_INTERVAL = 15000;
     let currentPollInterval = BASE_POLL_INTERVAL;
     let lastUserRefreshTime = 0;
+    let lastContestSyncTime = 0;
 
     const refreshCurrentUser = async (force = false) => {
       const now = Date.now();
@@ -2499,14 +2500,23 @@ createApp({
         let tasks = [];
         if (tab === "overview") {
           tasks = [loadOverview(), loadHeatmap(), loadTags(), loadContests()];
+          lastContestSyncTime = Date.now();
         } else if (tab === "submissions") {
           tasks = [loadSubmissions(), loadMistakeKeys()];
         } else if (tab === "mistakes") {
           tasks = [loadMistakes()];
         } else if (tab === "contests") {
           tasks = [loadContests()];
+          lastContestSyncTime = Date.now();
         } else if (tab === "settings") {
           tasks = [pollSettingsReadOnly()];
+        }
+
+        // A6-3: 在其他非比赛 Tab 下，每隔 60 秒低频同步一次比赛数据，确保侧边栏待开赛角标与状态不冻结
+        const now = Date.now();
+        if (tab !== "overview" && tab !== "contests" && (now - lastContestSyncTime >= 60000)) {
+          tasks.push(loadContests());
+          lastContestSyncTime = now;
         }
 
         // A6-1: 使用 Promise.allSettled 并发执行，单个请求超时或失败不阻塞其他数据域，且保证锁百分之百释放
@@ -2604,10 +2614,19 @@ createApp({
         }
       }, 30000);
 
-      // 1 秒级时间戳定时器 (仅在需要倒计时的页面跳动，后台标签页自动休眠省电)
+      // A6-3: 分级时钟驱动 (概览/比赛页 1s 精度更新倒计时，其他非活跃页面 30s 精度保持侧边栏角标不冻结)
+      let idleTabSeconds = 0;
       countdownTimer = setInterval(() => {
-        if (!document.hidden && (currentTab.value === 'contests' || currentTab.value === 'overview')) {
+        if (document.hidden) return;
+        if (currentTab.value === 'contests' || currentTab.value === 'overview') {
           updateContestMetas();
+          idleTabSeconds = 0;
+        } else {
+          idleTabSeconds++;
+          if (idleTabSeconds >= 30) {
+            idleTabSeconds = 0;
+            updateContestMetas();
+          }
         }
       }, 1000);
 
