@@ -1,4 +1,4 @@
-const { createApp, ref, onMounted, computed, nextTick, watch } = Vue;
+const { createApp, ref, shallowRef, markRaw, onMounted, onUnmounted, computed, nextTick, watch } = Vue;
 
 createApp({
   setup() {
@@ -207,7 +207,7 @@ createApp({
       window.addEventListener("mouseup", onPointerUp);
     };
 
-    const submissions = ref([]);
+    const submissions = shallowRef([]);
     const subFilter = ref("all");
 
     // --- Contests State ---
@@ -1298,7 +1298,8 @@ createApp({
     };
 
     // --- ECharts 渲染系统 (Apple Pro 调色 + 1:1 自适应纯正方形热力图) ---
-    const renderHeatmap = () => {
+    let lastHeatmapRenderKey = "";
+    const renderHeatmap = (force = false) => {
       const chartDom = document.getElementById("heatmap-chart");
       if (!chartDom) return;
 
@@ -1324,13 +1325,23 @@ createApp({
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
-        chart = echarts.init(chartDom);
+        chart = markRaw(echarts.init(chartDom));
       }
       heatmapChart = chart;
-      chart.clear();
 
       const dark = isDark.value;
       const targetYear = selectedHeatmapYear.value || new Date().getFullYear();
+      const rawList = rawHeatmap.value || [];
+      const currentKey = `${targetYear}_${dark ? 'dark' : 'light'}_${cellSize}_${rawList.length}_${rawList[0]?.date || ''}_${rawList[rawList.length - 1]?.date || ''}_${rawList[rawList.length - 1]?.count || ''}`;
+
+      // A4: 哈希未变且非强制时跳过 clear() 和重绘，极大减少 Canvas 开销
+      if (!force && currentKey === lastHeatmapRenderKey) {
+        chart.resize();
+        return;
+      }
+      lastHeatmapRenderKey = currentKey;
+      chart.clear();
+
       const startDateStr = `${targetYear}-01-01`;
       const endDateStr = `${targetYear}-12-31`;
 
@@ -1417,19 +1428,27 @@ createApp({
     };
 
     // 1. 累计解题成长曲线 (Unique AC Progress Curve) - 数据与顶部 total_ac 严格一致
-    const renderClimbingChart = () => {
+    let lastClimbingKey = "";
+    const renderClimbingChart = (force = false) => {
       const chartDom = document.getElementById("analytics-chart");
       if (!chartDom) return;
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
-        chart = echarts.init(chartDom);
+        chart = markRaw(echarts.init(chartDom));
       }
       analyticsChart = chart;
-      chart.clear();
 
       const dark = isDark.value;
       const rawCurve = overview.value.climbing_curve || [];
+      const currentKey = `climbing_${dark ? 'dark' : 'light'}_${isCurveSmooth.value}_${rawCurve.length}_${overview.value.stats?.total_ac || 0}_${rawCurve[rawCurve.length - 1]?.ac || 0}_${getChartFontSize(12)}`;
+
+      if (!force && chart && currentKey === lastClimbingKey) {
+        chart.resize();
+        return;
+      }
+      lastClimbingKey = currentKey;
+      chart.clear();
       
       // 保证数据序列严格按日历连续，最小刻度单位为严格 1 天（杜绝跳天导致非等距）
       let dates = [];
@@ -1606,19 +1625,27 @@ createApp({
     };
 
     // 2. 每日提交与通过分析 (Daily Activity & Solved Distribution)
-    const renderDailyEffortChart = () => {
+    let lastDailyKey = "";
+    const renderDailyEffortChart = (force = false) => {
       const chartDom = document.getElementById("analytics-chart");
       if (!chartDom) return;
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
-        chart = echarts.init(chartDom);
+        chart = markRaw(echarts.init(chartDom));
       }
       analyticsChart = chart;
-      chart.clear();
 
       const dark = isDark.value;
       const rawDaily = overview.value.daily_effort || [];
+      const currentKey = `daily_${dark ? 'dark' : 'light'}_${rawDaily.length}_${overview.value.stats?.today_ac || 0}_${overview.value.stats?.today_subs || 0}_${getChartFontSize(12)}`;
+
+      if (!force && chart && currentKey === lastDailyKey) {
+        chart.resize();
+        return;
+      }
+      lastDailyKey = currentKey;
+      chart.clear();
 
       let dates = [];
       let fullDates = [];
@@ -1731,19 +1758,27 @@ createApp({
     };
 
     // 3. 算法标签掌握分布
-    const renderTagBarChart = () => {
+    let lastTagChartKey = "";
+    const renderTagBarChart = (force = false) => {
       const chartDom = document.getElementById("analytics-chart");
       if (!chartDom) return;
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
-        chart = echarts.init(chartDom);
+        chart = markRaw(echarts.init(chartDom));
       }
       analyticsChart = chart;
-      chart.clear();
 
       const dark = isDark.value;
       const topTags = (tagStats.value || []).slice(0, 10).reverse();
+      const currentKey = `tags_${dark ? 'dark' : 'light'}_${topTags.length}_${topTags.map(t => `${t.tag}:${t.ac_count}`).join(',')}_${getChartFontSize(12)}`;
+
+      if (!force && chart && currentKey === lastTagChartKey) {
+        chart.resize();
+        return;
+      }
+      lastTagChartKey = currentKey;
+      chart.clear();
       const categories = topTags.map(t => t.tag);
       const acData = topTags.map(t => t.ac_count);
 
@@ -1806,19 +1841,27 @@ createApp({
     };
 
     // 4. 各平台题量占比分布
-    const renderPlatformPie = () => {
+    let lastPieKey = "";
+    const renderPlatformPie = (force = false) => {
       const chartDom = document.getElementById("analytics-chart");
       if (!chartDom) return;
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
-        chart = echarts.init(chartDom);
+        chart = markRaw(echarts.init(chartDom));
       }
       analyticsChart = chart;
-      chart.clear();
 
       const dark = isDark.value;
       const pData = overview.value.stats.platforms || {};
+      const currentKey = `platforms_${dark ? 'dark' : 'light'}_${JSON.stringify(pData)}_${getChartFontSize(12)}`;
+
+      if (!force && chart && currentKey === lastPieKey) {
+        chart.resize();
+        return;
+      }
+      lastPieKey = currentKey;
+      chart.clear();
       const data = [
         { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: dark ? "#2997ff" : "#0071e3" } },
         { value: pData.atcoder?.ac || 0, name: "AtCoder", itemStyle: { color: dark ? "#bf5af2" : "#af52de" } },
@@ -1873,15 +1916,15 @@ createApp({
       chart.resize();
     };
 
-    const renderActiveChart = () => {
+    const renderActiveChart = (force = false) => {
       if (chartView.value === "climbing") {
-        renderClimbingChart();
+        renderClimbingChart(force);
       } else if (chartView.value === "daily") {
-        renderDailyEffortChart();
+        renderDailyEffortChart(force);
       } else if (chartView.value === "tags") {
-        renderTagBarChart();
+        renderTagBarChart(force);
       } else if (chartView.value === "platforms") {
-        renderPlatformPie();
+        renderPlatformPie(force);
       }
     };
 
@@ -2492,14 +2535,14 @@ createApp({
     watch(chartView, () => {
       nextTick(() => {
         syncSegmentedThumbs();
-        renderActiveChart();
+        renderActiveChart(true);
       });
     });
 
     // 监控平滑拟合开关切换
     watch(isCurveSmooth, () => {
       if (chartView.value === "climbing") {
-        renderClimbingChart();
+        renderClimbingChart(true);
       }
     });
 
