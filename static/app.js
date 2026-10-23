@@ -1,4 +1,4 @@
-const { createApp, ref, onMounted, computed, nextTick, watch } = Vue;
+const { createApp, ref, shallowRef, markRaw, onMounted, onUnmounted, computed, nextTick, watch } = Vue;
 
 createApp({
   setup() {
@@ -37,6 +37,15 @@ createApp({
 
     const currentTab = ref("overview"); // 'overview', 'submissions', 'mistakes', 'settings'
     const searchKeyword = ref("");
+    const debouncedSearchKeyword = ref("");
+    let searchDebounceTimer = null;
+    watch(searchKeyword, (val) => {
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        debouncedSearchKeyword.value = val;
+        currentPage.value = 1;
+      }, 150);
+    });
     const dateFilter = ref("all"); // 'all', 'today', '7d', '30d', 'year', 'custom'
     const startDate = ref("");
     const endDate = ref("");
@@ -141,6 +150,10 @@ createApp({
         } catch (err) {}
       }
 
+      let resizeRafId = null;
+      let pendingW = null;
+      let pendingH = null;
+
       const onPointerMove = (moveEvent) => {
         moveEvent.preventDefault();
 
@@ -153,15 +166,33 @@ createApp({
         const targetW = Math.round((moveEvent.clientX - centerX) * 2);
         const targetH = Math.round((moveEvent.clientY - centerY) * 2);
 
-        const newW = Math.min(Math.max(targetW, minW), maxW);
-        const newH = Math.min(Math.max(targetH, minH), maxH);
+        pendingW = Math.min(Math.max(targetW, minW), maxW);
+        pendingH = Math.min(Math.max(targetH, minH), maxH);
 
-        noteModalSize.value = "custom";
-        noteModalCustomWidth.value = newW;
-        noteModalCustomHeight.value = newH;
+        // 使用 requestAnimationFrame 进行节流，避免高刷新率鼠标高频触发 Vue 响应式计算
+        if (!resizeRafId) {
+          resizeRafId = requestAnimationFrame(() => {
+            resizeRafId = null;
+            if (pendingW !== null && pendingH !== null) {
+              noteModalSize.value = "custom";
+              noteModalCustomWidth.value = pendingW;
+              noteModalCustomHeight.value = pendingH;
+            }
+          });
+        }
       };
 
       const onPointerUp = (upEvent) => {
+        if (resizeRafId) {
+          cancelAnimationFrame(resizeRafId);
+          resizeRafId = null;
+        }
+        if (pendingW !== null && pendingH !== null) {
+          noteModalSize.value = "custom";
+          noteModalCustomWidth.value = pendingW;
+          noteModalCustomHeight.value = pendingH;
+        }
+
         if (hasPointerCapture && upEvent && upEvent.pointerId) {
           try {
             handleEl.releasePointerCapture(upEvent.pointerId);
@@ -170,12 +201,14 @@ createApp({
 
         window.removeEventListener("pointermove", onPointerMove);
         window.removeEventListener("pointerup", onPointerUp);
+        window.removeEventListener("pointercancel", onPointerUp);
         window.removeEventListener("mousemove", onPointerMove);
         window.removeEventListener("mouseup", onPointerUp);
 
         if (handleEl) {
           handleEl.removeEventListener("pointermove", onPointerMove);
           handleEl.removeEventListener("pointerup", onPointerUp);
+          handleEl.removeEventListener("pointercancel", onPointerUp);
         }
 
         modalEl.style.transition = "";
@@ -200,14 +233,16 @@ createApp({
       if (hasPointerCapture) {
         handleEl.addEventListener("pointermove", onPointerMove);
         handleEl.addEventListener("pointerup", onPointerUp);
+        handleEl.addEventListener("pointercancel", onPointerUp);
       }
       window.addEventListener("pointermove", onPointerMove);
       window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("pointercancel", onPointerUp);
       window.addEventListener("mousemove", onPointerMove);
       window.addEventListener("mouseup", onPointerUp);
     };
 
-    const submissions = ref([]);
+    const submissions = shallowRef([]);
     const subFilter = ref("all");
 
     // --- Contests State ---
@@ -291,10 +326,119 @@ createApp({
     const chartView = ref("climbing"); // 'climbing' | 'daily' | 'tags' | 'platforms'
     const isCurveSmooth = ref(true); // 累计曲线是否启用高斯核自然平滑拟合
 
+    // --- Contest Computed & Helpers 字典引用 ---
+    const contestMetaMap = ref({});
+
+    // --- 跨用户缓存签名与调度状态 (A8-2: 退出登录/会话过期时集中重置，彻底杜绝多账号切换残留) ---
+    let lastKnownTotalSubs = -1;
+    let lastKnownSyncTime = "";
+    let lastHeatmapDataStr = "";
+    let lastHeatmapRenderKey = "";
+    let lastClimbingKey = "";
+    let lastDailyKey = "";
+    let lastTagChartKey = "";
+    let lastPieKey = "";
+    let lastTagsHash = "";
+    let settingsBaseline = {
+      cf_handle: "",
+      luogu_uid: "",
+      luogu_cookie: "",
+      acwing_user_id: "",
+      acwing_cookie: "",
+      atcoder_handle: "",
+      poll_interval_minutes: "30",
+      http_proxy: "",
+      sprint_mode: "false"
+    };
+
+    // 统一轮询调度器全局状态
+    let pollTimeoutId = null;
+    let isPollingInProgress = false;
+    let consecutivePollFailures = 0;
+    const BASE_POLL_INTERVAL = 15000;
+    let currentPollInterval = BASE_POLL_INTERVAL;
+    let lastUserRefreshTime = 0;
+    let lastContestSyncTime = 0;
+
+    const resetAllUserStates = () => {
+      // 1. 停止一切轮询与退避计时器
+      if (pollTimeoutId) {
+        clearTimeout(pollTimeoutId);
+        pollTimeoutId = null;
+      }
+      isPollingInProgress = false;
+      consecutivePollFailures = 0;
+      currentPollInterval = BASE_POLL_INTERVAL;
+
+      // 2. 清理用户凭证与登录态
+      token.value = "";
+      localStorage.removeItem("oiboard_token");
+      localStorage.removeItem("oiboard_user");
+      currentUser.value = null;
+
+      // 3. 清空业务响应式数据，杜绝跨用户数据残留
+      overview.value = {
+        stats: { total_ac: 0, total_subs: 0, today_ac: 0, today_subs: 0, streak: 0, platforms: {} },
+        platforms_status: [],
+        last_sync_time: "",
+        climbing_curve: [],
+        daily_effort: [],
+        local_code: { total_lines: 0, today_lines: 0, total_files: 0, today_files: 0, c_lines: 0, cpp_lines: 0, java_lines: 0, has_data: false }
+      };
+      rawHeatmap.value = [];
+      submissions.value = [];
+      mistakes.value = [];
+      mistakeTotal.value = 0;
+      mistakesCounts.value = { total: 0, due: 0, in_progress: 0, mastered: 0 };
+      mistakeKeySet.value = new Set();
+      tagStats.value = [];
+      accounts.value = [];
+      configs.value = {};
+      platformStatusMap.value = {};
+      contests.value = [];
+      contestMetaMap.value = {};
+
+      // 4. 重置所有缓存特征键与快照基准，确保切换账号重新登录后无条件强制重绘最新图表
+      lastKnownTotalSubs = -1;
+      lastKnownSyncTime = "";
+      lastHeatmapDataStr = "";
+      lastHeatmapRenderKey = "";
+      lastClimbingKey = "";
+      lastDailyKey = "";
+      lastTagChartKey = "";
+      lastPieKey = "";
+      lastTagsHash = "";
+      settingsBaseline = {
+        cf_handle: "",
+        luogu_uid: "",
+        luogu_cookie: "",
+        acwing_user_id: "",
+        acwing_cookie: "",
+        atcoder_handle: "",
+        poll_interval_minutes: "30",
+        http_proxy: "",
+        sprint_mode: "false"
+      };
+
+      // 5. 清除图表渲染画布残留
+      if (heatmapChart) {
+        try { heatmapChart.clear(); } catch (e) {}
+      }
+      if (analyticsChart) {
+        try { analyticsChart.clear(); } catch (e) {}
+      }
+      if (tagBarChart) {
+        try { tagBarChart.clear(); } catch (e) {}
+      }
+    };
+
     // --- Apple Segmented Control 物理级滑动指示器同步引擎 ---
     const syncSegmentedThumbs = () => {
       nextTick(() => {
         const controls = document.querySelectorAll(".segmented-control");
+        const updates = [];
+
+        // 阶段 1：统一只读布局值 (Batch DOM Read)
         controls.forEach(ctrl => {
           let thumb = ctrl.querySelector(".segmented-thumb");
           if (!thumb) {
@@ -304,14 +448,33 @@ createApp({
           }
           const active = ctrl.querySelector(".segmented-item.active");
           if (active && active.offsetParent !== null) {
-            thumb.style.transform = `translateX(${active.offsetLeft}px)`;
-            thumb.style.width = `${active.offsetWidth}px`;
-            thumb.style.height = `${active.offsetHeight}px`;
-            thumb.style.opacity = "1";
+            updates.push({
+              thumb,
+              visible: true,
+              left: active.offsetLeft,
+              width: active.offsetWidth,
+              height: active.offsetHeight
+            });
           } else {
-            thumb.style.opacity = "0";
+            updates.push({
+              thumb,
+              visible: false
+            });
           }
         });
+
+        // 阶段 2：统一写入样式 (Batch DOM Write)，消除读写交替造成的强制同步重排 (Layout Thrashing)
+        for (let i = 0; i < updates.length; i++) {
+          const u = updates[i];
+          if (u.visible) {
+            u.thumb.style.transform = `translateX(${u.left}px)`;
+            u.thumb.style.width = `${u.width}px`;
+            u.thumb.style.height = `${u.height}px`;
+            u.thumb.style.opacity = "1";
+          } else {
+            u.thumb.style.opacity = "0";
+          }
+        }
       });
     };
 
@@ -342,8 +505,8 @@ createApp({
       }
       if (currentTab.value === "overview") {
         nextTick(() => {
-          renderHeatmap();
-          renderActiveChart();
+          renderHeatmap(true);
+          renderActiveChart(true);
         });
       }
       syncSegmentedThumbs();
@@ -384,8 +547,8 @@ createApp({
       nextTick(() => {
         window.dispatchEvent(new Event("resize"));
         if (currentTab.value === "overview") {
-          renderHeatmap();
-          renderActiveChart();
+          renderHeatmap(true);
+          renderActiveChart(true);
         }
       });
     };
@@ -413,7 +576,7 @@ createApp({
       }, 3500);
     };
 
-    // --- 安全统一 API 请求包装器 (彻底杜绝浏览器/CDN缓存) ---
+    // --- 安全统一 API 请求包装器 (彻底杜绝浏览器/CDN缓存 + 差异化请求超时熔断) ---
     const apiFetch = async (url, options = {}) => {
       options.headers = options.headers || {};
       options.headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
@@ -433,17 +596,36 @@ createApp({
         const sep = reqUrl.includes("?") ? "&" : "?";
         reqUrl = `${reqUrl}${sep}_t=${Date.now()}`;
       }
-      
-      const res = await fetch(reqUrl, options);
-      if (res.status === 401) {
-        token.value = "";
-        localStorage.removeItem("oiboard_token");
-        localStorage.removeItem("oiboard_user");
-        currentUser.value = null;
-        authError.value = "登录会话已过期，请重新登录";
-        throw new Error("UNAUTHORIZED");
+
+      // A6-1 / A7-3: 差异化超时控制：常规只读与轮询 20 秒，长时外部爬虫任务支持自定义更长超时 (如 120s~180s)
+      const timeoutMs = typeof options.timeoutMs === "number" ? options.timeoutMs : 20000;
+      let timeoutId = null;
+      let controller = null;
+      if (timeoutMs > 0) {
+        controller = new AbortController();
+        timeoutId = setTimeout(() => {
+          controller.abort();
+        }, timeoutMs);
+        if (!options.signal) {
+          options.signal = controller.signal;
+        }
       }
-      return res;
+      
+      try {
+        const res = await fetch(reqUrl, options);
+        if (res.status === 401) {
+          resetAllUserStates();
+          authError.value = "登录会话已过期，请重新登录";
+          fetchCaptcha();
+          throw new Error("UNAUTHORIZED");
+        }
+        return res;
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      }
     };
 
     // --- Captcha Actions ---
@@ -500,6 +682,7 @@ createApp({
           showToast(`欢迎回来，${data.user.username}！`, "success");
           authForm.value = { username: "", password: "", confirmPassword: "", captcha_code: "" };
           await reloadAllData();
+          scheduleNextPoll(BASE_POLL_INTERVAL);
         } else {
           authError.value = data.detail || data.message || "登录失败，请检查账号密码";
           authForm.value.captcha_code = "";
@@ -565,6 +748,7 @@ createApp({
           showToast("账户注册成功！", "success");
           authForm.value = { username: "", password: "", confirmPassword: "", captcha_code: "" };
           await reloadAllData();
+          scheduleNextPoll(BASE_POLL_INTERVAL);
         } else {
           authError.value = data.detail || data.message || "注册失败";
           authForm.value.captcha_code = "";
@@ -589,10 +773,7 @@ createApp({
       } catch (e) {
         // ignore
       } finally {
-        token.value = "";
-        localStorage.removeItem("oiboard_token");
-        localStorage.removeItem("oiboard_user");
-        currentUser.value = null;
+        resetAllUserStates();
         isAuthChecking.value = false;
         showToast("已成功退出登录", "success");
         fetchCaptcha();
@@ -736,17 +917,17 @@ createApp({
         }
       }
 
-      // 5. 关键词即时搜索
-      if (searchKeyword.value.trim()) {
-        const kw = searchKeyword.value.trim().toLowerCase();
-        list = list.filter(s => 
-          (s.problem_id && s.problem_id.toLowerCase().includes(kw)) ||
+      // 5. 关键词即时搜索 (支持 150ms 防抖并复用 _searchStr 预构索引)
+      const kw = (debouncedSearchKeyword.value || searchKeyword.value).trim().toLowerCase();
+      if (kw) {
+        list = list.filter(s => s._searchStr ? s._searchStr.includes(kw) : (
+          (s.problem_id && String(s.problem_id).toLowerCase().includes(kw)) ||
           (s.problem_title && s.problem_title.toLowerCase().includes(kw)) ||
           (s.code_language && s.code_language.toLowerCase().includes(kw)) ||
           (s.date && s.date.includes(kw)) ||
           (s.submitted_at && s.submitted_at.includes(kw)) ||
-          (s.tags && s.tags.some(t => t.toLowerCase().includes(kw)))
-        );
+          (s.tags && s.tags.some(t => String(t).toLowerCase().includes(kw)))
+        ));
       }
       return list;
     });
@@ -780,53 +961,96 @@ createApp({
       verdictFilter.value = "all";
       selectedTag.value = "";
       searchKeyword.value = "";
+      debouncedSearchKeyword.value = "";
       currentPage.value = 1;
       nextTick(syncSegmentedThumbs);
     };
 
-    // --- Contest Computed & Helpers ---
-    const getContestStatus = (c) => {
-      const now = nowTimestamp.value;
-      const st = c.start_timestamp;
-      const dur = c.duration_seconds || 7200;
-      const et = st + dur;
-      if (now < st) return "BEFORE";
-      if (now < et) return "CODING";
-      return "FINISHED";
+    // --- Contest Computed & Helpers (A5: 集中秒级计算并以 O(1) 字典缓存，消除模板中多卡片重复函数调用) ---
+    const updateContestMetas = () => {
+      const now = Math.floor(Date.now() / 1000);
+      nowTimestamp.value = now;
+      const list = contests.value || [];
+      const map = {};
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        const st = c.start_timestamp;
+        const dur = c.duration_seconds || 7200;
+        const et = st + dur;
+        let status = "FINISHED";
+        let countdown = "已结束";
+
+        if (now < st) {
+          status = "BEFORE";
+          const diff = st - now;
+          const days = Math.floor(diff / 86400);
+          const hours = Math.floor((diff % 86400) / 3600);
+          const mins = Math.floor((diff % 3600) / 60);
+          const secs = diff % 60;
+          if (days > 0) {
+            countdown = `还有 ${days} 天 ${hours} 小时 ${mins} 分`;
+          } else if (hours > 0) {
+            countdown = `还有 ${hours} 小时 ${mins} 分 ${secs} 秒`;
+          } else {
+            countdown = `还有 ${mins} 分 ${secs} 秒`;
+          }
+        } else if (now < et) {
+          status = "CODING";
+          const remaining = et - now;
+          const hours = Math.floor(remaining / 3600);
+          const mins = Math.floor((remaining % 3600) / 60);
+          const secs = remaining % 60;
+          if (hours > 0) {
+            countdown = `进行中 (剩余 ${hours}小时${mins}分)`;
+          } else {
+            countdown = `进行中 (剩余 ${mins}分${secs}秒)`;
+          }
+        }
+        map[c.id] = { status, countdown };
+      }
+      contestMetaMap.value = map;
     };
 
-    const formatContestCountdown = (c) => {
+    const getContestStatus = (c) => {
+      if (contestMetaMap.value[c.id]) {
+        return contestMetaMap.value[c.id].status;
+      }
       const now = nowTimestamp.value;
       const st = c.start_timestamp;
       const dur = c.duration_seconds || 7200;
-      const et = st + dur;
+      return (now < st) ? "BEFORE" : (now < st + dur ? "CODING" : "FINISHED");
+    };
 
+    const computeContestCountdown = (c) => {
+      const now = nowTimestamp.value || Math.floor(Date.now() / 1000);
+      const st = c.start_timestamp;
+      const dur = c.duration_seconds || 7200;
+      const et = st + dur;
       if (now < st) {
         const diff = st - now;
         const days = Math.floor(diff / 86400);
         const hours = Math.floor((diff % 86400) / 3600);
         const mins = Math.floor((diff % 3600) / 60);
         const secs = diff % 60;
-        if (days > 0) {
-          return `还有 ${days} 天 ${hours} 小时 ${mins} 分`;
-        } else if (hours > 0) {
-          return `还有 ${hours} 小时 ${mins} 分 ${secs} 秒`;
-        } else {
-          return `还有 ${mins} 分 ${secs} 秒`;
-        }
+        if (days > 0) return `还有 ${days} 天 ${hours} 小时 ${mins} 分`;
+        if (hours > 0) return `还有 ${hours} 小时 ${mins} 分 ${secs} 秒`;
+        return `还有 ${mins} 分 ${secs} 秒`;
       } else if (now < et) {
         const remaining = et - now;
         const hours = Math.floor(remaining / 3600);
         const mins = Math.floor((remaining % 3600) / 60);
         const secs = remaining % 60;
-        if (hours > 0) {
-          return `进行中 (剩余 ${hours}小时${mins}分)`;
-        } else {
-          return `进行中 (剩余 ${mins}分${secs}秒)`;
-        }
-      } else {
-        return "已结束";
+        if (hours > 0) return `进行中 (剩余 ${hours}小时${mins}分)`;
+        return `进行中 (剩余 ${mins}分${secs}秒)`;
       }
+      return "已结束";
+    };
+
+    const formatContestCountdown = (c) => {
+      if (contestMetaMap.value && contestMetaMap.value[c.id]) {
+        return contestMetaMap.value[c.id].countdown;
+      }
+      return computeContestCountdown(c);
     };
 
     const filteredContests = computed(() => {
@@ -868,10 +1092,7 @@ createApp({
     });
 
     // --- Data Loaders (绑定当前用户) ---
-    let lastKnownTotalSubs = -1;
-    let lastKnownSyncTime = "";
-
-    const loadOverview = async () => {
+    const loadOverview = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/stats/overview");
         const data = await res.json();
@@ -905,12 +1126,7 @@ createApp({
 
           lastKnownTotalSubs = newTotal;
           lastKnownSyncTime = newSync;
-
-          // 核心实时联动：若总提交数或同步时间更新（且非首次初始化），即刻静默更新热力图与标签分布
-          if (prevTotal !== -1 && (prevTotal !== newTotal || (newSync && prevSync !== newSync))) {
-            loadHeatmap();
-            loadTags();
-          }
+          // 移除原有的内部联动调用 loadHeatmap()，统一由调度器在周期内发起，彻底杜绝重复请求
         }
 
         if (data.platforms_status && Array.isArray(data.platforms_status)) {
@@ -934,49 +1150,69 @@ createApp({
         }
       } catch (e) {
         console.error("加载 Overview 失败:", e);
+        if (throwOnError) throw e;
       }
     };
 
-    const loadHeatmap = async () => {
+    const loadHeatmap = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch(`/api/stats/heatmap?platform=${heatmapFilter.value}&year=${selectedHeatmapYear.value}`);
         const data = await res.json();
-        rawHeatmap.value = data.heatmap || [];
+        const incomingHeatmap = data.heatmap || [];
+        const incomingStr = JSON.stringify(incomingHeatmap);
+        const dataChanged = incomingStr !== lastHeatmapDataStr;
+        if (dataChanged) {
+          lastHeatmapDataStr = incomingStr;
+          rawHeatmap.value = incomingHeatmap;
+        }
         if (data.available_years && data.available_years.length > 0) {
           availableHeatmapYears.value = data.available_years;
         }
         if (data.year) {
           selectedHeatmapYear.value = data.year;
         }
-        await nextTick();
-        renderHeatmap();
+        // 仅在数据确实发生变化且当前处于概览页时才发起非强制渲染（由哈希比对防重绘）
+        if (dataChanged && currentTab.value === "overview") {
+          await nextTick();
+          renderHeatmap(false);
+        }
       } catch (e) {
         console.error("加载 Heatmap 失败:", e);
+        if (throwOnError) throw e;
       }
     };
 
-    const loadTags = async () => {
+    const loadTags = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/stats/tags");
         const data = await res.json();
-        tagStats.value = data.tags || [];
-        renderTagBarChart();
+        const incomingTags = data.tags || [];
+        const incomingHash = JSON.stringify(incomingTags);
+        if (incomingHash !== lastTagsHash) {
+          lastTagsHash = incomingHash;
+          tagStats.value = incomingTags;
+          if (chartView.value === "tags" && currentTab.value === "overview") {
+            renderTagBarChart();
+          }
+        }
       } catch (e) {
         console.error("加载 Tag 统计失败:", e);
+        if (throwOnError) throw e;
       }
     };
 
-    const loadMistakeKeys = async () => {
+    const loadMistakeKeys = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/mistakes/keys");
         const data = await res.json();
         mistakeKeySet.value = new Set(data.keys || []);
       } catch (e) {
         console.error("加载已收录错题Key失败:", e);
+        if (throwOnError) throw e;
       }
     };
 
-    const loadMistakes = async () => {
+    const loadMistakes = async ({ throwOnError = false } = {}) => {
       isMistakesLoading.value = true;
       try {
         const params = new URLSearchParams({
@@ -997,6 +1233,7 @@ createApp({
         }
       } catch (e) {
         console.error("加载错题集失败:", e);
+        if (throwOnError) throw e;
       } finally {
         isMistakesLoading.value = false;
       }
@@ -1205,30 +1442,40 @@ createApp({
       mistakeForm.value.notes += templates[lang] || templates.cpp;
     };
 
-    const loadSubmissions = async () => {
+    const loadSubmissions = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/stats/submissions?limit=2000");
         const data = await res.json();
-        submissions.value = data.submissions || [];
+        const rawSubs = data.submissions || [];
+        // 预生成每条记录的小写检索缓存字符串，避免输入筛选时反复多次计算
+        for (let i = 0; i < rawSubs.length; i++) {
+          const s = rawSubs[i];
+          const tagsStr = Array.isArray(s.tags) ? s.tags.join(" ") : (s.tags || "");
+          s._searchStr = `${s.problem_id || ""} ${s.problem_title || ""} ${s.code_language || ""} ${s.date || ""} ${s.submitted_at || ""} ${tagsStr}`.toLowerCase();
+        }
+        submissions.value = rawSubs;
       } catch (e) {
         console.error("加载提交记录流失败:", e);
+        if (throwOnError) throw e;
       }
     };
 
-    const loadContests = async () => {
+    const loadContests = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/contests?platform=all");
         const data = await res.json();
         contests.value = data.contests || [];
+        updateContestMetas();
       } catch (e) {
         console.error("加载比赛日程失败:", e);
+        if (throwOnError) throw e;
       }
     };
 
     const syncContestsNow = async () => {
       isSyncingContests.value = true;
       try {
-        const res = await apiFetch("/api/contests/sync", { method: "POST" });
+        const res = await apiFetch("/api/contests/sync", { method: "POST", timeoutMs: 120000 });
         const data = await res.json();
         if (data.success) {
           showToast(data.message || "比赛日程刷新成功！", "success");
@@ -1250,7 +1497,7 @@ createApp({
         configs.value = data.configs || {};
         platformStatusMap.value = data.status || {};
 
-        settingsForm.value = {
+        const snapshot = {
           cf_handle: configs.value.cf_handle || "",
           luogu_uid: configs.value.luogu_uid || "",
           luogu_cookie: configs.value.luogu_cookie || "",
@@ -1259,26 +1506,88 @@ createApp({
           atcoder_handle: configs.value.atcoder_handle || "",
           poll_interval_minutes: configs.value.poll_interval_minutes || "30",
           http_proxy: configs.value.http_proxy || "",
+          sprint_mode: configs.value.sprint_mode || "false"
         };
+        settingsForm.value = { ...snapshot };
+        settingsBaseline = { ...snapshot };
         await loadAccounts();
       } catch (e) {
         console.error("加载设置失败:", e);
       }
     };
 
+    // A7-2: 设置表单脏状态检测（以基准快照 settingsBaseline 为参照，比对表单所有字段，并排查输入框聚焦）
+    const isSettingsFormDirty = () => {
+      const b = settingsBaseline || {};
+      const s = settingsForm.value || {};
+      const isProxyChanged = (s.http_proxy || "").trim() !== (b.http_proxy || "").trim();
+      const isIntervalChanged = String(s.poll_interval_minutes || "30") !== String(b.poll_interval_minutes || "30");
+      const isCfChanged = (s.cf_handle || "").trim() !== (b.cf_handle || "").trim();
+      const isLuoguUidChanged = (s.luogu_uid || "").trim() !== (b.luogu_uid || "").trim();
+      const isLuoguCookieChanged = (s.luogu_cookie || "").trim() !== (b.luogu_cookie || "").trim();
+      const isAcwingUidChanged = (s.acwing_user_id || "").trim() !== (b.acwing_user_id || "").trim();
+      const isAcwingCookieChanged = (s.acwing_cookie || "").trim() !== (b.acwing_cookie || "").trim();
+      const isAtcoderChanged = (s.atcoder_handle || "").trim() !== (b.atcoder_handle || "").trim();
+      const isSprintChanged = String(s.sprint_mode || "false") !== String(b.sprint_mode || "false");
+
+      const activeEl = document.activeElement;
+      const isInputFocused = currentTab.value === "settings" && activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.tagName === "SELECT");
+
+      return isProxyChanged || isIntervalChanged || isCfChanged || isLuoguUidChanged || isLuoguCookieChanged || isAcwingUidChanged || isAcwingCookieChanged || isAtcoderChanged || isSprintChanged || isInputFocused;
+    };
+
+    // 静默轮询设置与多账号状态（支持独立基准脏状态保护与弹窗焦点保护）
+    const pollSettingsReadOnly = async ({ throwOnError = false } = {}) => {
+      try {
+        const res = await apiFetch("/api/settings");
+        const data = await res.json();
+        if (data.status) {
+          platformStatusMap.value = data.status;
+        }
+
+        if (data.configs) {
+          configs.value = data.configs;
+          // A7-2: 表单未编辑且无焦点时，同步远端最新配置并推进基线；编辑中只更新只读展示 configs，绝对不覆盖表单
+          if (!isSettingsFormDirty()) {
+            const incoming = {
+              cf_handle: data.configs.cf_handle || "",
+              luogu_uid: data.configs.luogu_uid || "",
+              luogu_cookie: data.configs.luogu_cookie || "",
+              acwing_user_id: data.configs.acwing_user_id || "",
+              acwing_cookie: data.configs.acwing_cookie || "",
+              atcoder_handle: data.configs.atcoder_handle || "",
+              poll_interval_minutes: data.configs.poll_interval_minutes || "30",
+              http_proxy: data.configs.http_proxy || "",
+              sprint_mode: data.configs.sprint_mode || "false"
+            };
+            settingsForm.value = { ...incoming };
+            settingsBaseline = { ...incoming };
+          }
+        }
+
+        // A6-4: 账号弹窗开启编辑时暂停替换 accounts，保护弹窗焦点与表单
+        if (!accountModalOpen.value) {
+          await loadAccounts();
+        }
+      } catch (e) {
+        console.error("静默轮询设置失败:", e);
+        if (throwOnError) throw e;
+      }
+    };
+
     const reloadAllData = async () => {
       if (!isLoggedIn.value) return;
-      await Promise.all([loadOverview(), loadHeatmap(), loadTags(), loadMistakes(), loadMistakeKeys(), loadSubmissions(), loadSettings(), loadContests()]);
+      await Promise.allSettled([loadOverview(), loadHeatmap(), loadTags(), loadMistakes(), loadMistakeKeys(), loadSubmissions(), loadSettings(), loadContests()]);
       await nextTick();
       syncSegmentedThumbs();
       if (currentTab.value === "overview") {
-        renderHeatmap();
-        renderActiveChart();
+        renderHeatmap(true);
+        renderActiveChart(true);
       }
     };
 
     // --- ECharts 渲染系统 (Apple Pro 调色 + 1:1 自适应纯正方形热力图) ---
-    const renderHeatmap = () => {
+    const renderHeatmap = (force = false) => {
       const chartDom = document.getElementById("heatmap-chart");
       if (!chartDom) return;
 
@@ -1304,13 +1613,25 @@ createApp({
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
-        chart = echarts.init(chartDom);
+        chart = markRaw(echarts.init(chartDom));
       }
       heatmapChart = chart;
-      chart.clear();
 
       const dark = isDark.value;
       const targetYear = selectedHeatmapYear.value || new Date().getFullYear();
+      const rawList = rawHeatmap.value || [];
+      const currentDataStr = JSON.stringify(rawList);
+      const displayKey = `${targetYear}_${heatmapFilter.value}_${dark ? 'dark' : 'light'}_${cellSize}`;
+      const currentKey = `${displayKey}##${currentDataStr}`;
+
+      // A4 / A7-1: 真实数据内容与显示参数未变且非强制时跳过 clear() 和重绘
+      if (!force && currentKey === lastHeatmapRenderKey) {
+        chart.resize();
+        return;
+      }
+      lastHeatmapRenderKey = currentKey;
+      chart.clear();
+
       const startDateStr = `${targetYear}-01-01`;
       const endDateStr = `${targetYear}-12-31`;
 
@@ -1397,19 +1718,28 @@ createApp({
     };
 
     // 1. 累计解题成长曲线 (Unique AC Progress Curve) - 数据与顶部 total_ac 严格一致
-    const renderClimbingChart = () => {
+    const renderClimbingChart = (force = false) => {
       const chartDom = document.getElementById("analytics-chart");
       if (!chartDom) return;
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
-        chart = echarts.init(chartDom);
+        chart = markRaw(echarts.init(chartDom));
       }
       analyticsChart = chart;
-      chart.clear();
 
       const dark = isDark.value;
       const rawCurve = overview.value.climbing_curve || [];
+      const currentDataStr = JSON.stringify(rawCurve);
+      const displayKey = `climbing_${dark ? 'dark' : 'light'}_${isCurveSmooth.value}_${getChartFontSize(12)}`;
+      const currentKey = `${displayKey}##${currentDataStr}`;
+
+      if (!force && chart && currentKey === lastClimbingKey) {
+        chart.resize();
+        return;
+      }
+      lastClimbingKey = currentKey;
+      chart.clear();
       
       // 保证数据序列严格按日历连续，最小刻度单位为严格 1 天（杜绝跳天导致非等距）
       let dates = [];
@@ -1586,19 +1916,28 @@ createApp({
     };
 
     // 2. 每日提交与通过分析 (Daily Activity & Solved Distribution)
-    const renderDailyEffortChart = () => {
+    const renderDailyEffortChart = (force = false) => {
       const chartDom = document.getElementById("analytics-chart");
       if (!chartDom) return;
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
-        chart = echarts.init(chartDom);
+        chart = markRaw(echarts.init(chartDom));
       }
       analyticsChart = chart;
-      chart.clear();
 
       const dark = isDark.value;
       const rawDaily = overview.value.daily_effort || [];
+      const currentDataStr = JSON.stringify(rawDaily);
+      const displayKey = `daily_${dark ? 'dark' : 'light'}_${getChartFontSize(12)}`;
+      const currentKey = `${displayKey}##${currentDataStr}`;
+
+      if (!force && chart && currentKey === lastDailyKey) {
+        chart.resize();
+        return;
+      }
+      lastDailyKey = currentKey;
+      chart.clear();
 
       let dates = [];
       let fullDates = [];
@@ -1711,19 +2050,28 @@ createApp({
     };
 
     // 3. 算法标签掌握分布
-    const renderTagBarChart = () => {
+    const renderTagBarChart = (force = false) => {
       const chartDom = document.getElementById("analytics-chart");
       if (!chartDom) return;
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
-        chart = echarts.init(chartDom);
+        chart = markRaw(echarts.init(chartDom));
       }
       analyticsChart = chart;
-      chart.clear();
 
       const dark = isDark.value;
       const topTags = (tagStats.value || []).slice(0, 10).reverse();
+      const currentDataStr = JSON.stringify(topTags);
+      const displayKey = `tags_${dark ? 'dark' : 'light'}_${getChartFontSize(12)}`;
+      const currentKey = `${displayKey}##${currentDataStr}`;
+
+      if (!force && chart && currentKey === lastTagChartKey) {
+        chart.resize();
+        return;
+      }
+      lastTagChartKey = currentKey;
+      chart.clear();
       const categories = topTags.map(t => t.tag);
       const acData = topTags.map(t => t.ac_count);
 
@@ -1786,19 +2134,28 @@ createApp({
     };
 
     // 4. 各平台题量占比分布
-    const renderPlatformPie = () => {
+    const renderPlatformPie = (force = false) => {
       const chartDom = document.getElementById("analytics-chart");
       if (!chartDom) return;
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
-        chart = echarts.init(chartDom);
+        chart = markRaw(echarts.init(chartDom));
       }
       analyticsChart = chart;
-      chart.clear();
 
       const dark = isDark.value;
-      const pData = overview.value.stats.platforms || {};
+      const pData = overview.value.stats?.platforms || {};
+      const currentDataStr = JSON.stringify(pData);
+      const displayKey = `platforms_${dark ? 'dark' : 'light'}_${getChartFontSize(12)}`;
+      const currentKey = `${displayKey}##${currentDataStr}`;
+
+      if (!force && chart && currentKey === lastPieKey) {
+        chart.resize();
+        return;
+      }
+      lastPieKey = currentKey;
+      chart.clear();
       const data = [
         { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: dark ? "#2997ff" : "#0071e3" } },
         { value: pData.atcoder?.ac || 0, name: "AtCoder", itemStyle: { color: dark ? "#bf5af2" : "#af52de" } },
@@ -1853,28 +2210,40 @@ createApp({
       chart.resize();
     };
 
-    const renderActiveChart = () => {
+    const renderActiveChart = (force = false) => {
       if (chartView.value === "climbing") {
-        renderClimbingChart();
+        renderClimbingChart(force);
       } else if (chartView.value === "daily") {
-        renderDailyEffortChart();
+        renderDailyEffortChart(force);
       } else if (chartView.value === "tags") {
-        renderTagBarChart();
+        renderTagBarChart(force);
       } else if (chartView.value === "platforms") {
-        renderPlatformPie();
+        renderPlatformPie(force);
       }
     };
 
     // --- Platform & Sync Actions ---
-    const setHeatmapFilter = (p) => {
+    const setHeatmapFilter = async (p) => {
       heatmapFilter.value = p;
-      loadHeatmap();
+      lastHeatmapDataStr = "";
+      try {
+        await loadHeatmap();
+      } catch (e) {
+        // handled
+      }
+      if (currentTab.value === "overview") renderHeatmap(true);
       nextTick(syncSegmentedThumbs);
     };
 
-    const setHeatmapYear = (yr) => {
+    const setHeatmapYear = async (yr) => {
       selectedHeatmapYear.value = yr;
-      loadHeatmap();
+      lastHeatmapDataStr = "";
+      try {
+        await loadHeatmap();
+      } catch (e) {
+        // handled
+      }
+      if (currentTab.value === "overview") renderHeatmap(true);
       nextTick(syncSegmentedThumbs);
     };
 
@@ -1884,7 +2253,8 @@ createApp({
         const res = await apiFetch("/api/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ platform })
+          body: JSON.stringify({ platform }),
+          timeoutMs: 180000
         });
         const data = await res.json();
         if (data.data?.synced_at) {
@@ -1921,6 +2291,8 @@ createApp({
           body: JSON.stringify({ sprint_mode: next })
         });
         configs.value.sprint_mode = next;
+        settingsForm.value.sprint_mode = next;
+        settingsBaseline.sprint_mode = next;
         const regularMins = configs.value.poll_interval_minutes || "30";
         showToast(next === "true" ? "已开启刷题冲刺模式 (5分钟轮询)" : `已切换为日常模式 (${regularMins}分钟轮询)`, "success");
       } catch (e) {
@@ -1944,7 +2316,8 @@ createApp({
         const res = await apiFetch("/api/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          timeoutMs: 60000
         });
         const data = await res.json();
         if (data.valid) {
@@ -1982,6 +2355,8 @@ createApp({
         if (data.success) {
           configs.value.poll_interval_minutes = minsStr;
           configs.value.http_proxy = payload.http_proxy;
+          settingsBaseline.poll_interval_minutes = minsStr;
+          settingsBaseline.http_proxy = proxy;
           showToast(`系统参数保存成功！日常同步间隔已更新为 ${minsStr} 分钟`, "success");
         } else {
           showToast(data.detail || data.message || "保存失败", "error");
@@ -2016,6 +2391,11 @@ createApp({
         if (data.success) {
           configs.value.poll_interval_minutes = minsStr;
           configs.value.http_proxy = payload.http_proxy || "";
+          settingsBaseline = {
+            ...settingsForm.value,
+            poll_interval_minutes: minsStr,
+            http_proxy: proxy
+          };
           showToast("配置保存成功，正在同步最新数据...", "success");
           currentTab.value = "overview"; // 自动平滑切回总览看板
           await syncNow("all");
@@ -2039,6 +2419,7 @@ createApp({
         }
       } catch (e) {
         console.error("加载多账号列表失败:", e);
+        throw e;
       }
     };
 
@@ -2166,7 +2547,8 @@ createApp({
       isAccountSyncing.value[account.id] = true;
       try {
         const res = await apiFetch(`/api/accounts/${account.id}/sync`, {
-          method: "POST"
+          method: "POST",
+          timeoutMs: 120000
         });
         const data = await res.json();
         if (!res.ok || data.detail) {
@@ -2204,7 +2586,8 @@ createApp({
             handle: account.handle,
             cookie: account.cookie || "",
             http_proxy: settingsForm.value.http_proxy || configs.value.http_proxy || ""
-          })
+          }),
+          timeoutMs: 60000
         });
         const data = await res.json();
         if (data.valid) {
@@ -2223,7 +2606,11 @@ createApp({
     const syncPlatformManual = async (platform) => {
       if (platform === 'leetcode') {
         showToast("力扣主要通过油猴脚本实时秒级同步提交与源码，支持云端自动免登核实", "info");
-        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadMistakeKeys()]);
+        try {
+          await Promise.allSettled([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadMistakeKeys()]);
+        } catch (e) {
+          // ignore
+        }
         return;
       }
       isVerifying.value[platform] = true;
@@ -2232,7 +2619,8 @@ createApp({
         const res = await apiFetch("/api/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ platform })
+          body: JSON.stringify({ platform }),
+          timeoutMs: 180000
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
@@ -2295,6 +2683,156 @@ createApp({
       return `status-${s}`;
     };
 
+    // --- Unified Polling Engine (A1/A2/A8: in-flight guard, failure backoff, tab dispatch) ---
+    const refreshCurrentUser = async (force = false) => {
+      const now = Date.now();
+      if (!force && (now - lastUserRefreshTime < 60000)) {
+        return;
+      }
+      if (!token.value) return;
+      try {
+        const res = await apiFetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.user) {
+            currentUser.value = data.user;
+            localStorage.setItem("oiboard_user", JSON.stringify(data.user));
+            lastUserRefreshTime = Date.now();
+          }
+        }
+      } catch (e) {
+        if (e.message === "UNAUTHORIZED") {
+          resetAllUserStates();
+          fetchCaptcha();
+        }
+      }
+    };
+
+    const executeTabPolling = async () => {
+      if (!isLoggedIn.value) {
+        return;
+      }
+      if (document.hidden || isSyncing.value || isSaving.value || isPollingInProgress) {
+        scheduleNextPoll();
+        return;
+      }
+
+      isPollingInProgress = true;
+      try {
+        const tab = currentTab.value;
+        let tasks = [];
+        if (tab === "overview") {
+          tasks = [
+            loadOverview({ throwOnError: true }),
+            loadHeatmap({ throwOnError: true }),
+            loadTags({ throwOnError: true }),
+            loadContests({ throwOnError: true })
+          ];
+          lastContestSyncTime = Date.now();
+        } else if (tab === "submissions") {
+          tasks = [
+            loadSubmissions({ throwOnError: true }),
+            loadMistakeKeys({ throwOnError: true })
+          ];
+        } else if (tab === "mistakes") {
+          tasks = [loadMistakes({ throwOnError: true })];
+        } else if (tab === "contests") {
+          tasks = [loadContests({ throwOnError: true })];
+          lastContestSyncTime = Date.now();
+        } else if (tab === "settings") {
+          tasks = [pollSettingsReadOnly({ throwOnError: true })];
+        }
+
+        // A6-3: 在其他非比赛 Tab 下，每隔 60 秒低频同步一次比赛数据，确保侧边栏待开赛角标与状态不冻结
+        const now = Date.now();
+        if (tab !== "overview" && tab !== "contests" && (now - lastContestSyncTime >= 60000)) {
+          tasks.push(loadContests({ throwOnError: true }));
+          lastContestSyncTime = now;
+        }
+
+        // A6-1: 使用 Promise.allSettled 并发执行，单个请求超时或失败不阻塞其他数据域，且保证锁百分之百释放
+        const results = await Promise.allSettled(tasks);
+        const hasSuccess = results.some(r => r.status === "fulfilled");
+        const allRejected = results.length > 0 && results.every(r => r.status === "rejected");
+
+        // 低频刷新当前用户信息 (60 秒间隔)，401 时自动回到登录态
+        await refreshCurrentUser(false);
+
+        if (hasSuccess || results.length === 0) {
+          // 至少有成功项，重置退避
+          if (consecutivePollFailures > 0) {
+            console.log(`[PollEngine] 轮询恢复正常，恢复基础轮询周期: ${BASE_POLL_INTERVAL / 1000}s`);
+          }
+          consecutivePollFailures = 0;
+          currentPollInterval = BASE_POLL_INTERVAL;
+        } else if (allRejected) {
+          consecutivePollFailures++;
+          currentPollInterval = Math.min(60000, BASE_POLL_INTERVAL * Math.pow(2, consecutivePollFailures));
+          console.warn(`[PollEngine] 全部任务失败 (第 ${consecutivePollFailures} 次)，退避下一次轮询等待: ${currentPollInterval / 1000}s`);
+        }
+      } catch (err) {
+        consecutivePollFailures++;
+        currentPollInterval = Math.min(60000, BASE_POLL_INTERVAL * Math.pow(2, consecutivePollFailures));
+        console.warn(`[PollEngine] 轮询执行异常 (第 ${consecutivePollFailures} 次)，退避等待: ${currentPollInterval / 1000}s`, err);
+      } finally {
+        isPollingInProgress = false;
+        scheduleNextPoll();
+      }
+    };
+
+    const scheduleNextPoll = (customDelayMs) => {
+      if (pollTimeoutId) {
+        clearTimeout(pollTimeoutId);
+        pollTimeoutId = null;
+      }
+      const delay = typeof customDelayMs === "number" ? customDelayMs : currentPollInterval;
+      pollTimeoutId = setTimeout(() => {
+        executeTabPolling();
+      }, delay);
+    };
+
+    const triggerImmediatePoll = () => {
+      if (isLoggedIn.value && !isPollingInProgress) {
+        scheduleNextPoll(0);
+      }
+    };
+
+    // --- Timers and Global Event Handlers ---
+    let themeTimer = null;
+    let countdownTimer = null;
+    let resizeDebounceTimer = null;
+    let lastForegroundWakeupTime = 0;
+
+    const onWindowResize = () => {
+      if (resizeDebounceTimer) {
+        clearTimeout(resizeDebounceTimer);
+      }
+      resizeDebounceTimer = setTimeout(() => {
+        if (currentTab.value === "overview") {
+          renderHeatmap(true);
+          renderActiveChart(true);
+        }
+        syncSegmentedThumbs();
+      }, 150);
+    };
+
+    const onKeydown = (e) => {
+      if (e.key === "Escape" && viewNoteModalOpen.value) {
+        viewNoteModalOpen.value = false;
+      }
+    };
+
+    const onForegroundWakeup = () => {
+      if (document.hidden || !isLoggedIn.value) return;
+      const now = Date.now();
+      if (now - lastForegroundWakeupTime < 2000) {
+        return;
+      }
+      lastForegroundWakeupTime = now;
+      refreshCurrentUser(true);
+      triggerImmediatePoll();
+    };
+
     // --- Lifecycle ---
     onMounted(async () => {
       // 初始化应用主题模式与高分屏缩放比例
@@ -2302,7 +2840,7 @@ createApp({
       applyUiScale();
 
       // 30 秒级自动昼夜检测定时器 (仅在 auto 模式下无感平滑切换)
-      setInterval(() => {
+      themeTimer = setInterval(() => {
         if (themePref.value === "auto") {
           const shouldBeDark = !isDaylightTime();
           if (isDark.value !== shouldBeDark) {
@@ -2311,10 +2849,19 @@ createApp({
         }
       }, 30000);
 
-      // 1 秒级时间戳定时器 (仅在需要倒计时的页面跳动，后台标签页自动休眠省电)
-      setInterval(() => {
-        if (!document.hidden && (currentTab.value === 'contests' || currentTab.value === 'overview')) {
-          nowTimestamp.value = Math.floor(Date.now() / 1000);
+      // A6-3: 分级时钟驱动 (概览/比赛页 1s 精度更新倒计时，其他非活跃页面 30s 精度保持侧边栏角标不冻结)
+      let idleTabSeconds = 0;
+      countdownTimer = setInterval(() => {
+        if (document.hidden) return;
+        if (currentTab.value === 'contests' || currentTab.value === 'overview') {
+          updateContestMetas();
+          idleTabSeconds = 0;
+        } else {
+          idleTabSeconds++;
+          if (idleTabSeconds >= 30) {
+            idleTabSeconds = 0;
+            updateContestMetas();
+          }
         }
       }, 1000);
 
@@ -2327,9 +2874,7 @@ createApp({
           await reloadAllData();
         } catch (e) {
           if (e.message === "UNAUTHORIZED") {
-            currentUser.value = null;
-            localStorage.removeItem("oiboard_token");
-            localStorage.removeItem("oiboard_user");
+            resetAllUserStates();
             fetchCaptcha();
           }
         } finally {
@@ -2340,55 +2885,45 @@ createApp({
         fetchCaptcha();
       }
 
-      window.addEventListener("resize", () => {
-        if (currentTab.value === "overview") {
-          renderHeatmap();
-          renderActiveChart();
-        }
-        syncSegmentedThumbs();
-      });
-
-      // ESC 键快捷关闭错题笔记等浮层弹窗
-      window.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && viewNoteModalOpen.value) {
-          viewNoteModalOpen.value = false;
-        }
-      });
+      window.addEventListener("resize", onWindowResize);
+      window.addEventListener("keydown", onKeydown);
+      document.addEventListener("visibilitychange", onForegroundWakeup);
+      window.addEventListener("focus", onForegroundWakeup);
 
       nextTick(() => {
         syncSegmentedThumbs();
+        updateContestMetas();
       });
 
-      // 实时后台状态轮询 (每 15 秒静默刷新当前活跃标签页数据，概览页实时更新热力图)
-      setInterval(async () => {
-        if (isLoggedIn.value && !document.hidden && !isSyncing.value && !isSaving.value) {
-          try {
-            if (currentTab.value === "overview") {
-              await Promise.all([loadOverview(), loadHeatmap()]);
-            } else if (currentTab.value === "submissions") {
-              await loadSubmissions();
-            } else if (currentTab.value === "mistakes") {
-              await loadMistakes();
-            } else if (currentTab.value === "contests") {
-              await loadContests();
-            }
-          } catch (e) {}
-        }
-      }, 15000);
+      // 启动统一静默轮询调度器 (15 秒基础周期，具备防重叠与失败退避)
+      scheduleNextPoll(BASE_POLL_INTERVAL);
+    });
+
+    onUnmounted(() => {
+      if (themeTimer) clearInterval(themeTimer);
+      if (countdownTimer) clearInterval(countdownTimer);
+      if (pollTimeoutId) clearTimeout(pollTimeoutId);
+      if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+
+      window.removeEventListener("resize", onWindowResize);
+      window.removeEventListener("keydown", onKeydown);
+      document.removeEventListener("visibilitychange", onForegroundWakeup);
+      window.removeEventListener("focus", onForegroundWakeup);
     });
 
     // 监控图表类型切换，无缝渲染并对齐滑块
     watch(chartView, () => {
       nextTick(() => {
         syncSegmentedThumbs();
-        renderActiveChart();
+        renderActiveChart(true);
       });
     });
 
     // 监控平滑拟合开关切换
     watch(isCurveSmooth, () => {
       if (chartView.value === "climbing") {
-        renderClimbingChart();
+        renderClimbingChart(true);
       }
     });
 
@@ -2400,32 +2935,36 @@ createApp({
     // 监控错题集状态与筛选切换
     watch([mistakeStatusFilter, mistakePlatformFilter, mistakeSortBy], () => {
       mistakePage.value = 1;
-      loadMistakes();
+      loadMistakes().catch(e => console.error("筛选切换加载错题失败:", e));
       nextTick(syncSegmentedThumbs);
     });
 
     // 标签页切换自动静默拉取最新数据，概览页重新加载热力图与图表，彻底告别手动硬刷新
     watch(currentTab, async (tab) => {
-      if (tab === "overview") {
-        await Promise.all([loadOverview(), loadHeatmap(), loadTags()]);
-        nextTick(() => {
-          renderHeatmap();
-          renderActiveChart();
-          syncSegmentedThumbs();
-        });
-      } else {
-        if (tab === "submissions") {
-          await Promise.all([loadSubmissions(), loadMistakeKeys()]);
+      try {
+        if (tab === "overview") {
+          await Promise.allSettled([loadOverview(), loadHeatmap(), loadTags(), loadContests()]);
+          nextTick(() => {
+            renderHeatmap(true);
+            renderActiveChart(true);
+          });
+        } else if (tab === "submissions") {
+          await Promise.allSettled([loadSubmissions(), loadMistakeKeys()]);
         } else if (tab === "mistakes") {
-          await loadMistakes();
+          await Promise.allSettled([loadMistakes()]);
         } else if (tab === "contests") {
-          await loadContests();
+          await Promise.allSettled([loadContests()]);
         } else if (tab === "settings") {
-          await loadSettings();
+          await Promise.allSettled([loadSettings()]);
         }
+      } catch (err) {
+        console.warn("[TabSwitch] 切换标签页加载数据异常:", err);
+      } finally {
         nextTick(() => {
           syncSegmentedThumbs();
         });
+        // 切换标签后，重置并顺延后台轮询计时
+        scheduleNextPoll(BASE_POLL_INTERVAL);
       }
     });
 
