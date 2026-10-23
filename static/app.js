@@ -2295,6 +2295,61 @@ createApp({
       return `status-${s}`;
     };
 
+    // --- Unified Polling Engine (A1: in-flight guard, failure backoff, tab dispatch) ---
+    let pollTimeoutId = null;
+    let isPollingInProgress = false;
+    let consecutivePollFailures = 0;
+    const BASE_POLL_INTERVAL = 15000;
+    let currentPollInterval = BASE_POLL_INTERVAL;
+
+    const executeTabPolling = async () => {
+      if (!isLoggedIn.value || document.hidden || isSyncing.value || isSaving.value || isPollingInProgress) {
+        scheduleNextPoll();
+        return;
+      }
+
+      isPollingInProgress = true;
+      try {
+        const tab = currentTab.value;
+        if (tab === "overview") {
+          await Promise.all([loadOverview(), loadHeatmap()]);
+        } else if (tab === "submissions") {
+          await loadSubmissions();
+        } else if (tab === "mistakes") {
+          await loadMistakes();
+        } else if (tab === "contests") {
+          await loadContests();
+        }
+        // 轮询成功，重置退避状态
+        consecutivePollFailures = 0;
+        currentPollInterval = BASE_POLL_INTERVAL;
+      } catch (err) {
+        consecutivePollFailures++;
+        // 连续失败退避：15s -> 30s -> 最多 60s
+        currentPollInterval = Math.min(60000, BASE_POLL_INTERVAL * Math.pow(2, consecutivePollFailures));
+      } finally {
+        isPollingInProgress = false;
+        scheduleNextPoll();
+      }
+    };
+
+    const scheduleNextPoll = (customDelayMs) => {
+      if (pollTimeoutId) {
+        clearTimeout(pollTimeoutId);
+        pollTimeoutId = null;
+      }
+      const delay = typeof customDelayMs === "number" ? customDelayMs : currentPollInterval;
+      pollTimeoutId = setTimeout(() => {
+        executeTabPolling();
+      }, delay);
+    };
+
+    const triggerImmediatePoll = () => {
+      if (!isPollingInProgress) {
+        scheduleNextPoll(0);
+      }
+    };
+
     // --- Lifecycle ---
     onMounted(async () => {
       // 初始化应用主题模式与高分屏缩放比例
@@ -2359,22 +2414,8 @@ createApp({
         syncSegmentedThumbs();
       });
 
-      // 实时后台状态轮询 (每 15 秒静默刷新当前活跃标签页数据，概览页实时更新热力图)
-      setInterval(async () => {
-        if (isLoggedIn.value && !document.hidden && !isSyncing.value && !isSaving.value) {
-          try {
-            if (currentTab.value === "overview") {
-              await Promise.all([loadOverview(), loadHeatmap()]);
-            } else if (currentTab.value === "submissions") {
-              await loadSubmissions();
-            } else if (currentTab.value === "mistakes") {
-              await loadMistakes();
-            } else if (currentTab.value === "contests") {
-              await loadContests();
-            }
-          } catch (e) {}
-        }
-      }, 15000);
+      // 启动统一静默轮询调度器 (15 秒基础周期，具备防重叠与失败退避)
+      scheduleNextPoll(BASE_POLL_INTERVAL);
     });
 
     // 监控图表类型切换，无缝渲染并对齐滑块
