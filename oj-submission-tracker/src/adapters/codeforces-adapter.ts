@@ -64,6 +64,13 @@ export class CodeforcesAdapter extends BaseAdapter {
       return;
     }
 
+    // 过滤非当前登录用户的提交（防止在公共 status 页误抓路人提交）
+    const currentUser = this.extractUserHandle();
+    const rowUser = this.extractRowUserHandle(row);
+    if (currentUser && rowUser && currentUser.toLowerCase() !== rowUser.toLowerCase()) {
+      return;
+    }
+
     const verdictCell = row.querySelector('td.status-cell.status-verdict-cell, td[waiting]') as HTMLTableCellElement;
     if (!verdictCell) return;
 
@@ -107,7 +114,8 @@ export class CodeforcesAdapter extends BaseAdapter {
     if (Storage.isDuplicate(this.platform, submissionId)) return;
 
     // 提取题目信息
-    const problemLink = row.querySelector('td[data-problemid] a, a[href*="/problem/"]') as HTMLAnchorElement;
+    const problemCell = row.querySelector('td[data-problemid]') || row.querySelector('td:nth-child(4)');
+    const problemLink = (problemCell?.querySelector('a') || row.querySelector('a[href*="/problem/"]')) as HTMLAnchorElement | null;
     let problemId = 'CF_UNKNOWN';
     let problemTitle = '';
     let problemUrl = '';
@@ -117,8 +125,8 @@ export class CodeforcesAdapter extends BaseAdapter {
       problemTitle = problemLink.textContent?.trim() || '';
       const href = problemLink.getAttribute('href') || '';
 
-      // 匹配 /contest/1920/problem/A 或 /problemset/problem/1920/A
-      const contestMatch = href.match(/(?:contest|problemset\/problem)\/(\d+)\/([A-Za-z0-9_]+)/);
+      // 兼容 /problemset/problem/1999/A、/contest/1999/problem/A、/gym/104567/problem/A
+      const contestMatch = href.match(/(?:contest|gym|problemset\/problem)\/(\d+)\/(?:problem\/)?([A-Za-z0-9_]+)/);
       if (contestMatch) {
         problemId = `${contestMatch[1]}${contestMatch[2]}`;
       } else {
@@ -138,11 +146,10 @@ export class CodeforcesAdapter extends BaseAdapter {
     const memoryKb = this.parseNumber(memoryCell?.textContent || '');
 
     // 提取语言
-    const langCell = row.querySelector('td:nth-child(4)');
-    const language = langCell?.textContent?.trim() || 'unknown';
+    const language = this.extractLanguage(row, problemCell, verdictCell);
 
     // 提取当前用户 Handle
-    const userHandle = this.extractUserHandle();
+    const userHandle = this.extractUserHandle() || this.extractRowUserHandle(row);
 
     const payload: UnifiedSubmissionPayload = {
       platform: 'codeforces',
@@ -159,10 +166,55 @@ export class CodeforcesAdapter extends BaseAdapter {
       executionTimeMs: timeMs,
       memoryUsedKb: memoryKb,
       submittedAt: Date.now(),
-      clientVersion: '1.0.0',
+      clientVersion: '1.1.0',
     };
 
     this.submitPayload(payload);
+  }
+
+  /**
+   * 三重定位提取提交语言：
+   * 1. 题目列 (td[data-problemid]) 的下一个相邻单元格
+   * 2. 判题结果列 (td.status-verdict-cell) 的上一个相邻单元格
+   * 3. 标准第 5 列 (td:nth-child(5)) 兜底
+   */
+  private extractLanguage(
+    row: HTMLTableRowElement,
+    problemCell: Element | null,
+    verdictCell: HTMLTableCellElement
+  ): string {
+    const candidates = [
+      problemCell?.nextElementSibling,
+      verdictCell?.previousElementSibling,
+      row.querySelector('td:nth-child(5)'),
+    ];
+    for (const cell of candidates) {
+      if (!cell) continue;
+      // 排除题目列自身或判题列自身
+      if (cell.hasAttribute('data-problemid') || cell.classList.contains('status-verdict-cell')) {
+        continue;
+      }
+      const text = cell.textContent?.trim() || '';
+      if (text) return text;
+    }
+    return 'unknown';
+  }
+
+  private extractRowUserHandle(row: HTMLTableRowElement): string | undefined {
+    try {
+      const partyLink = row.querySelector('td.status-party-cell a[href^="/profile/"]');
+      if (partyLink) {
+        const href = partyLink.getAttribute('href') || '';
+        const m = href.match(/\/profile\/([^/?#]+)/);
+        if (m && m[1]) return decodeURIComponent(m[1]).trim();
+      }
+      const partyCell = row.querySelector('td.status-party-cell');
+      if (partyCell) {
+        const text = partyCell.textContent?.trim();
+        if (text) return text.replace(/[*#].*$/, '').trim();
+      }
+    } catch (_) {}
+    return undefined;
   }
 
   private parseVerdict(cell: HTMLTableCellElement): VerdictType {

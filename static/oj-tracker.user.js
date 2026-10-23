@@ -2473,6 +2473,11 @@
       if (Storage.isDuplicate(this.platform, submissionId)) {
         return;
       }
+      const currentUser = this.extractUserHandle();
+      const rowUser = this.extractRowUserHandle(row);
+      if (currentUser && rowUser && currentUser.toLowerCase() !== rowUser.toLowerCase()) {
+        return;
+      }
       const verdictCell = row.querySelector("td.status-cell.status-verdict-cell, td[waiting]");
       if (!verdictCell) return;
       const waiting = verdictCell.getAttribute("waiting");
@@ -2501,9 +2506,10 @@
       this.extractAndSubmit(row, submissionId, verdictCell);
     }
     extractAndSubmit(row, submissionId, verdictCell) {
-      var _a, _b, _c;
+      var _a, _b;
       if (Storage.isDuplicate(this.platform, submissionId)) return;
-      const problemLink = row.querySelector('td[data-problemid] a, a[href*="/problem/"]');
+      const problemCell = row.querySelector("td[data-problemid]") || row.querySelector("td:nth-child(4)");
+      const problemLink = (problemCell == null ? void 0 : problemCell.querySelector("a")) || row.querySelector('a[href*="/problem/"]');
       let problemId = "CF_UNKNOWN";
       let problemTitle = "";
       let problemUrl = "";
@@ -2511,7 +2517,7 @@
         problemUrl = problemLink.href;
         problemTitle = ((_a = problemLink.textContent) == null ? void 0 : _a.trim()) || "";
         const href = problemLink.getAttribute("href") || "";
-        const contestMatch = href.match(/(?:contest|problemset\/problem)\/(\d+)\/([A-Za-z0-9_]+)/);
+        const contestMatch = href.match(/(?:contest|gym|problemset\/problem)\/(\d+)\/(?:problem\/)?([A-Za-z0-9_]+)/);
         if (contestMatch) {
           problemId = `${contestMatch[1]}${contestMatch[2]}`;
         } else {
@@ -2524,9 +2530,8 @@
       const timeMs = this.parseNumber((timeCell == null ? void 0 : timeCell.textContent) || "");
       const memoryCell = row.querySelector("td.memory-consumed-cell");
       const memoryKb = this.parseNumber((memoryCell == null ? void 0 : memoryCell.textContent) || "");
-      const langCell = row.querySelector("td:nth-child(4)");
-      const language = ((_c = langCell == null ? void 0 : langCell.textContent) == null ? void 0 : _c.trim()) || "unknown";
-      const userHandle = this.extractUserHandle();
+      const language = this.extractLanguage(row, problemCell, verdictCell);
+      const userHandle = this.extractUserHandle() || this.extractRowUserHandle(row);
       const payload = {
         platform: "codeforces",
         platformSubmissionId: String(submissionId),
@@ -2543,9 +2548,50 @@
         executionTimeMs: timeMs,
         memoryUsedKb: memoryKb,
         submittedAt: Date.now(),
-        clientVersion: "1.0.0"
+        clientVersion: "1.1.0"
       };
       this.submitPayload(payload);
+    }
+    /**
+     * 三重定位提取提交语言：
+     * 1. 题目列 (td[data-problemid]) 的下一个相邻单元格
+     * 2. 判题结果列 (td.status-verdict-cell) 的上一个相邻单元格
+     * 3. 标准第 5 列 (td:nth-child(5)) 兜底
+     */
+    extractLanguage(row, problemCell, verdictCell) {
+      var _a;
+      const candidates = [
+        problemCell == null ? void 0 : problemCell.nextElementSibling,
+        verdictCell == null ? void 0 : verdictCell.previousElementSibling,
+        row.querySelector("td:nth-child(5)")
+      ];
+      for (const cell of candidates) {
+        if (!cell) continue;
+        if (cell.hasAttribute("data-problemid") || cell.classList.contains("status-verdict-cell")) {
+          continue;
+        }
+        const text = ((_a = cell.textContent) == null ? void 0 : _a.trim()) || "";
+        if (text) return text;
+      }
+      return "unknown";
+    }
+    extractRowUserHandle(row) {
+      var _a;
+      try {
+        const partyLink = row.querySelector('td.status-party-cell a[href^="/profile/"]');
+        if (partyLink) {
+          const href = partyLink.getAttribute("href") || "";
+          const m = href.match(/\/profile\/([^/?#]+)/);
+          if (m && m[1]) return decodeURIComponent(m[1]).trim();
+        }
+        const partyCell = row.querySelector("td.status-party-cell");
+        if (partyCell) {
+          const text = (_a = partyCell.textContent) == null ? void 0 : _a.trim();
+          if (text) return text.replace(/[*#].*$/, "").trim();
+        }
+      } catch (_) {
+      }
+      return void 0;
     }
     parseVerdict(cell) {
       const text = cell.textContent || "";
