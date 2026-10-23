@@ -1363,7 +1363,26 @@ createApp({
       }
     };
 
-    // 静默轮询设置与多账号状态（只读刷新，保护用户正在编辑但未保存的 settingsForm 字段）
+    // A6-4: 设置表单脏状态检测（对比表单值与远端持久化基准，并排查输入框聚焦）
+    const isSettingsFormDirty = () => {
+      const c = configs.value || {};
+      const s = settingsForm.value || {};
+      const isProxyChanged = (s.http_proxy || "").trim() !== (c.http_proxy || "").trim();
+      const isIntervalChanged = String(s.poll_interval_minutes || "30") !== String(c.poll_interval_minutes || "30");
+      const isCfChanged = (s.cf_handle || "").trim() !== (c.cf_handle || "").trim();
+      const isLuoguUidChanged = (s.luogu_uid || "").trim() !== (c.luogu_uid || "").trim();
+      const isLuoguCookieChanged = (s.luogu_cookie || "").trim() !== (c.luogu_cookie || "").trim();
+      const isAcwingUidChanged = (s.acwing_user_id || "").trim() !== (c.acwing_user_id || "").trim();
+      const isAcwingCookieChanged = (s.acwing_cookie || "").trim() !== (c.acwing_cookie || "").trim();
+      const isAtcoderChanged = (s.atcoder_handle || "").trim() !== (c.atcoder_handle || "").trim();
+
+      const activeEl = document.activeElement;
+      const isInputFocused = currentTab.value === "settings" && activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.tagName === "SELECT");
+
+      return isProxyChanged || isIntervalChanged || isCfChanged || isLuoguUidChanged || isLuoguCookieChanged || isAcwingUidChanged || isAcwingCookieChanged || isAtcoderChanged || isInputFocused;
+    };
+
+    // 静默轮询设置与多账号状态（支持脏状态保护与弹窗焦点保护）
     const pollSettingsReadOnly = async () => {
       try {
         const res = await apiFetch("/api/settings");
@@ -1374,7 +1393,25 @@ createApp({
         if (data.status) {
           platformStatusMap.value = data.status;
         }
-        await loadAccounts();
+
+        // A6-4: 表单未编辑且无焦点时允许静默同步最新配置；编辑中绝对不覆盖用户输入
+        if (!isSettingsFormDirty() && data.configs) {
+          settingsForm.value = {
+            cf_handle: data.configs.cf_handle || "",
+            luogu_uid: data.configs.luogu_uid || "",
+            luogu_cookie: data.configs.luogu_cookie || "",
+            acwing_user_id: data.configs.acwing_user_id || "",
+            acwing_cookie: data.configs.acwing_cookie || "",
+            atcoder_handle: data.configs.atcoder_handle || "",
+            poll_interval_minutes: data.configs.poll_interval_minutes || "30",
+            http_proxy: data.configs.http_proxy || "",
+          };
+        }
+
+        // A6-4: 账号弹窗开启编辑时暂停替换 accounts，保护弹窗焦点与表单
+        if (!accountModalOpen.value) {
+          await loadAccounts();
+        }
       } catch (e) {
         console.error("静默轮询设置失败:", e);
       }
