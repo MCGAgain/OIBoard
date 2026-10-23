@@ -18,6 +18,7 @@ deploy_remote.py
 .DS_Store
 .idea/
 .vscode/
+.cph/
 *.swp
 *.swo
 
