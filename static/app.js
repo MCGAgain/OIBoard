@@ -395,8 +395,8 @@ createApp({
       }
       if (currentTab.value === "overview") {
         nextTick(() => {
-          renderHeatmap();
-          renderActiveChart();
+          renderHeatmap(true);
+          renderActiveChart(true);
         });
       }
       syncSegmentedThumbs();
@@ -437,8 +437,8 @@ createApp({
       nextTick(() => {
         window.dispatchEvent(new Event("resize"));
         if (currentTab.value === "overview") {
-          renderHeatmap();
-          renderActiveChart();
+          renderHeatmap(true);
+          renderActiveChart(true);
         }
       });
     };
@@ -1030,7 +1030,7 @@ createApp({
           selectedHeatmapYear.value = data.year;
         }
         await nextTick();
-        renderHeatmap();
+        renderHeatmap(true);
       } catch (e) {
         console.error("加载 Heatmap 失败:", e);
       }
@@ -1426,7 +1426,7 @@ createApp({
       const dark = isDark.value;
       const targetYear = selectedHeatmapYear.value || new Date().getFullYear();
       const rawList = rawHeatmap.value || [];
-      const currentKey = `${targetYear}_${dark ? 'dark' : 'light'}_${cellSize}_${rawList.length}_${rawList[0]?.date || ''}_${rawList[rawList.length - 1]?.date || ''}_${rawList[rawList.length - 1]?.count || ''}`;
+      const currentKey = `${targetYear}_${heatmapFilter.value}_${dark ? 'dark' : 'light'}_${cellSize}_${rawList.length}_${rawList[0]?.date || ''}_${rawList[rawList.length - 1]?.date || ''}_${rawList[rawList.length - 1]?.count || ''}`;
 
       // A4: 哈希未变且非强制时跳过 clear() 和重绘，极大减少 Canvas 开销
       if (!force && currentKey === lastHeatmapRenderKey) {
@@ -2692,8 +2692,8 @@ createApp({
       if (tab === "overview") {
         await Promise.all([loadOverview(), loadHeatmap(), loadTags(), loadContests()]);
         nextTick(() => {
-          renderHeatmap();
-          renderActiveChart();
+          renderHeatmap(true);
+          renderActiveChart(true);
           syncSegmentedThumbs();
         });
       } else {
