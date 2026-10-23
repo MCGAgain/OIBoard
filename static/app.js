@@ -1028,19 +1028,29 @@ createApp({
       }
     };
 
+    let lastHeatmapDataStr = "";
     const loadHeatmap = async () => {
       try {
         const res = await apiFetch(`/api/stats/heatmap?platform=${heatmapFilter.value}&year=${selectedHeatmapYear.value}`);
         const data = await res.json();
-        rawHeatmap.value = data.heatmap || [];
+        const incomingHeatmap = data.heatmap || [];
+        const incomingStr = JSON.stringify(incomingHeatmap);
+        const dataChanged = incomingStr !== lastHeatmapDataStr;
+        if (dataChanged) {
+          lastHeatmapDataStr = incomingStr;
+          rawHeatmap.value = incomingHeatmap;
+        }
         if (data.available_years && data.available_years.length > 0) {
           availableHeatmapYears.value = data.available_years;
         }
         if (data.year) {
           selectedHeatmapYear.value = data.year;
         }
-        await nextTick();
-        renderHeatmap(true);
+        // 仅在数据确实发生变化且当前处于概览页时才发起非强制渲染（由哈希比对防重绘）
+        if (dataChanged && currentTab.value === "overview") {
+          await nextTick();
+          renderHeatmap(false);
+        }
       } catch (e) {
         console.error("加载 Heatmap 失败:", e);
       }
@@ -1473,14 +1483,21 @@ createApp({
       const dark = isDark.value;
       const targetYear = selectedHeatmapYear.value || new Date().getFullYear();
       const rawList = rawHeatmap.value || [];
-      const currentKey = `${targetYear}_${heatmapFilter.value}_${dark ? 'dark' : 'light'}_${cellSize}_${rawList.length}_${rawList[0]?.date || ''}_${rawList[rawList.length - 1]?.date || ''}_${rawList[rawList.length - 1]?.count || ''}`;
+      const currentDataStr = JSON.stringify(rawList);
+      const displayKey = `${targetYear}_${heatmapFilter.value}_${dark ? 'dark' : 'light'}_${cellSize}`;
+      const currentKey = `${displayKey}##${currentDataStr}`;
 
-      // A4: 哈希未变且非强制时跳过 clear() 和重绘，极大减少 Canvas 开销
+      // A4 / A7-1: 真实数据内容与显示参数未变且非强制时跳过 clear() 和重绘
       if (!force && currentKey === lastHeatmapRenderKey) {
         chart.resize();
         return;
       }
       lastHeatmapRenderKey = currentKey;
+      if (typeof window !== "undefined") {
+        window.__chartClearCounters = window.__chartClearCounters || { heatmap: 0, climbing: 0, daily: 0, tag: 0, pie: 0 };
+        window.__chartClearCounters.heatmap++;
+        console.log(`[ChartClear] heatmap.clear() called, total: ${window.__chartClearCounters.heatmap}`);
+      }
       chart.clear();
 
       const startDateStr = `${targetYear}-01-01`;
@@ -1582,13 +1599,20 @@ createApp({
 
       const dark = isDark.value;
       const rawCurve = overview.value.climbing_curve || [];
-      const currentKey = `climbing_${dark ? 'dark' : 'light'}_${isCurveSmooth.value}_${rawCurve.length}_${overview.value.stats?.total_ac || 0}_${rawCurve[rawCurve.length - 1]?.ac || 0}_${getChartFontSize(12)}`;
+      const currentDataStr = JSON.stringify(rawCurve);
+      const displayKey = `climbing_${dark ? 'dark' : 'light'}_${isCurveSmooth.value}_${getChartFontSize(12)}`;
+      const currentKey = `${displayKey}##${currentDataStr}`;
 
       if (!force && chart && currentKey === lastClimbingKey) {
         chart.resize();
         return;
       }
       lastClimbingKey = currentKey;
+      if (typeof window !== "undefined") {
+        window.__chartClearCounters = window.__chartClearCounters || { heatmap: 0, climbing: 0, daily: 0, tag: 0, pie: 0 };
+        window.__chartClearCounters.climbing++;
+        console.log(`[ChartClear] climbing.clear() called, total: ${window.__chartClearCounters.climbing}`);
+      }
       chart.clear();
       
       // 保证数据序列严格按日历连续，最小刻度单位为严格 1 天（杜绝跳天导致非等距）
@@ -1779,13 +1803,20 @@ createApp({
 
       const dark = isDark.value;
       const rawDaily = overview.value.daily_effort || [];
-      const currentKey = `daily_${dark ? 'dark' : 'light'}_${rawDaily.length}_${overview.value.stats?.today_ac || 0}_${overview.value.stats?.today_subs || 0}_${getChartFontSize(12)}`;
+      const currentDataStr = JSON.stringify(rawDaily);
+      const displayKey = `daily_${dark ? 'dark' : 'light'}_${getChartFontSize(12)}`;
+      const currentKey = `${displayKey}##${currentDataStr}`;
 
       if (!force && chart && currentKey === lastDailyKey) {
         chart.resize();
         return;
       }
       lastDailyKey = currentKey;
+      if (typeof window !== "undefined") {
+        window.__chartClearCounters = window.__chartClearCounters || { heatmap: 0, climbing: 0, daily: 0, tag: 0, pie: 0 };
+        window.__chartClearCounters.daily++;
+        console.log(`[ChartClear] daily.clear() called, total: ${window.__chartClearCounters.daily}`);
+      }
       chart.clear();
 
       let dates = [];
@@ -1912,13 +1943,20 @@ createApp({
 
       const dark = isDark.value;
       const topTags = (tagStats.value || []).slice(0, 10).reverse();
-      const currentKey = `tags_${dark ? 'dark' : 'light'}_${topTags.length}_${topTags.map(t => `${t.tag}:${t.ac_count}`).join(',')}_${getChartFontSize(12)}`;
+      const currentDataStr = JSON.stringify(topTags);
+      const displayKey = `tags_${dark ? 'dark' : 'light'}_${getChartFontSize(12)}`;
+      const currentKey = `${displayKey}##${currentDataStr}`;
 
       if (!force && chart && currentKey === lastTagChartKey) {
         chart.resize();
         return;
       }
       lastTagChartKey = currentKey;
+      if (typeof window !== "undefined") {
+        window.__chartClearCounters = window.__chartClearCounters || { heatmap: 0, climbing: 0, daily: 0, tag: 0, pie: 0 };
+        window.__chartClearCounters.tag++;
+        console.log(`[ChartClear] tag.clear() called, total: ${window.__chartClearCounters.tag}`);
+      }
       chart.clear();
       const categories = topTags.map(t => t.tag);
       const acData = topTags.map(t => t.ac_count);
@@ -1994,14 +2032,21 @@ createApp({
       analyticsChart = chart;
 
       const dark = isDark.value;
-      const pData = overview.value.stats.platforms || {};
-      const currentKey = `platforms_${dark ? 'dark' : 'light'}_${JSON.stringify(pData)}_${getChartFontSize(12)}`;
+      const pData = overview.value.stats?.platforms || {};
+      const currentDataStr = JSON.stringify(pData);
+      const displayKey = `platforms_${dark ? 'dark' : 'light'}_${getChartFontSize(12)}`;
+      const currentKey = `${displayKey}##${currentDataStr}`;
 
       if (!force && chart && currentKey === lastPieKey) {
         chart.resize();
         return;
       }
       lastPieKey = currentKey;
+      if (typeof window !== "undefined") {
+        window.__chartClearCounters = window.__chartClearCounters || { heatmap: 0, climbing: 0, daily: 0, tag: 0, pie: 0 };
+        window.__chartClearCounters.pie++;
+        console.log(`[ChartClear] pie.clear() called, total: ${window.__chartClearCounters.pie}`);
+      }
       chart.clear();
       const data = [
         { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: dark ? "#2997ff" : "#0071e3" } },
@@ -2070,15 +2115,19 @@ createApp({
     };
 
     // --- Platform & Sync Actions ---
-    const setHeatmapFilter = (p) => {
+    const setHeatmapFilter = async (p) => {
       heatmapFilter.value = p;
-      loadHeatmap();
+      lastHeatmapDataStr = "";
+      await loadHeatmap();
+      if (currentTab.value === "overview") renderHeatmap(true);
       nextTick(syncSegmentedThumbs);
     };
 
-    const setHeatmapYear = (yr) => {
+    const setHeatmapYear = async (yr) => {
       selectedHeatmapYear.value = yr;
-      loadHeatmap();
+      lastHeatmapDataStr = "";
+      await loadHeatmap();
+      if (currentTab.value === "overview") renderHeatmap(true);
       nextTick(syncSegmentedThumbs);
     };
 
