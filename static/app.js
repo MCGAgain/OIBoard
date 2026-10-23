@@ -926,11 +926,36 @@ createApp({
       return (now < st) ? "BEFORE" : (now < st + dur ? "CODING" : "FINISHED");
     };
 
-    const formatContestCountdown = (c) => {
-      if (contestMetaMap.value[c.id]) {
-        return contestMetaMap.value[c.id].countdown;
+    const computeContestCountdown = (c) => {
+      const now = nowTimestamp.value || Math.floor(Date.now() / 1000);
+      const st = c.start_timestamp;
+      const dur = c.duration_seconds || 7200;
+      const et = st + dur;
+      if (now < st) {
+        const diff = st - now;
+        const days = Math.floor(diff / 86400);
+        const hours = Math.floor((diff % 86400) / 3600);
+        const mins = Math.floor((diff % 3600) / 60);
+        const secs = diff % 60;
+        if (days > 0) return `还有 ${days} 天 ${hours} 小时 ${mins} 分`;
+        if (hours > 0) return `还有 ${hours} 小时 ${mins} 分 ${secs} 秒`;
+        return `还有 ${mins} 分 ${secs} 秒`;
+      } else if (now < et) {
+        const remaining = et - now;
+        const hours = Math.floor(remaining / 3600);
+        const mins = Math.floor((remaining % 3600) / 60);
+        const secs = remaining % 60;
+        if (hours > 0) return `进行中 (剩余 ${hours}小时${mins}分)`;
+        return `进行中 (剩余 ${mins}分${secs}秒)`;
       }
       return "已结束";
+    };
+
+    const formatContestCountdown = (c) => {
+      if (contestMetaMap.value && contestMetaMap.value[c.id]) {
+        return contestMetaMap.value[c.id].countdown;
+      }
+      return computeContestCountdown(c);
     };
 
     const filteredContests = computed(() => {
