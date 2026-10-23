@@ -37,6 +37,15 @@ createApp({
 
     const currentTab = ref("overview"); // 'overview', 'submissions', 'mistakes', 'settings'
     const searchKeyword = ref("");
+    const debouncedSearchKeyword = ref("");
+    let searchDebounceTimer = null;
+    watch(searchKeyword, (val) => {
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        debouncedSearchKeyword.value = val;
+        currentPage.value = 1;
+      }, 150);
+    });
     const dateFilter = ref("all"); // 'all', 'today', '7d', '30d', 'year', 'custom'
     const startDate = ref("");
     const endDate = ref("");
@@ -141,6 +150,10 @@ createApp({
         } catch (err) {}
       }
 
+      let resizeRafId = null;
+      let pendingW = null;
+      let pendingH = null;
+
       const onPointerMove = (moveEvent) => {
         moveEvent.preventDefault();
 
@@ -153,15 +166,33 @@ createApp({
         const targetW = Math.round((moveEvent.clientX - centerX) * 2);
         const targetH = Math.round((moveEvent.clientY - centerY) * 2);
 
-        const newW = Math.min(Math.max(targetW, minW), maxW);
-        const newH = Math.min(Math.max(targetH, minH), maxH);
+        pendingW = Math.min(Math.max(targetW, minW), maxW);
+        pendingH = Math.min(Math.max(targetH, minH), maxH);
 
-        noteModalSize.value = "custom";
-        noteModalCustomWidth.value = newW;
-        noteModalCustomHeight.value = newH;
+        // 使用 requestAnimationFrame 进行节流，避免高刷新率鼠标高频触发 Vue 响应式计算
+        if (!resizeRafId) {
+          resizeRafId = requestAnimationFrame(() => {
+            resizeRafId = null;
+            if (pendingW !== null && pendingH !== null) {
+              noteModalSize.value = "custom";
+              noteModalCustomWidth.value = pendingW;
+              noteModalCustomHeight.value = pendingH;
+            }
+          });
+        }
       };
 
       const onPointerUp = (upEvent) => {
+        if (resizeRafId) {
+          cancelAnimationFrame(resizeRafId);
+          resizeRafId = null;
+        }
+        if (pendingW !== null && pendingH !== null) {
+          noteModalSize.value = "custom";
+          noteModalCustomWidth.value = pendingW;
+          noteModalCustomHeight.value = pendingH;
+        }
+
         if (hasPointerCapture && upEvent && upEvent.pointerId) {
           try {
             handleEl.releasePointerCapture(upEvent.pointerId);
@@ -295,6 +326,9 @@ createApp({
     const syncSegmentedThumbs = () => {
       nextTick(() => {
         const controls = document.querySelectorAll(".segmented-control");
+        const updates = [];
+
+        // 阶段 1：统一只读布局值 (Batch DOM Read)
         controls.forEach(ctrl => {
           let thumb = ctrl.querySelector(".segmented-thumb");
           if (!thumb) {
@@ -304,14 +338,33 @@ createApp({
           }
           const active = ctrl.querySelector(".segmented-item.active");
           if (active && active.offsetParent !== null) {
-            thumb.style.transform = `translateX(${active.offsetLeft}px)`;
-            thumb.style.width = `${active.offsetWidth}px`;
-            thumb.style.height = `${active.offsetHeight}px`;
-            thumb.style.opacity = "1";
+            updates.push({
+              thumb,
+              visible: true,
+              left: active.offsetLeft,
+              width: active.offsetWidth,
+              height: active.offsetHeight
+            });
           } else {
-            thumb.style.opacity = "0";
+            updates.push({
+              thumb,
+              visible: false
+            });
           }
         });
+
+        // 阶段 2：统一写入样式 (Batch DOM Write)，消除读写交替造成的强制同步重排 (Layout Thrashing)
+        for (let i = 0; i < updates.length; i++) {
+          const u = updates[i];
+          if (u.visible) {
+            u.thumb.style.transform = `translateX(${u.left}px)`;
+            u.thumb.style.width = `${u.width}px`;
+            u.thumb.style.height = `${u.height}px`;
+            u.thumb.style.opacity = "1";
+          } else {
+            u.thumb.style.opacity = "0";
+          }
+        }
       });
     };
 
@@ -736,17 +789,17 @@ createApp({
         }
       }
 
-      // 5. 关键词即时搜索
-      if (searchKeyword.value.trim()) {
-        const kw = searchKeyword.value.trim().toLowerCase();
-        list = list.filter(s => 
-          (s.problem_id && s.problem_id.toLowerCase().includes(kw)) ||
+      // 5. 关键词即时搜索 (支持 150ms 防抖并复用 _searchStr 预构索引)
+      const kw = (debouncedSearchKeyword.value || searchKeyword.value).trim().toLowerCase();
+      if (kw) {
+        list = list.filter(s => s._searchStr ? s._searchStr.includes(kw) : (
+          (s.problem_id && String(s.problem_id).toLowerCase().includes(kw)) ||
           (s.problem_title && s.problem_title.toLowerCase().includes(kw)) ||
           (s.code_language && s.code_language.toLowerCase().includes(kw)) ||
           (s.date && s.date.includes(kw)) ||
           (s.submitted_at && s.submitted_at.includes(kw)) ||
-          (s.tags && s.tags.some(t => t.toLowerCase().includes(kw)))
-        );
+          (s.tags && s.tags.some(t => String(t).toLowerCase().includes(kw)))
+        ));
       }
       return list;
     });
@@ -780,53 +833,73 @@ createApp({
       verdictFilter.value = "all";
       selectedTag.value = "";
       searchKeyword.value = "";
+      debouncedSearchKeyword.value = "";
       currentPage.value = 1;
       nextTick(syncSegmentedThumbs);
     };
 
-    // --- Contest Computed & Helpers ---
+    // --- Contest Computed & Helpers (A5: 集中秒级计算并以 O(1) 字典缓存，消除模板中多卡片重复函数调用) ---
+    const contestMetaMap = ref({});
+
+    const updateContestMetas = () => {
+      const now = Math.floor(Date.now() / 1000);
+      nowTimestamp.value = now;
+      const list = contests.value || [];
+      const map = {};
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        const st = c.start_timestamp;
+        const dur = c.duration_seconds || 7200;
+        const et = st + dur;
+        let status = "FINISHED";
+        let countdown = "已结束";
+
+        if (now < st) {
+          status = "BEFORE";
+          const diff = st - now;
+          const days = Math.floor(diff / 86400);
+          const hours = Math.floor((diff % 86400) / 3600);
+          const mins = Math.floor((diff % 3600) / 60);
+          const secs = diff % 60;
+          if (days > 0) {
+            countdown = `还有 ${days} 天 ${hours} 小时 ${mins} 分`;
+          } else if (hours > 0) {
+            countdown = `还有 ${hours} 小时 ${mins} 分 ${secs} 秒`;
+          } else {
+            countdown = `还有 ${mins} 分 ${secs} 秒`;
+          }
+        } else if (now < et) {
+          status = "CODING";
+          const remaining = et - now;
+          const hours = Math.floor(remaining / 3600);
+          const mins = Math.floor((remaining % 3600) / 60);
+          const secs = remaining % 60;
+          if (hours > 0) {
+            countdown = `进行中 (剩余 ${hours}小时${mins}分)`;
+          } else {
+            countdown = `进行中 (剩余 ${mins}分${secs}秒)`;
+          }
+        }
+        map[c.id] = { status, countdown };
+      }
+      contestMetaMap.value = map;
+    };
+
     const getContestStatus = (c) => {
+      if (contestMetaMap.value[c.id]) {
+        return contestMetaMap.value[c.id].status;
+      }
       const now = nowTimestamp.value;
       const st = c.start_timestamp;
       const dur = c.duration_seconds || 7200;
-      const et = st + dur;
-      if (now < st) return "BEFORE";
-      if (now < et) return "CODING";
-      return "FINISHED";
+      return (now < st) ? "BEFORE" : (now < st + dur ? "CODING" : "FINISHED");
     };
 
     const formatContestCountdown = (c) => {
-      const now = nowTimestamp.value;
-      const st = c.start_timestamp;
-      const dur = c.duration_seconds || 7200;
-      const et = st + dur;
-
-      if (now < st) {
-        const diff = st - now;
-        const days = Math.floor(diff / 86400);
-        const hours = Math.floor((diff % 86400) / 3600);
-        const mins = Math.floor((diff % 3600) / 60);
-        const secs = diff % 60;
-        if (days > 0) {
-          return `还有 ${days} 天 ${hours} 小时 ${mins} 分`;
-        } else if (hours > 0) {
-          return `还有 ${hours} 小时 ${mins} 分 ${secs} 秒`;
-        } else {
-          return `还有 ${mins} 分 ${secs} 秒`;
-        }
-      } else if (now < et) {
-        const remaining = et - now;
-        const hours = Math.floor(remaining / 3600);
-        const mins = Math.floor((remaining % 3600) / 60);
-        const secs = remaining % 60;
-        if (hours > 0) {
-          return `进行中 (剩余 ${hours}小时${mins}分)`;
-        } else {
-          return `进行中 (剩余 ${mins}分${secs}秒)`;
-        }
-      } else {
-        return "已结束";
+      if (contestMetaMap.value[c.id]) {
+        return contestMetaMap.value[c.id].countdown;
       }
+      return "已结束";
     };
 
     const filteredContests = computed(() => {
@@ -1212,7 +1285,14 @@ createApp({
       try {
         const res = await apiFetch("/api/stats/submissions?limit=2000");
         const data = await res.json();
-        submissions.value = data.submissions || [];
+        const rawSubs = data.submissions || [];
+        // 预生成每条记录的小写检索缓存字符串，避免输入筛选时反复多次计算
+        for (let i = 0; i < rawSubs.length; i++) {
+          const s = rawSubs[i];
+          const tagsStr = Array.isArray(s.tags) ? s.tags.join(" ") : (s.tags || "");
+          s._searchStr = `${s.problem_id || ""} ${s.problem_title || ""} ${s.code_language || ""} ${s.date || ""} ${s.submitted_at || ""} ${tagsStr}`.toLowerCase();
+        }
+        submissions.value = rawSubs;
       } catch (e) {
         console.error("加载提交记录流失败:", e);
       }
@@ -1223,6 +1303,7 @@ createApp({
         const res = await apiFetch("/api/contests?platform=all");
         const data = await res.json();
         contests.value = data.contests || [];
+        updateContestMetas();
       } catch (e) {
         console.error("加载比赛日程失败:", e);
       }
@@ -2447,6 +2528,42 @@ createApp({
       }
     };
 
+    // --- Timers and Global Event Handlers ---
+    let themeTimer = null;
+    let countdownTimer = null;
+    let resizeDebounceTimer = null;
+    let lastForegroundWakeupTime = 0;
+
+    const onWindowResize = () => {
+      if (resizeDebounceTimer) {
+        clearTimeout(resizeDebounceTimer);
+      }
+      resizeDebounceTimer = setTimeout(() => {
+        if (currentTab.value === "overview") {
+          renderHeatmap(true);
+          renderActiveChart(true);
+        }
+        syncSegmentedThumbs();
+      }, 150);
+    };
+
+    const onKeydown = (e) => {
+      if (e.key === "Escape" && viewNoteModalOpen.value) {
+        viewNoteModalOpen.value = false;
+      }
+    };
+
+    const onForegroundWakeup = () => {
+      if (document.hidden) return;
+      const now = Date.now();
+      if (now - lastForegroundWakeupTime < 2000) {
+        return;
+      }
+      lastForegroundWakeupTime = now;
+      refreshCurrentUser(true);
+      triggerImmediatePoll();
+    };
+
     // --- Lifecycle ---
     onMounted(async () => {
       // 初始化应用主题模式与高分屏缩放比例
@@ -2454,7 +2571,7 @@ createApp({
       applyUiScale();
 
       // 30 秒级自动昼夜检测定时器 (仅在 auto 模式下无感平滑切换)
-      setInterval(() => {
+      themeTimer = setInterval(() => {
         if (themePref.value === "auto") {
           const shouldBeDark = !isDaylightTime();
           if (isDark.value !== shouldBeDark) {
@@ -2464,9 +2581,9 @@ createApp({
       }, 30000);
 
       // 1 秒级时间戳定时器 (仅在需要倒计时的页面跳动，后台标签页自动休眠省电)
-      setInterval(() => {
+      countdownTimer = setInterval(() => {
         if (!document.hidden && (currentTab.value === 'contests' || currentTab.value === 'overview')) {
-          nowTimestamp.value = Math.floor(Date.now() / 1000);
+          updateContestMetas();
         }
       }, 1000);
 
@@ -2492,43 +2609,31 @@ createApp({
         fetchCaptcha();
       }
 
-      window.addEventListener("resize", () => {
-        if (currentTab.value === "overview") {
-          renderHeatmap();
-          renderActiveChart();
-        }
-        syncSegmentedThumbs();
-      });
-
-      // ESC 键快捷关闭错题笔记等浮层弹窗
-      window.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && viewNoteModalOpen.value) {
-          viewNoteModalOpen.value = false;
-        }
-      });
-
-      // A3: 切回前台立即刷新 (监听 visibilitychange 与 focus，并加 2 秒防抖去重)
-      let lastForegroundWakeupTime = 0;
-      const onForegroundWakeup = () => {
-        if (document.hidden) return;
-        const now = Date.now();
-        if (now - lastForegroundWakeupTime < 2000) {
-          return;
-        }
-        lastForegroundWakeupTime = now;
-        refreshCurrentUser(true);
-        triggerImmediatePoll();
-      };
-
+      window.addEventListener("resize", onWindowResize);
+      window.addEventListener("keydown", onKeydown);
       document.addEventListener("visibilitychange", onForegroundWakeup);
       window.addEventListener("focus", onForegroundWakeup);
 
       nextTick(() => {
         syncSegmentedThumbs();
+        updateContestMetas();
       });
 
       // 启动统一静默轮询调度器 (15 秒基础周期，具备防重叠与失败退避)
       scheduleNextPoll(BASE_POLL_INTERVAL);
+    });
+
+    onUnmounted(() => {
+      if (themeTimer) clearInterval(themeTimer);
+      if (countdownTimer) clearInterval(countdownTimer);
+      if (pollTimeoutId) clearTimeout(pollTimeoutId);
+      if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+
+      window.removeEventListener("resize", onWindowResize);
+      window.removeEventListener("keydown", onKeydown);
+      document.removeEventListener("visibilitychange", onForegroundWakeup);
+      window.removeEventListener("focus", onForegroundWakeup);
     });
 
     // 监控图表类型切换，无缝渲染并对齐滑块
