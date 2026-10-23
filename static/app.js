@@ -1000,7 +1000,7 @@ createApp({
     let lastKnownTotalSubs = -1;
     let lastKnownSyncTime = "";
 
-    const loadOverview = async () => {
+    const loadOverview = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/stats/overview");
         const data = await res.json();
@@ -1058,12 +1058,12 @@ createApp({
         }
       } catch (e) {
         console.error("加载 Overview 失败:", e);
-        throw e;
+        if (throwOnError) throw e;
       }
     };
 
     let lastHeatmapDataStr = "";
-    const loadHeatmap = async () => {
+    const loadHeatmap = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch(`/api/stats/heatmap?platform=${heatmapFilter.value}&year=${selectedHeatmapYear.value}`);
         const data = await res.json();
@@ -1087,12 +1087,12 @@ createApp({
         }
       } catch (e) {
         console.error("加载 Heatmap 失败:", e);
-        throw e;
+        if (throwOnError) throw e;
       }
     };
 
     let lastTagsHash = "";
-    const loadTags = async () => {
+    const loadTags = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/stats/tags");
         const data = await res.json();
@@ -1107,22 +1107,22 @@ createApp({
         }
       } catch (e) {
         console.error("加载 Tag 统计失败:", e);
-        throw e;
+        if (throwOnError) throw e;
       }
     };
 
-    const loadMistakeKeys = async () => {
+    const loadMistakeKeys = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/mistakes/keys");
         const data = await res.json();
         mistakeKeySet.value = new Set(data.keys || []);
       } catch (e) {
         console.error("加载已收录错题Key失败:", e);
-        throw e;
+        if (throwOnError) throw e;
       }
     };
 
-    const loadMistakes = async () => {
+    const loadMistakes = async ({ throwOnError = false } = {}) => {
       isMistakesLoading.value = true;
       try {
         const params = new URLSearchParams({
@@ -1143,7 +1143,7 @@ createApp({
         }
       } catch (e) {
         console.error("加载错题集失败:", e);
-        throw e;
+        if (throwOnError) throw e;
       } finally {
         isMistakesLoading.value = false;
       }
@@ -1352,7 +1352,7 @@ createApp({
       mistakeForm.value.notes += templates[lang] || templates.cpp;
     };
 
-    const loadSubmissions = async () => {
+    const loadSubmissions = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/stats/submissions?limit=2000");
         const data = await res.json();
@@ -1366,11 +1366,11 @@ createApp({
         submissions.value = rawSubs;
       } catch (e) {
         console.error("加载提交记录流失败:", e);
-        throw e;
+        if (throwOnError) throw e;
       }
     };
 
-    const loadContests = async () => {
+    const loadContests = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/contests?platform=all");
         const data = await res.json();
@@ -1378,7 +1378,7 @@ createApp({
         updateContestMetas();
       } catch (e) {
         console.error("加载比赛日程失败:", e);
-        throw e;
+        if (throwOnError) throw e;
       }
     };
 
@@ -1459,7 +1459,7 @@ createApp({
     };
 
     // 静默轮询设置与多账号状态（支持独立基准脏状态保护与弹窗焦点保护）
-    const pollSettingsReadOnly = async () => {
+    const pollSettingsReadOnly = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/settings");
         const data = await res.json();
@@ -1493,7 +1493,7 @@ createApp({
         }
       } catch (e) {
         console.error("静默轮询设置失败:", e);
-        throw e;
+        if (throwOnError) throw e;
       }
     };
 
@@ -2153,7 +2153,11 @@ createApp({
     const setHeatmapFilter = async (p) => {
       heatmapFilter.value = p;
       lastHeatmapDataStr = "";
-      await loadHeatmap();
+      try {
+        await loadHeatmap();
+      } catch (e) {
+        // handled
+      }
       if (currentTab.value === "overview") renderHeatmap(true);
       nextTick(syncSegmentedThumbs);
     };
@@ -2161,7 +2165,11 @@ createApp({
     const setHeatmapYear = async (yr) => {
       selectedHeatmapYear.value = yr;
       lastHeatmapDataStr = "";
-      await loadHeatmap();
+      try {
+        await loadHeatmap();
+      } catch (e) {
+        // handled
+      }
       if (currentTab.value === "overview") renderHeatmap(true);
       nextTick(syncSegmentedThumbs);
     };
@@ -2525,7 +2533,11 @@ createApp({
     const syncPlatformManual = async (platform) => {
       if (platform === 'leetcode') {
         showToast("力扣主要通过油猴脚本实时秒级同步提交与源码，支持云端自动免登核实", "info");
-        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadMistakeKeys()]);
+        try {
+          await Promise.allSettled([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadMistakeKeys()]);
+        } catch (e) {
+          // ignore
+        }
         return;
       }
       isVerifying.value[platform] = true;
@@ -2645,23 +2657,31 @@ createApp({
         const tab = currentTab.value;
         let tasks = [];
         if (tab === "overview") {
-          tasks = [loadOverview(), loadHeatmap(), loadTags(), loadContests()];
+          tasks = [
+            loadOverview({ throwOnError: true }),
+            loadHeatmap({ throwOnError: true }),
+            loadTags({ throwOnError: true }),
+            loadContests({ throwOnError: true })
+          ];
           lastContestSyncTime = Date.now();
         } else if (tab === "submissions") {
-          tasks = [loadSubmissions(), loadMistakeKeys()];
+          tasks = [
+            loadSubmissions({ throwOnError: true }),
+            loadMistakeKeys({ throwOnError: true })
+          ];
         } else if (tab === "mistakes") {
-          tasks = [loadMistakes()];
+          tasks = [loadMistakes({ throwOnError: true })];
         } else if (tab === "contests") {
-          tasks = [loadContests()];
+          tasks = [loadContests({ throwOnError: true })];
           lastContestSyncTime = Date.now();
         } else if (tab === "settings") {
-          tasks = [pollSettingsReadOnly()];
+          tasks = [pollSettingsReadOnly({ throwOnError: true })];
         }
 
         // A6-3: 在其他非比赛 Tab 下，每隔 60 秒低频同步一次比赛数据，确保侧边栏待开赛角标与状态不冻结
         const now = Date.now();
         if (tab !== "overview" && tab !== "contests" && (now - lastContestSyncTime >= 60000)) {
-          tasks.push(loadContests());
+          tasks.push(loadContests({ throwOnError: true }));
           lastContestSyncTime = now;
         }
 
@@ -2852,35 +2872,37 @@ createApp({
     // 监控错题集状态与筛选切换
     watch([mistakeStatusFilter, mistakePlatformFilter, mistakeSortBy], () => {
       mistakePage.value = 1;
-      loadMistakes();
+      loadMistakes().catch(e => console.error("筛选切换加载错题失败:", e));
       nextTick(syncSegmentedThumbs);
     });
 
     // 标签页切换自动静默拉取最新数据，概览页重新加载热力图与图表，彻底告别手动硬刷新
     watch(currentTab, async (tab) => {
-      if (tab === "overview") {
-        await Promise.all([loadOverview(), loadHeatmap(), loadTags(), loadContests()]);
-        nextTick(() => {
-          renderHeatmap(true);
-          renderActiveChart(true);
-          syncSegmentedThumbs();
-        });
-      } else {
-        if (tab === "submissions") {
-          await Promise.all([loadSubmissions(), loadMistakeKeys()]);
+      try {
+        if (tab === "overview") {
+          await Promise.allSettled([loadOverview(), loadHeatmap(), loadTags(), loadContests()]);
+          nextTick(() => {
+            renderHeatmap(true);
+            renderActiveChart(true);
+          });
+        } else if (tab === "submissions") {
+          await Promise.allSettled([loadSubmissions(), loadMistakeKeys()]);
         } else if (tab === "mistakes") {
-          await loadMistakes();
+          await Promise.allSettled([loadMistakes()]);
         } else if (tab === "contests") {
-          await loadContests();
+          await Promise.allSettled([loadContests()]);
         } else if (tab === "settings") {
-          await loadSettings();
+          await Promise.allSettled([loadSettings()]);
         }
+      } catch (err) {
+        console.warn("[TabSwitch] 切换标签页加载数据异常:", err);
+      } finally {
         nextTick(() => {
           syncSegmentedThumbs();
         });
+        // 切换标签后，重置并顺延后台轮询计时
+        scheduleNextPoll(BASE_POLL_INTERVAL);
       }
-      // 切换标签后，重置并顺延后台轮询计时
-      scheduleNextPoll(BASE_POLL_INTERVAL);
     });
 
     return {
