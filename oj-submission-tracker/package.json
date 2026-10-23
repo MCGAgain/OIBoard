@@ -1,6 +1,6 @@
 {
   "name": "oj-submission-tracker",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "多平台 OJ 提交采集与端云核实油猴插件",
   "main": "src/main.ts",

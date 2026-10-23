@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         OJ Submission Tracker (多平台 OJ 提交采集与端云核实)
 // @namespace    https://github.com/OIBoard/oj-tracker
-// @version      1.0.0
+// @version      1.1.0
 // @author       OIBoard
 // @description  实时截获力扣、洛谷、AcWing、Codeforces、AtCoder 的判题与提交记录，并秒级同步至后端对账核实
 // @match        https://leetcode.cn/*
 // @match        https://www.luogu.com.cn/*
 // @match        https://www.acwing.com/*
+// @match        https://acwing.com/*
 // @match        https://codeforces.com/*
 // @match        https://mirror.codeforces.com/*
 // @match        https://atcoder.jp/*
@@ -1889,28 +1890,55 @@
       }
     }
   }
-  function fetchUrlText(url) {
+  function fetchSameOriginText(url) {
     return new Promise((resolve, reject) => {
       const fullUrl = url.startsWith("http") ? url : window.location.origin + url;
-      if (typeof GM_xmlhttpRequest === "function") {
-        GM_xmlhttpRequest({
-          method: "GET",
-          url: fullUrl,
-          headers: { "X-Requested-With": "XMLHttpRequest" },
-          timeout: 1e4,
-          onload: (res) => {
-            if (res.status >= 200 && res.status < 400) {
-              resolve(res.responseText || "");
+      const tryXhr = () => {
+        try {
+          const xhr = new XMLHttpRequest();
+          xhr.open("GET", url);
+          xhr.withCredentials = true;
+          xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+          xhr.timeout = 8e3;
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 400 && xhr.responseText && xhr.responseText.includes("<table")) {
+              resolve(xhr.responseText);
             } else {
-              reject(new Error(`HTTP ${res.status}`));
+              tryFetch();
             }
-          },
-          onerror: (err) => reject(err),
-          ontimeout: () => reject(new Error("Timeout"))
-        });
-      } else {
-        fetch(fullUrl, { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } }).then((r) => r.text()).then(resolve).catch(reject);
-      }
+          };
+          xhr.onerror = () => tryFetch();
+          xhr.ontimeout = () => tryFetch();
+          xhr.send();
+        } catch (_) {
+          tryFetch();
+        }
+      };
+      const tryFetch = () => {
+        fetch(url, { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } }).then((r) => r.text()).then((txt) => {
+          if (txt && txt.includes("<table")) {
+            resolve(txt);
+          } else {
+            tryGm();
+          }
+        }).catch(() => tryGm());
+      };
+      const tryGm = () => {
+        if (typeof GM_xmlhttpRequest === "function") {
+          GM_xmlhttpRequest({
+            method: "GET",
+            url: fullUrl,
+            headers: { "X-Requested-With": "XMLHttpRequest", Cookie: document.cookie },
+            timeout: 8e3,
+            onload: (res) => resolve(res.responseText || ""),
+            onerror: (err) => reject(err),
+            ontimeout: () => reject(new Error("Timeout"))
+          });
+        } else {
+          reject(new Error("All fetch methods failed"));
+        }
+      };
+      tryXhr();
     });
   }
   class AcWingAdapter extends BaseAdapter {
@@ -1919,97 +1947,31 @@
       __publicField(this, "platform", "acwing");
       __publicField(this, "pendingSubmission", null);
       __publicField(this, "observerInitialized", false);
-      __publicField(this, "preExistingSubmissionIds", /* @__PURE__ */ new Set());
       __publicField(this, "pollTimers", []);
+      __publicField(this, "lastReportedSid", null);
     }
     matchDomain(hostname) {
       return hostname === "www.acwing.com" || hostname === "acwing.com";
     }
     init() {
-      Logger.info("[AcWingAdapter] Initialized with 4-way redundant detection (Native Hook + WS + DOM + Active Poll).");
-      this.hookNativeAcWingHandler();
-      NetworkHookBus.onHttp((event) => {
-        this.handleHttpEvent(event);
-      });
-      NetworkHookBus.onWs((url, data) => {
-        this.handleWsMessage(url, data);
-      });
-      NetworkHookBus.onWsSend((url, data) => {
-        this.handleWsSend(url, data);
-      });
+      Logger.info("[AcWingAdapter] Initialized (Native DOM Watcher + Safe Polling pipeline).");
       if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", () => this.initDomObserver());
       } else {
         this.initDomObserver();
       }
       this.bindSubmitButtonListener();
+      NetworkHookBus.onWsSend((url, data) => {
+        this.handleWsSend(url, data);
+      });
+      NetworkHookBus.onHttp((event) => {
+        this.handleHttpEvent(event);
+      });
     }
     /**
-     * 劫持 AcWing 原生 handle_problem_submit_code_status 函数
-     * AcWing 在 WebSocket 收到判题结果时会直接调用该全局函数
-     */
-    hookNativeAcWingHandler() {
-      const wrapHandler = (targetFunc) => {
-        const wrapped = (data) => {
-          try {
-            Logger.info("[AcWingAdapter] Intercepted native handle_problem_submit_code_status payload:", data);
-            if (data && data.status) {
-              this.onNativeStatusReceived(data.status, data);
-            }
-          } catch (e) {
-            Logger.error("[AcWingAdapter] Error in hooked handle_problem_submit_code_status:", e);
-          }
-          return targetFunc.apply(pageWindow, [data]);
-        };
-        wrapped.__oj_hooked = true;
-        return wrapped;
-      };
-      const current = pageWindow.handle_problem_submit_code_status;
-      if (typeof current === "function" && !current.__oj_hooked) {
-        pageWindow.handle_problem_submit_code_status = wrapHandler(current);
-        Logger.info("[AcWingAdapter] Hooked existing handle_problem_submit_code_status.");
-      }
-      try {
-        let storedFunc = pageWindow.handle_problem_submit_code_status;
-        Object.defineProperty(pageWindow, "handle_problem_submit_code_status", {
-          configurable: true,
-          enumerable: true,
-          get: () => storedFunc,
-          set: (newFunc) => {
-            if (typeof newFunc === "function" && !newFunc.__oj_hooked) {
-              Logger.info("[AcWingAdapter] Setter intercepted handle_problem_submit_code_status definition.");
-              storedFunc = wrapHandler(newFunc);
-            } else {
-              storedFunc = newFunc;
-            }
-          }
-        });
-      } catch (_) {
-      }
-    }
-    /**
-     * 原生状态回调触发终态响应
-     */
-    onNativeStatusReceived(status, data) {
-      const upper = String(status).toUpperCase();
-      if (upper === "UPLOADING" || upper === "PENDING" || upper === "JUDGING" || upper === "RUNNING") {
-        Logger.info(`[AcWingAdapter] Native status update: ${status}`);
-        return;
-      }
-      const verdict = this.mapStatusStringToVerdict(status);
-      if (!verdict) return;
-      Logger.info(`[AcWingAdapter] Native terminal status reached: ${status} -> ${verdict}`);
-      Transport.notifyStatus("syncing", `AcWing 评测完成 (${status})，正在获取真实提交编号...`);
-      const pending = this.getValidPendingSubmission();
-      const rawPid = (pending == null ? void 0 : pending.rawPid) || this.extractProblemInfo().rawPid;
-      if (rawPid) {
-        this.pollSubmissionUntilDone(rawPid);
-      }
-    }
-    /**
-     * 严格过滤提交按钮：
-     * 仅匹配 `#submit_code_btn`、`.btn-submit-code` 或文案为“提交代码”的按钮
-     * 严禁匹配“运行代码”、“自测运行”或常规搜索/登录表单提交按钮
+     * 严格过滤并委托监听代码提交按钮：
+     * 覆盖 `#submit_code_btn`（AcWing 真实 ID: 提交答案）
+     * 排除“自测运行”与“调试”等按钮
      */
     bindSubmitButtonListener() {
       document.addEventListener(
@@ -2025,9 +1987,9 @@
             if (btnId === "run_code_btn" || btnText.includes("运行代码") || btnText.includes("自测") || btnText.includes("调试")) {
               return;
             }
-            const isSubmitBtn = btnId === "submit_code_btn" || btn.classList.contains("btn-submit-code") || btnText.includes("提交") && (btnText.includes("代码") || btnText === "提交");
+            const isSubmitBtn = btnId === "submit_code_btn" || btn.classList.contains("btn-submit-code") || btnText.includes("提交");
             if (isSubmitBtn) {
-              Logger.info("[AcWingAdapter] Submit button clicked. Capturing editor state and pre-existing IDs...");
+              Logger.info("[AcWingAdapter] Submit button clicked. Capturing editor state and starting polling pipeline...");
               this.captureEditorState();
             }
           }
@@ -2036,8 +1998,8 @@
       );
     }
     /**
-     * 鲁棒解析题目编号与标题，覆盖普通题库、打卡活动、分栏、讨论等各类 URL 结构
-     * 严格保证 problemId 与后端数据库和爬虫格式 100% 保持一致 (AcWing-xxx)
+     * 鲁棒解析题目编号与标题
+     * 保证 problemId 与后端数据库和爬虫格式 100% 保持一致 (AcWing-xxx)
      */
     extractProblemInfo() {
       var _a;
@@ -2075,27 +2037,6 @@
       return { problemId, problemTitle, rawPid };
     }
     /**
-     * 收集当前 DOM 中已存在的全部 submissionId
-     */
-    getAllSubmissionIdsInDom() {
-      const ids = [];
-      try {
-        const resultSpans = document.querySelectorAll('[id*="submission-result-"]');
-        resultSpans.forEach((el) => {
-          const m = el.id.match(/submission-result-(\d+)/);
-          if (m && m[1]) ids.push(m[1]);
-        });
-        const links = document.querySelectorAll('a[href*="/code_detail/"]');
-        links.forEach((a) => {
-          const href = a.getAttribute("href") || "";
-          const m = href.match(/\/code_detail\/(\d+)/);
-          if (m && m[1]) ids.push(m[1]);
-        });
-      } catch (_) {
-      }
-      return ids;
-    }
-    /**
      * 获取有效的 pendingSubmission（未超时且存在）
      */
     getValidPendingSubmission() {
@@ -2108,14 +2049,14 @@
       return this.pendingSubmission;
     }
     /**
-     * 捕获编辑器源码与语言，快照记录提交前状态，启动轮询看门狗
+     * 捕获编辑器源码与语言，启动多阶段轮询管线
      */
     captureEditorState() {
       var _a;
       try {
         this.clearPollTimers();
         let code = "";
-        let language = "unknown";
+        let language = "C++";
         const ace = pageWindow.ace;
         if (ace && typeof ace.edit === "function") {
           const editor = ace.edit("code_editor") || ace.edit(document.querySelector("#code_editor"));
@@ -2138,12 +2079,12 @@
           const textarea = document.querySelector('#code_editor textarea, textarea[name="code"]');
           if (textarea && textarea.value) code = textarea.value;
         }
-        if (!language || language === "unknown") {
-          language = this.extractLanguageFromDom();
+        const domLang = this.extractLanguageFromDom();
+        if (domLang && domLang !== "unknown") {
+          language = domLang;
         }
         const { problemId, problemTitle, rawPid } = this.extractProblemInfo();
         const userHandle = this.extractUserHandle();
-        this.preExistingSubmissionIds = new Set(this.getAllSubmissionIdsInDom());
         this.pendingSubmission = {
           problemId,
           problemTitle,
@@ -2153,17 +2094,9 @@
           userHandle,
           timestamp: Date.now()
         };
-        Logger.info(`[AcWingAdapter] Captured editor state for ${problemId} (${problemTitle}), lang: ${language}, code len: ${code.length}`);
+        Logger.info(`[AcWingAdapter] Captured state for ${problemId} (${problemTitle}), lang: ${language}, code len: ${code.length}`);
         Transport.notifyStatus("syncing", `AcWing 正在判题: ${problemTitle}...`);
         if (rawPid) {
-          fetchUrlText(`/problem/content/submission/${rawPid}/`).then((html) => {
-            const m = html.match(/\/code_detail\/(\d+)\//) || html.match(/id=['"]submission-result-(\d+)['"]/);
-            if (m && m[1]) {
-              this.preExistingSubmissionIds.add(m[1]);
-              Logger.info(`[AcWingAdapter] Snapshotted existing latest submission ID before submit: ${m[1]}`);
-            }
-          }).catch(() => {
-          });
           this.scheduleActivePolling(rawPid);
         }
       } catch (e) {
@@ -2177,10 +2110,10 @@
       this.pollTimers = [];
     }
     /**
-     * 启动保底轮询（在 2s、4s、7s、11s、16s 查询提交列表）
+     * 提交后的保底轮询
      */
     scheduleActivePolling(rawPid) {
-      const delays = [2e3, 4e3, 7e3, 11e3, 16e3];
+      const delays = [1500, 3e3, 5e3, 8e3, 12e3, 18e3];
       for (const d of delays) {
         const t = setTimeout(() => {
           if (this.pendingSubmission && this.pendingSubmission.rawPid === rawPid) {
@@ -2191,15 +2124,15 @@
       }
     }
     /**
-     * 判题终态后密集轮询提交记录直至获取成功
+     * 收到终态 DOM 变化后的密集轮询（迅速锁定刚生成的记录 ID）
      */
     pollSubmissionUntilDone(rawPid) {
       this.clearPollTimers();
-      const intervals = [300, 900, 1800, 3200, 5500, 8500];
+      const intervals = [300, 800, 1500, 2800, 4800, 7500];
       for (const delay of intervals) {
         const t = setTimeout(async () => {
           try {
-            const html = await fetchUrlText(`/problem/content/submission/${rawPid}/`);
+            const html = await fetchSameOriginText(`/problem/content/submission/${rawPid}/`);
             const done = this.parseSubmissionListHtml(html, rawPid);
             if (done) {
               this.clearPollTimers();
@@ -2215,7 +2148,7 @@
      */
     async pollRecentProblemSubmission(rawPid) {
       try {
-        const html = await fetchUrlText(`/problem/content/submission/${rawPid}/`);
+        const html = await fetchSameOriginText(`/problem/content/submission/${rawPid}/`);
         if (html) {
           this.parseSubmissionListHtml(html, rawPid);
         }
@@ -2266,7 +2199,7 @@
         }
         const verdict = this.mapStatusStringToVerdict(rawStatus);
         if (!verdict) return false;
-        if (this.preExistingSubmissionIds.has(sid) || Storage.isDuplicate(this.platform, sid)) {
+        if (this.lastReportedSid === sid || Storage.isDuplicate(this.platform, sid)) {
           return false;
         }
         let timeMs = 0;
@@ -2286,13 +2219,80 @@
             submittedAtTs = d.getTime();
           }
         }
-        Logger.info(`[AcWingAdapter] Successfully extracted authentic submission: ${sid} (${verdict})`);
+        Logger.info(`[AcWingAdapter] Successfully extracted authentic submission: ${sid} (${verdict}, ${rawStatus})`);
+        this.lastReportedSid = sid;
         this.clearPollTimers();
         this.emitUnifiedSubmission(sid, verdict, rawStatus, timeMs, 0, langStr, submittedAtTs);
         return true;
       } catch (e) {
         Logger.error("[AcWingAdapter] Error parsing submission list HTML:", e);
         return false;
+      }
+    }
+    /**
+     * 初始化 DOM MutationObserver
+     * 紧密监听 #submit-code-status-block 内容更新
+     */
+    initDomObserver() {
+      if (this.observerInitialized) return;
+      this.observerInitialized = true;
+      const observer = new MutationObserver(() => {
+        this.scanDomForStatus();
+      });
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
+      Logger.info("[AcWingAdapter] DOM MutationObserver started.");
+    }
+    /**
+     * 扫描页面 DOM 容器中的状态变动 (#submit-code-status-block)
+     */
+    scanDomForStatus() {
+      var _a;
+      const statusValElem = document.querySelector("#submit-code-status-value-id");
+      if (!statusValElem) return;
+      const text = ((_a = statusValElem.textContent) == null ? void 0 : _a.trim()) || "";
+      if (!text) return;
+      const upper = text.toUpperCase();
+      if (upper === "UPLOADING" || upper === "PENDING" || upper === "JUDGING" || upper === "RUNNING") {
+        return;
+      }
+      const verdict = this.mapStatusStringToVerdict(text);
+      if (!verdict) return;
+      const pending = this.getValidPendingSubmission();
+      const rawPid = (pending == null ? void 0 : pending.rawPid) || this.extractProblemInfo().rawPid;
+      if (rawPid) {
+        this.pollSubmissionUntilDone(rawPid);
+      }
+    }
+    handleWsSend(url, data) {
+      if (!data) return;
+      try {
+        if (data.startsWith("{") || data.startsWith("[")) {
+          const json = JSON.parse(data);
+          if (json.activity === "problem_submit_code" || json.code) {
+            Logger.info("[AcWingAdapter] Captured code from outgoing WebSocket frame.");
+            const prev = this.getValidPendingSubmission();
+            const { problemId, problemTitle, rawPid } = this.extractProblemInfo();
+            const userHandle = this.extractUserHandle();
+            this.pendingSubmission = {
+              problemId: (prev == null ? void 0 : prev.problemId) || problemId,
+              problemTitle: (prev == null ? void 0 : prev.problemTitle) || problemTitle,
+              rawPid: (prev == null ? void 0 : prev.rawPid) || rawPid,
+              code: json.code || (prev == null ? void 0 : prev.code) || "",
+              language: json.language || json.lang || (prev == null ? void 0 : prev.language) || "C++",
+              userHandle: (prev == null ? void 0 : prev.userHandle) || userHandle,
+              timestamp: Date.now()
+            };
+            Transport.notifyStatus("syncing", `AcWing 正在判题: ${problemTitle}...`);
+            if (rawPid) {
+              this.scheduleActivePolling(rawPid);
+            }
+          }
+        }
+      } catch (_) {
       }
     }
     handleHttpEvent(event) {
@@ -2321,180 +2321,12 @@
                 code: code || (prev == null ? void 0 : prev.code) || "",
                 language: lang || (prev == null ? void 0 : prev.language) || "C++",
                 userHandle: (prev == null ? void 0 : prev.userHandle) || userHandle,
-                timestamp: Date.now(),
-                submissionId: prev == null ? void 0 : prev.submissionId
+                timestamp: Date.now()
               };
             }
           } catch (_) {
           }
         }
-        if (event.responseText) {
-          this.inspectTextForId(event.responseText);
-        }
-      }
-      if (event.responseText && (event.url.includes("/submission") || event.url.includes("/wss/"))) {
-        this.checkTerminalResultInText(event.responseText);
-      }
-    }
-    handleWsSend(url, data) {
-      if (!data) return;
-      try {
-        if (data.startsWith("{") || data.startsWith("[")) {
-          const json = JSON.parse(data);
-          if (json.activity === "problem_submit_code" || json.code) {
-            Logger.info("[AcWingAdapter] Captured code from outgoing WebSocket frame.");
-            const prev = this.getValidPendingSubmission();
-            const { problemId, problemTitle, rawPid } = this.extractProblemInfo();
-            const userHandle = this.extractUserHandle();
-            this.pendingSubmission = {
-              problemId: (prev == null ? void 0 : prev.problemId) || problemId,
-              problemTitle: (prev == null ? void 0 : prev.problemTitle) || problemTitle,
-              rawPid: (prev == null ? void 0 : prev.rawPid) || rawPid,
-              code: json.code || (prev == null ? void 0 : prev.code) || "",
-              language: json.language || json.lang || (prev == null ? void 0 : prev.language) || "C++",
-              userHandle: (prev == null ? void 0 : prev.userHandle) || userHandle,
-              timestamp: Date.now(),
-              submissionId: prev == null ? void 0 : prev.submissionId
-            };
-          }
-        }
-      } catch (_) {
-      }
-    }
-    handleWsMessage(url, data) {
-      if (!data) return;
-      Logger.debug("[AcWingAdapter] Ingoing WS Message:", data.length > 200 ? data.slice(0, 200) + "..." : data);
-      this.inspectTextForId(data);
-      this.checkTerminalResultInText(data);
-    }
-    inspectTextForId(text) {
-      try {
-        if (text.startsWith("{") || text.startsWith("[")) {
-          const json = JSON.parse(text);
-          const sid = this.findIdInObject(json);
-          if (sid && /^\d+$/.test(sid)) {
-            if (this.pendingSubmission) {
-              this.pendingSubmission.submissionId = sid;
-            }
-            Logger.info(`[AcWingAdapter] Captured real submissionId: ${sid}`);
-          }
-        } else {
-          const m = text.match(/"(?:submission_id|record_id|sub_id|rid)":\s*(\d+)/i);
-          if (m && m[1]) {
-            if (this.pendingSubmission) {
-              this.pendingSubmission.submissionId = m[1];
-            }
-          }
-        }
-      } catch (_) {
-      }
-    }
-    findIdInObject(obj) {
-      if (!obj || typeof obj !== "object") return null;
-      const candidateKeys = ["submission_id", "submissionId", "record_id", "recordId", "sub_id", "subId", "rid", "id", "sub_record_id"];
-      for (const k of candidateKeys) {
-        if (obj[k] !== void 0 && obj[k] !== null && String(obj[k]).trim() !== "") {
-          const val = String(obj[k]).trim();
-          if (/^\d+$/.test(val)) return val;
-        }
-      }
-      if (obj.data && typeof obj.data === "object") {
-        const sid = this.findIdInObject(obj.data);
-        if (sid) return sid;
-      }
-      if (obj.result && typeof obj.result === "object") {
-        const sid = this.findIdInObject(obj.result);
-        if (sid) return sid;
-      }
-      return null;
-    }
-    checkTerminalResultInText(text) {
-      try {
-        let statusStr = "";
-        let submissionId = "";
-        let timeMs = 0;
-        let respLang = "";
-        if (text.startsWith("{") || text.startsWith("[")) {
-          const json = JSON.parse(text);
-          statusStr = this.findStatusInObject(json);
-          submissionId = this.findIdInObject(json) || "";
-          respLang = json.language || json.lang || json.code_language || json.data && json.data.language || "";
-          const rawTime = json.time ?? json.execution_time ?? (json.data && json.data.time);
-          if (rawTime) timeMs = parseInt(String(rawTime), 10) || 0;
-        } else {
-          const match = text.match(/"(?:status|result|state)":\s*"([^"]+)"/i);
-          if (match) statusStr = match[1];
-        }
-        if (!statusStr) return;
-        const upper = statusStr.toUpperCase();
-        if (upper === "UPLOADING" || upper === "PENDING" || upper === "JUDGING" || upper === "RUNNING") {
-          return;
-        }
-        const verdict = this.mapStatusStringToVerdict(statusStr);
-        if (!verdict) return;
-        if (!submissionId || !/^\d+$/.test(submissionId)) {
-          const pending = this.getValidPendingSubmission();
-          const rawPid = (pending == null ? void 0 : pending.rawPid) || this.extractProblemInfo().rawPid;
-          if (rawPid) {
-            this.pollSubmissionUntilDone(rawPid);
-          }
-          return;
-        }
-        this.clearPollTimers();
-        this.emitUnifiedSubmission(submissionId, verdict, statusStr, timeMs, 0, respLang);
-      } catch (_) {
-      }
-    }
-    findStatusInObject(obj) {
-      if (!obj || typeof obj !== "object") return "";
-      if (typeof obj.status === "string") return obj.status;
-      if (typeof obj.result === "string") return obj.result;
-      if (typeof obj.state === "string") return obj.state;
-      if (typeof obj.verdict === "string") return obj.verdict;
-      if (obj.data && typeof obj.data === "object") {
-        return this.findStatusInObject(obj.data);
-      }
-      return "";
-    }
-    /**
-     * 初始化 DOM MutationObserver
-     */
-    initDomObserver() {
-      if (this.observerInitialized) return;
-      this.observerInitialized = true;
-      const observer = new MutationObserver(() => {
-        this.scanDomForStatus();
-      });
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        characterData: true
-      });
-      Logger.info("[AcWingAdapter] DOM MutationObserver started.");
-    }
-    /**
-     * 扫描页面 DOM 容器中的状态变动 (#submit-code-status-block)
-     */
-    scanDomForStatus() {
-      var _a;
-      const statusValElem = document.querySelector("#submit-code-status-value-id");
-      const loadingGif = document.querySelector("#submit-code-status-loading-gif-id");
-      if (!statusValElem) return;
-      if (loadingGif && loadingGif.style.display !== "none" && !loadingGif.hidden) {
-        return;
-      }
-      const text = ((_a = statusValElem.textContent) == null ? void 0 : _a.trim()) || "";
-      if (!text) return;
-      const upper = text.toUpperCase();
-      if (upper === "UPLOADING" || upper === "PENDING" || upper === "JUDGING" || upper === "RUNNING") {
-        return;
-      }
-      const verdict = this.mapStatusStringToVerdict(text);
-      if (!verdict) return;
-      const pending = this.getValidPendingSubmission();
-      const rawPid = (pending == null ? void 0 : pending.rawPid) || this.extractProblemInfo().rawPid;
-      if (rawPid) {
-        this.pollSubmissionUntilDone(rawPid);
       }
     }
     extractLanguageFromDom() {
@@ -2548,7 +2380,7 @@
         executionTimeMs: timeMs,
         memoryUsedKb: memoryKb,
         submittedAt: submittedAtTs || (pending == null ? void 0 : pending.timestamp) || Date.now(),
-        clientVersion: "1.0.0"
+        clientVersion: "1.1.0"
       };
       this.pendingSubmission = null;
       this.clearPollTimers();

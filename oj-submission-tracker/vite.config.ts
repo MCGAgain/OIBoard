@@ -8,13 +8,14 @@ export default defineConfig({
       userscript: {
         name: 'OJ Submission Tracker (多平台 OJ 提交采集与端云核实)',
         namespace: 'https://github.com/OIBoard/oj-tracker',
-        version: '1.0.0',
+        version: '1.1.0',
         description: '实时截获力扣、洛谷、AcWing、Codeforces、AtCoder 的判题与提交记录，并秒级同步至后端对账核实',
         author: 'OIBoard',
         match: [
           'https://leetcode.cn/*',
           'https://www.luogu.com.cn/*',
           'https://www.acwing.com/*',
+          'https://acwing.com/*',
           'https://codeforces.com/*',
           'https://mirror.codeforces.com/*',
           'https://atcoder.jp/*',
