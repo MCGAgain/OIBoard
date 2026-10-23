@@ -1033,6 +1033,7 @@ createApp({
         }
       } catch (e) {
         console.error("加载 Overview 失败:", e);
+        throw e;
       }
     };
 
@@ -1061,6 +1062,7 @@ createApp({
         }
       } catch (e) {
         console.error("加载 Heatmap 失败:", e);
+        throw e;
       }
     };
 
@@ -1080,6 +1082,7 @@ createApp({
         }
       } catch (e) {
         console.error("加载 Tag 统计失败:", e);
+        throw e;
       }
     };
 
@@ -1090,6 +1093,7 @@ createApp({
         mistakeKeySet.value = new Set(data.keys || []);
       } catch (e) {
         console.error("加载已收录错题Key失败:", e);
+        throw e;
       }
     };
 
@@ -1114,6 +1118,7 @@ createApp({
         }
       } catch (e) {
         console.error("加载错题集失败:", e);
+        throw e;
       } finally {
         isMistakesLoading.value = false;
       }
@@ -1336,6 +1341,7 @@ createApp({
         submissions.value = rawSubs;
       } catch (e) {
         console.error("加载提交记录流失败:", e);
+        throw e;
       }
     };
 
@@ -1347,6 +1353,7 @@ createApp({
         updateContestMetas();
       } catch (e) {
         console.error("加载比赛日程失败:", e);
+        throw e;
       }
     };
 
@@ -1461,12 +1468,13 @@ createApp({
         }
       } catch (e) {
         console.error("静默轮询设置失败:", e);
+        throw e;
       }
     };
 
     const reloadAllData = async () => {
       if (!isLoggedIn.value) return;
-      await Promise.all([loadOverview(), loadHeatmap(), loadTags(), loadMistakes(), loadMistakeKeys(), loadSubmissions(), loadSettings(), loadContests()]);
+      await Promise.allSettled([loadOverview(), loadHeatmap(), loadTags(), loadMistakes(), loadMistakeKeys(), loadSubmissions(), loadSettings(), loadContests()]);
       await nextTick();
       syncSegmentedThumbs();
       if (currentTab.value === "overview") {
@@ -2330,6 +2338,7 @@ createApp({
         }
       } catch (e) {
         console.error("加载多账号列表失败:", e);
+        throw e;
       }
     };
 
@@ -2666,16 +2675,20 @@ createApp({
 
         if (hasSuccess || results.length === 0) {
           // 至少有成功项，重置退避
+          if (consecutivePollFailures > 0) {
+            console.log(`[PollEngine] 轮询恢复正常，恢复基础轮询周期: ${BASE_POLL_INTERVAL / 1000}s`);
+          }
           consecutivePollFailures = 0;
           currentPollInterval = BASE_POLL_INTERVAL;
         } else if (allRejected) {
           consecutivePollFailures++;
           currentPollInterval = Math.min(60000, BASE_POLL_INTERVAL * Math.pow(2, consecutivePollFailures));
+          console.warn(`[PollEngine] 全部任务失败 (第 ${consecutivePollFailures} 次)，退避下一次轮询等待: ${currentPollInterval / 1000}s`);
         }
       } catch (err) {
         consecutivePollFailures++;
-        // 连续失败退避：15s -> 30s -> 最多 60s
         currentPollInterval = Math.min(60000, BASE_POLL_INTERVAL * Math.pow(2, consecutivePollFailures));
+        console.warn(`[PollEngine] 轮询执行异常 (第 ${consecutivePollFailures} 次)，退避等待: ${currentPollInterval / 1000}s`, err);
       } finally {
         isPollingInProgress = false;
         scheduleNextPoll();
