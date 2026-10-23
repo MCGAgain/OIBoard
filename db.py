@@ -1550,7 +1550,7 @@ def sync_mistakes_with_submissions(user_id: int = 1) -> int:
 
             simulated_last_sub = last_sub_at
             simulated_review_count = current_review_count
-            latest_sub_id = m.get("last_submission_id", "")
+            latest_sub_id = dict(m).get("last_submission_id", "")
 
             for sub in newer_subs:
                 sub_time_str = sub["submitted_at"]

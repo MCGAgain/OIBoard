@@ -387,10 +387,26 @@ export class AtCoderAdapter extends BaseAdapter {
 
   private extractUserHandle(): string | undefined {
     try {
-      const userLink = document.querySelector('a.username, a[href^="/users/"]');
-      return userLink?.textContent?.trim();
-    } catch (_) {
-      return undefined;
-    }
+      // 优先从头部导航栏的 /users/ 链接中提取 URL 路径中的真实 username
+      // 避免被浏览器网页翻译（如翻译为"我的资料"、"My Profile"、"プロフィール"）污染
+      const userLink = document.querySelector(
+        '#header a[href^="/users/"], .navbar a[href^="/users/"], a.username, a[href^="/users/"]'
+      );
+      if (userLink) {
+        const href = userLink.getAttribute('href') || '';
+        const m = href.match(/\/users\/([^/?#]+)/);
+        if (m && m[1]) {
+          const raw = decodeURIComponent(m[1]).trim();
+          if (raw && !['profile', 'settings', 'contests', 'undefined', 'null'].includes(raw.toLowerCase())) {
+            return raw;
+          }
+        }
+        const text = userLink.textContent?.trim();
+        if (text && !['我的资料', 'My Profile', 'プロフィール', 'Profile', 'Sign In', 'ログイン'].includes(text)) {
+          return text;
+        }
+      }
+    } catch (_) {}
+    return undefined;
   }
 }

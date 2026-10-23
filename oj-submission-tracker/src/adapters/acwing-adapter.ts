@@ -11,6 +11,7 @@ interface AcWingPendingSubmission {
   code: string;
   language: string;
   timestamp: number;
+  submissionId?: string;
 }
 
 export class AcWingAdapter extends BaseAdapter {
@@ -257,8 +258,34 @@ export class AcWingAdapter extends BaseAdapter {
               code: code || prev?.code || '',
               language: lang || prev?.language || 'unknown',
               timestamp: Date.now(),
+              submissionId: prev?.submissionId,
             };
             Logger.info(`[AcWingAdapter] Captured submission POST params. Lang: ${this.pendingSubmission.language}`);
+          }
+        } catch (_) {}
+      }
+
+      // 关键：从提交代码的 POST 响应中直接提取真实 submission_id
+      if (event.responseText) {
+        try {
+          if (event.responseText.startsWith('{') || event.responseText.startsWith('[')) {
+            const json = JSON.parse(event.responseText);
+            const sid = String(json.submission_id || json.record_id || json.id || json.sub_id || '');
+            if (sid && /^\d+$/.test(sid)) {
+              if (this.pendingSubmission) {
+                this.pendingSubmission.submissionId = sid;
+              } else {
+                this.pendingSubmission = {
+                  problemId: 'acwing_unknown',
+                  problemTitle: '',
+                  code: '',
+                  language: 'unknown',
+                  timestamp: Date.now(),
+                  submissionId: sid,
+                };
+              }
+              Logger.info(`[AcWingAdapter] Captured real submissionId from POST response: ${sid}`);
+            }
           }
         } catch (_) {}
       }
@@ -289,7 +316,7 @@ export class AcWingAdapter extends BaseAdapter {
       if (text.startsWith('{') || text.startsWith('[')) {
         const json = JSON.parse(text);
         statusStr = json.status || json.result || json.state || '';
-        submissionId = String(json.submission_id || json.record_id || json.id || '');
+        submissionId = String(json.submission_id || json.record_id || json.id || json.sub_id || '');
         respLang = json.language || json.lang || json.code_language || '';
         if (json.time) timeMs = parseInt(String(json.time), 10) || 0;
         if (json.memory) memoryKb = parseInt(String(json.memory), 10) || 0;
@@ -304,7 +331,15 @@ export class AcWingAdapter extends BaseAdapter {
 
       const verdict = this.mapStatusStringToVerdict(statusStr);
       if (verdict) {
-        // 如果未拿到明确的 submissionId，尝试从 DOM 中检索最新记录链接
+        // 如果未拿到明确的 submissionId，优先使用之前 HTTP POST 响应中捕获到的真实 ID
+        if (!submissionId || !/^\d+$/.test(submissionId)) {
+          const pending = this.getValidPendingSubmission();
+          if (pending?.submissionId && /^\d+$/.test(pending.submissionId)) {
+            submissionId = pending.submissionId;
+          }
+        }
+
+        // 兜底尝试从 DOM 中检索最新记录链接
         if (!submissionId || !/^\d+$/.test(submissionId)) {
           const domSid = this.findRecentSubmissionIdFromDom();
           if (domSid && /^\d+$/.test(domSid)) {
@@ -344,14 +379,14 @@ export class AcWingAdapter extends BaseAdapter {
   }
 
   private scanDomForStatus(): void {
-    // 判题结果容器选择器
+    // 判题结果容器选择器 (兼容 AcWing 真实 ID: #submit-code-status-block 与各类备用选择器)
     const statusBlock = document.querySelector(
-      '#submission-status-block, .submission-status-text, #run_code_result, .run-code-result, #code_result'
+      '#submit-code-status-block, #submission-status-block, .submission-status-text, #submit_code_result, #run_code_result, .run-code-result, #code_result, [id*="submission-result-"]'
     );
     if (!statusBlock) return;
 
     const text = statusBlock.textContent?.trim() || '';
-    if (!text || text.includes('Running') || text.includes('Pending') || text.includes('Compiling') || text.includes('判题中')) {
+    if (!text || text.includes('Running') || text.includes('Pending') || text.includes('Compiling') || text.includes('判题中') || text.includes('排队中')) {
       return;
     }
 
@@ -360,11 +395,22 @@ export class AcWingAdapter extends BaseAdapter {
 
     // 寻找真实 submission_id
     let submissionId = '';
-    const detailLink = document.querySelector('a[href*="/problem/content/submission/code_detail/"]');
-    if (detailLink) {
-      const m = detailLink.getAttribute('href')?.match(/\/problem\/content\/submission\/code_detail\/(\d+)/);
-      if (m) submissionId = m[1];
+    // 1. 优先使用 pendingSubmission 中从 HTTP POST 响应中捕获到的真实 ID
+    const pending = this.getValidPendingSubmission();
+    if (pending?.submissionId && /^\d+$/.test(pending.submissionId)) {
+      submissionId = pending.submissionId;
     }
+
+    // 2. 检查 DOM 中是否有详情链接
+    if (!submissionId) {
+      const detailLink = document.querySelector('a[href*="/problem/content/submission/code_detail/"], a[href*="/code_detail/"]');
+      if (detailLink) {
+        const m = detailLink.getAttribute('href')?.match(/code_detail\/(\d+)/);
+        if (m) submissionId = m[1];
+      }
+    }
+
+    // 3. 兜底从 DOM 其他可能元素提取
     if (!submissionId) {
       const domSid = this.findRecentSubmissionIdFromDom();
       if (domSid && /^\d+$/.test(domSid)) {
@@ -380,9 +426,9 @@ export class AcWingAdapter extends BaseAdapter {
     // 提取时间与内存
     let timeMs = 0;
     let memoryKb = 0;
-    const timeMatch = document.body.textContent?.match(/耗时[：:]\s*(\d+)\s*ms/i);
+    const timeMatch = (statusBlock.textContent || document.body.textContent || '').match(/耗时[：:]\s*(\d+)\s*ms/i);
     if (timeMatch) timeMs = parseInt(timeMatch[1], 10);
-    const memMatch = document.body.textContent?.match(/内存[：:]\s*([\d.]+)\s*(KB|MB)/i);
+    const memMatch = (statusBlock.textContent || document.body.textContent || '').match(/内存[：:]\s*([\d.]+)\s*(KB|MB)/i);
     if (memMatch) {
       memoryKb = memMatch[2].toUpperCase() === 'MB'
         ? Math.round(parseFloat(memMatch[1]) * 1024)
@@ -393,12 +439,37 @@ export class AcWingAdapter extends BaseAdapter {
   }
 
   private findRecentSubmissionIdFromDom(): string | null {
-    const links = document.querySelectorAll('a[href*="/code_detail/"]');
-    for (let i = 0; i < links.length; i++) {
-      const href = links[i].getAttribute('href') || '';
-      const m = href.match(/\/code_detail\/(\d+)/);
-      if (m && m[1]) return m[1];
-    }
+    try {
+      // 1. 检查包含 submission-result- 的元素 ID，如 <span id="submission-result-45469382">
+      const resElem = document.querySelector('[id*="submission-result-"]');
+      if (resElem) {
+        const m = resElem.id.match(/submission-result-(\d+)/);
+        if (m && m[1]) return m[1];
+      }
+
+      // 2. 检查 a[href*="/code_detail/"]
+      const detailLinks = document.querySelectorAll('a[href*="/code_detail/"]');
+      for (let i = 0; i < detailLinks.length; i++) {
+        const href = detailLinks[i].getAttribute('href') || '';
+        const m = href.match(/\/code_detail\/(\d+)/);
+        if (m && m[1]) return m[1];
+      }
+
+      // 3. 检查状态块内的提交链接 a[href*="/submission/"]
+      const subLinks = document.querySelectorAll('#submit-code-status-block a[href*="/submission/"], .run-code-result a[href*="/submission/"]');
+      for (let i = 0; i < subLinks.length; i++) {
+        const href = subLinks[i].getAttribute('href') || '';
+        const m = href.match(/\/submission\/(?:code_detail\/|)(\d+)/);
+        if (m && m[1]) return m[1];
+      }
+
+      // 4. 检查表格中的 data-submission-id 属性
+      const tr = document.querySelector('tr[data-submission-id], [data-sub-id]');
+      if (tr) {
+        const sid = tr.getAttribute('data-submission-id') || tr.getAttribute('data-sub-id');
+        if (sid && /^\d+$/.test(sid)) return sid;
+      }
+    } catch (_) {}
     return null;
   }
 
@@ -457,10 +528,22 @@ export class AcWingAdapter extends BaseAdapter {
 
   private extractUserHandle(): string | undefined {
     try {
-      const userElem = document.querySelector('#user-menu a[href*="/user/profile/"], a.navbar-user-name');
-      return userElem?.textContent?.trim();
-    } catch (_) {
-      return undefined;
-    }
+      // 1. 从导航栏用户个人空间链接提取 /user/myspace/index/{uid}/
+      const userElem = document.querySelector(
+        '#user-menu a[href*="/user/myspace/index/"], a[href*="/user/myspace/index/"], a.navbar-user-name, #navbar-user-name'
+      );
+      if (userElem) {
+        const href = userElem.getAttribute('href') || '';
+        const m = href.match(/\/user\/myspace\/index\/(\d+)/);
+        if (m && m[1]) {
+          return m[1]; // 返回 AcWing 数字 UID
+        }
+        const text = userElem.textContent?.trim();
+        if (text && !text.includes('登录') && !text.includes('注册')) {
+          return text;
+        }
+      }
+    } catch (_) {}
+    return undefined;
   }
 }

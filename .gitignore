@@ -33,3 +33,4 @@ agent/oiboard-agent
 node_modules/
 oj-submission-tracker/node_modules/
 
+oj-submission-tracker/dist/

@@ -242,8 +242,8 @@ def resolve_user_id(authorization: Optional[str], platform: str, handle: Optiona
 
             for p in search_platforms:
                 cursor.execute(
-                    "SELECT user_id FROM platform_accounts WHERE platform = ? AND (handle = ? OR alias = ?) ORDER BY is_primary DESC LIMIT 1;",
-                    (p, clean_handle, clean_handle)
+                    "SELECT user_id FROM platform_accounts WHERE platform = ? AND (handle = ? OR alias = ? OR lower(handle) = lower(?)) ORDER BY is_primary DESC LIMIT 1;",
+                    (p, clean_handle, clean_handle, clean_handle)
                 )
                 row = cursor.fetchone()
                 if row:
@@ -251,13 +251,20 @@ def resolve_user_id(authorization: Optional[str], platform: str, handle: Optiona
                     return int(row["user_id"])
 
             # 兼容：handle 匹配 users.username
-            cursor.execute("SELECT id FROM users WHERE username = ?;", (clean_handle,))
+            cursor.execute("SELECT id FROM users WHERE username = ? OR lower(username) = lower(?);", (clean_handle, clean_handle))
             row = cursor.fetchone()
             if row:
                 logger.info(f"[Auth] Matched user_id={row['id']} via username '{clean_handle}'")
                 return int(row["id"])
 
-        # 3. 查找最近活跃会话 (单人使用场景下的智能适配)
+        # 3. 回退至首个非 admin 业务用户 (如用户 2 JJ_Wong，避免被其他测试用户会话抢占)
+        cursor.execute("SELECT id FROM users WHERE is_admin = 0 ORDER BY id ASC LIMIT 1;")
+        row = cursor.fetchone()
+        if row:
+            logger.info(f"[Auth] Fallback to primary non-admin user_id={row['id']}")
+            return int(row["id"])
+
+        # 4. 查找最近活跃会话
         cursor.execute(
             "SELECT user_id FROM sessions WHERE expires_at > datetime('now', 'localtime') ORDER BY created_at DESC LIMIT 1;"
         )
@@ -265,13 +272,6 @@ def resolve_user_id(authorization: Optional[str], platform: str, handle: Optiona
         if row:
             logger.info(f"[Auth] Matched user_id={row['user_id']} via latest active session")
             return int(row["user_id"])
-
-        # 4. 查找首个非 admin 用户 (如用户 2)
-        cursor.execute("SELECT id FROM users WHERE is_admin = 0 ORDER BY id ASC LIMIT 1;")
-        row = cursor.fetchone()
-        if row:
-            logger.info(f"[Auth] Fallback to primary non-admin user_id={row['id']}")
-            return int(row["id"])
 
         # 兜底 user 1
         return 1

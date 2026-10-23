@@ -247,7 +247,7 @@ export class LuoguAdapter extends BaseAdapter {
       case 12:
         return 'AC';
       case 14:
-        return score > 0 ? 'PA' : 'WA';
+        return 'WA'; // 洛谷 status 14 为 Wrong Answer（答案错误），未满分统一归为 WA，避免看板呈现歧义的 PA 标签
       case 7:
         return 'CE';
       case 2:
