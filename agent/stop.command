@@ -1,17 +1,11 @@
 #!/bin/bash
-# 双击停止 OIBoard Agent 后台服务
+# 双击停止 OIBoard Agent (释放端口与后台进程)
 cd "$(dirname "$0")"
 
-if [ -f ~/Library/LaunchAgents/com.oiboard.agent.plist ]; then
-    launchctl unload ~/Library/LaunchAgents/com.oiboard.agent.plist 2>/dev/null
-fi
 pkill -f "oiboard-agent" 2>/dev/null
+launchctl unload ~/Library/LaunchAgents/com.oiboard.agent.plist 2>/dev/null || true
 
-echo "=============================================="
-echo "  OIBoard Agent 后台服务已停止。"
-echo "=============================================="
+echo "OIBoard Agent 服务已停止，端口已释放。"
 sleep 1
-
-# 自动关闭当前弹出的终端窗口
 osascript -e 'tell application "Terminal" to close (every window whose name contains "stop.command")' 2>/dev/null &
 exit 0

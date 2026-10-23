@@ -35,6 +35,7 @@ func main() {
 	portFlag := flag.Int("port", 0, "本地后台管理网页端口 (默认 2054)")
 	dataDirFlag := flag.String("data", defaultDataDir, "数据与配置文件存储目录")
 	scanNowFlag := flag.Bool("scan-now", false, "立即执行一次扫描并退出")
+	noWebFlag := flag.Bool("no-web", false, "纯事件驱动模式运行，不启动 Web 管理后台 HTTP 端口")
 	versionFlag := flag.Bool("v", false, "显示版本号")
 	flag.BoolVar(versionFlag, "version", false, "显示版本号")
 	flag.Parse()
@@ -175,19 +176,24 @@ func main() {
 		}
 	}()
 
-	// 启动 HTTP 后台管理服务
-	srv := server.NewServer(cfg, st, sc, syn)
-	if fWatcher != nil {
-		srv.SetFolderChangedHook(func() {
-			fWatcher.ReloadFolders()
-		})
-	}
-
-	go func() {
-		if err := srv.Start(activePort); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("HTTP 服务异常退出: %v", err)
+	// 启动 HTTP 后台管理服务 (若未指定 -no-web)
+	var srv *server.Server
+	if !*noWebFlag {
+		srv = server.NewServer(cfg, st, sc, syn)
+		if fWatcher != nil {
+			srv.SetFolderChangedHook(func() {
+				fWatcher.ReloadFolders()
+			})
 		}
-	}()
+
+		go func() {
+			if err := srv.Start(activePort); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("HTTP 服务异常退出: %v", err)
+			}
+		}()
+	} else {
+		log.Printf("[Mode] 正在以纯事件驱动模式运行 (无 Web 端口，0 端口暴露)")
+	}
 
 	// 监听退出信号
 	sigChan := make(chan os.Signal, 1)
@@ -203,8 +209,10 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("HTTP 服务关闭时出错: %v", err)
+	if srv != nil {
+		if err := srv.Shutdown(ctx); err != nil {
+			log.Printf("HTTP 服务关闭时出错: %v", err)
+		}
 	}
 
 	if err := st.Save(); err != nil {
