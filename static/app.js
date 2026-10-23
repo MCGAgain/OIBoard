@@ -470,7 +470,7 @@ createApp({
       }, 3500);
     };
 
-    // --- 安全统一 API 请求包装器 (彻底杜绝浏览器/CDN缓存 + 20s 自动超时熔断) ---
+    // --- 安全统一 API 请求包装器 (彻底杜绝浏览器/CDN缓存 + 差异化请求超时熔断) ---
     const apiFetch = async (url, options = {}) => {
       options.headers = options.headers || {};
       options.headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
@@ -491,13 +491,18 @@ createApp({
         reqUrl = `${reqUrl}${sep}_t=${Date.now()}`;
       }
 
-      // A6-1: 增加 20 秒请求超时控制，防止单次请求无限挂起占用连接与轮询锁
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-      }, 20000);
-      if (!options.signal) {
-        options.signal = controller.signal;
+      // A6-1 / A7-3: 差异化超时控制：常规只读与轮询 20 秒，长时外部爬虫任务支持自定义更长超时 (如 120s~180s)
+      const timeoutMs = typeof options.timeoutMs === "number" ? options.timeoutMs : 20000;
+      let timeoutId = null;
+      let controller = null;
+      if (timeoutMs > 0) {
+        controller = new AbortController();
+        timeoutId = setTimeout(() => {
+          controller.abort();
+        }, timeoutMs);
+        if (!options.signal) {
+          options.signal = controller.signal;
+        }
       }
       
       try {
@@ -512,7 +517,10 @@ createApp({
         }
         return res;
       } finally {
-        clearTimeout(timeoutId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
       }
     };
 
@@ -1345,7 +1353,7 @@ createApp({
     const syncContestsNow = async () => {
       isSyncingContests.value = true;
       try {
-        const res = await apiFetch("/api/contests/sync", { method: "POST" });
+        const res = await apiFetch("/api/contests/sync", { method: "POST", timeoutMs: 120000 });
         const data = await res.json();
         if (data.success) {
           showToast(data.message || "比赛日程刷新成功！", "success");
@@ -2156,7 +2164,8 @@ createApp({
         const res = await apiFetch("/api/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ platform })
+          body: JSON.stringify({ platform }),
+          timeoutMs: 180000
         });
         const data = await res.json();
         if (data.data?.synced_at) {
@@ -2218,7 +2227,8 @@ createApp({
         const res = await apiFetch("/api/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          timeoutMs: 60000
         });
         const data = await res.json();
         if (data.valid) {
@@ -2447,7 +2457,8 @@ createApp({
       isAccountSyncing.value[account.id] = true;
       try {
         const res = await apiFetch(`/api/accounts/${account.id}/sync`, {
-          method: "POST"
+          method: "POST",
+          timeoutMs: 120000
         });
         const data = await res.json();
         if (!res.ok || data.detail) {
@@ -2485,7 +2496,8 @@ createApp({
             handle: account.handle,
             cookie: account.cookie || "",
             http_proxy: settingsForm.value.http_proxy || configs.value.http_proxy || ""
-          })
+          }),
+          timeoutMs: 60000
         });
         const data = await res.json();
         if (data.valid) {
@@ -2513,7 +2525,8 @@ createApp({
         const res = await apiFetch("/api/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ platform })
+          body: JSON.stringify({ platform }),
+          timeoutMs: 180000
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
