@@ -2464,6 +2464,22 @@ createApp({
         }
       });
 
+      // A3: 切回前台立即刷新 (监听 visibilitychange 与 focus，并加 2 秒防抖去重)
+      let lastForegroundWakeupTime = 0;
+      const onForegroundWakeup = () => {
+        if (document.hidden) return;
+        const now = Date.now();
+        if (now - lastForegroundWakeupTime < 2000) {
+          return;
+        }
+        lastForegroundWakeupTime = now;
+        refreshCurrentUser(true);
+        triggerImmediatePoll();
+      };
+
+      document.addEventListener("visibilitychange", onForegroundWakeup);
+      window.addEventListener("focus", onForegroundWakeup);
+
       nextTick(() => {
         syncSegmentedThumbs();
       });
