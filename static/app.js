@@ -201,12 +201,14 @@ createApp({
 
         window.removeEventListener("pointermove", onPointerMove);
         window.removeEventListener("pointerup", onPointerUp);
+        window.removeEventListener("pointercancel", onPointerUp);
         window.removeEventListener("mousemove", onPointerMove);
         window.removeEventListener("mouseup", onPointerUp);
 
         if (handleEl) {
           handleEl.removeEventListener("pointermove", onPointerMove);
           handleEl.removeEventListener("pointerup", onPointerUp);
+          handleEl.removeEventListener("pointercancel", onPointerUp);
         }
 
         modalEl.style.transition = "";
@@ -231,9 +233,11 @@ createApp({
       if (hasPointerCapture) {
         handleEl.addEventListener("pointermove", onPointerMove);
         handleEl.addEventListener("pointerup", onPointerUp);
+        handleEl.addEventListener("pointercancel", onPointerUp);
       }
       window.addEventListener("pointermove", onPointerMove);
       window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("pointercancel", onPointerUp);
       window.addEventListener("mousemove", onPointerMove);
       window.addEventListener("mouseup", onPointerUp);
     };
@@ -566,6 +570,7 @@ createApp({
           showToast(`欢迎回来，${data.user.username}！`, "success");
           authForm.value = { username: "", password: "", confirmPassword: "", captcha_code: "" };
           await reloadAllData();
+          scheduleNextPoll(BASE_POLL_INTERVAL);
         } else {
           authError.value = data.detail || data.message || "登录失败，请检查账号密码";
           authForm.value.captcha_code = "";
@@ -631,6 +636,7 @@ createApp({
           showToast("账户注册成功！", "success");
           authForm.value = { username: "", password: "", confirmPassword: "", captcha_code: "" };
           await reloadAllData();
+          scheduleNextPoll(BASE_POLL_INTERVAL);
         } else {
           authError.value = data.detail || data.message || "注册失败";
           authForm.value.captcha_code = "";
@@ -655,6 +661,10 @@ createApp({
       } catch (e) {
         // ignore
       } finally {
+        if (pollTimeoutId) {
+          clearTimeout(pollTimeoutId);
+          pollTimeoutId = null;
+        }
         token.value = "";
         localStorage.removeItem("oiboard_token");
         localStorage.removeItem("oiboard_user");
