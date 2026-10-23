@@ -1360,6 +1360,18 @@ createApp({
       }
     };
 
+    let settingsBaseline = {
+      cf_handle: "",
+      luogu_uid: "",
+      luogu_cookie: "",
+      acwing_user_id: "",
+      acwing_cookie: "",
+      atcoder_handle: "",
+      poll_interval_minutes: "30",
+      http_proxy: "",
+      sprint_mode: "false"
+    };
+
     const loadSettings = async () => {
       try {
         const res = await apiFetch("/api/settings");
@@ -1367,7 +1379,7 @@ createApp({
         configs.value = data.configs || {};
         platformStatusMap.value = data.status || {};
 
-        settingsForm.value = {
+        const snapshot = {
           cf_handle: configs.value.cf_handle || "",
           luogu_uid: configs.value.luogu_uid || "",
           luogu_cookie: configs.value.luogu_cookie || "",
@@ -1376,56 +1388,63 @@ createApp({
           atcoder_handle: configs.value.atcoder_handle || "",
           poll_interval_minutes: configs.value.poll_interval_minutes || "30",
           http_proxy: configs.value.http_proxy || "",
+          sprint_mode: configs.value.sprint_mode || "false"
         };
+        settingsForm.value = { ...snapshot };
+        settingsBaseline = { ...snapshot };
         await loadAccounts();
       } catch (e) {
         console.error("加载设置失败:", e);
       }
     };
 
-    // A6-4: 设置表单脏状态检测（对比表单值与远端持久化基准，并排查输入框聚焦）
+    // A7-2: 设置表单脏状态检测（以基准快照 settingsBaseline 为参照，比对表单所有字段，并排查输入框聚焦）
     const isSettingsFormDirty = () => {
-      const c = configs.value || {};
+      const b = settingsBaseline || {};
       const s = settingsForm.value || {};
-      const isProxyChanged = (s.http_proxy || "").trim() !== (c.http_proxy || "").trim();
-      const isIntervalChanged = String(s.poll_interval_minutes || "30") !== String(c.poll_interval_minutes || "30");
-      const isCfChanged = (s.cf_handle || "").trim() !== (c.cf_handle || "").trim();
-      const isLuoguUidChanged = (s.luogu_uid || "").trim() !== (c.luogu_uid || "").trim();
-      const isLuoguCookieChanged = (s.luogu_cookie || "").trim() !== (c.luogu_cookie || "").trim();
-      const isAcwingUidChanged = (s.acwing_user_id || "").trim() !== (c.acwing_user_id || "").trim();
-      const isAcwingCookieChanged = (s.acwing_cookie || "").trim() !== (c.acwing_cookie || "").trim();
-      const isAtcoderChanged = (s.atcoder_handle || "").trim() !== (c.atcoder_handle || "").trim();
+      const isProxyChanged = (s.http_proxy || "").trim() !== (b.http_proxy || "").trim();
+      const isIntervalChanged = String(s.poll_interval_minutes || "30") !== String(b.poll_interval_minutes || "30");
+      const isCfChanged = (s.cf_handle || "").trim() !== (b.cf_handle || "").trim();
+      const isLuoguUidChanged = (s.luogu_uid || "").trim() !== (b.luogu_uid || "").trim();
+      const isLuoguCookieChanged = (s.luogu_cookie || "").trim() !== (b.luogu_cookie || "").trim();
+      const isAcwingUidChanged = (s.acwing_user_id || "").trim() !== (b.acwing_user_id || "").trim();
+      const isAcwingCookieChanged = (s.acwing_cookie || "").trim() !== (b.acwing_cookie || "").trim();
+      const isAtcoderChanged = (s.atcoder_handle || "").trim() !== (b.atcoder_handle || "").trim();
+      const isSprintChanged = String(s.sprint_mode || "false") !== String(b.sprint_mode || "false");
 
       const activeEl = document.activeElement;
       const isInputFocused = currentTab.value === "settings" && activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.tagName === "SELECT");
 
-      return isProxyChanged || isIntervalChanged || isCfChanged || isLuoguUidChanged || isLuoguCookieChanged || isAcwingUidChanged || isAcwingCookieChanged || isAtcoderChanged || isInputFocused;
+      return isProxyChanged || isIntervalChanged || isCfChanged || isLuoguUidChanged || isLuoguCookieChanged || isAcwingUidChanged || isAcwingCookieChanged || isAtcoderChanged || isSprintChanged || isInputFocused;
     };
 
-    // 静默轮询设置与多账号状态（支持脏状态保护与弹窗焦点保护）
+    // 静默轮询设置与多账号状态（支持独立基准脏状态保护与弹窗焦点保护）
     const pollSettingsReadOnly = async () => {
       try {
         const res = await apiFetch("/api/settings");
         const data = await res.json();
-        if (data.configs) {
-          configs.value = data.configs;
-        }
         if (data.status) {
           platformStatusMap.value = data.status;
         }
 
-        // A6-4: 表单未编辑且无焦点时允许静默同步最新配置；编辑中绝对不覆盖用户输入
-        if (!isSettingsFormDirty() && data.configs) {
-          settingsForm.value = {
-            cf_handle: data.configs.cf_handle || "",
-            luogu_uid: data.configs.luogu_uid || "",
-            luogu_cookie: data.configs.luogu_cookie || "",
-            acwing_user_id: data.configs.acwing_user_id || "",
-            acwing_cookie: data.configs.acwing_cookie || "",
-            atcoder_handle: data.configs.atcoder_handle || "",
-            poll_interval_minutes: data.configs.poll_interval_minutes || "30",
-            http_proxy: data.configs.http_proxy || "",
-          };
+        if (data.configs) {
+          configs.value = data.configs;
+          // A7-2: 表单未编辑且无焦点时，同步远端最新配置并推进基线；编辑中只更新只读展示 configs，绝对不覆盖表单
+          if (!isSettingsFormDirty()) {
+            const incoming = {
+              cf_handle: data.configs.cf_handle || "",
+              luogu_uid: data.configs.luogu_uid || "",
+              luogu_cookie: data.configs.luogu_cookie || "",
+              acwing_user_id: data.configs.acwing_user_id || "",
+              acwing_cookie: data.configs.acwing_cookie || "",
+              atcoder_handle: data.configs.atcoder_handle || "",
+              poll_interval_minutes: data.configs.poll_interval_minutes || "30",
+              http_proxy: data.configs.http_proxy || "",
+              sprint_mode: data.configs.sprint_mode || "false"
+            };
+            settingsForm.value = { ...incoming };
+            settingsBaseline = { ...incoming };
+          }
         }
 
         // A6-4: 账号弹窗开启编辑时暂停替换 accounts，保护弹窗焦点与表单
@@ -2174,6 +2193,8 @@ createApp({
           body: JSON.stringify({ sprint_mode: next })
         });
         configs.value.sprint_mode = next;
+        settingsForm.value.sprint_mode = next;
+        settingsBaseline.sprint_mode = next;
         const regularMins = configs.value.poll_interval_minutes || "30";
         showToast(next === "true" ? "已开启刷题冲刺模式 (5分钟轮询)" : `已切换为日常模式 (${regularMins}分钟轮询)`, "success");
       } catch (e) {
@@ -2235,6 +2256,8 @@ createApp({
         if (data.success) {
           configs.value.poll_interval_minutes = minsStr;
           configs.value.http_proxy = payload.http_proxy;
+          settingsBaseline.poll_interval_minutes = minsStr;
+          settingsBaseline.http_proxy = proxy;
           showToast(`系统参数保存成功！日常同步间隔已更新为 ${minsStr} 分钟`, "success");
         } else {
           showToast(data.detail || data.message || "保存失败", "error");
@@ -2269,6 +2292,11 @@ createApp({
         if (data.success) {
           configs.value.poll_interval_minutes = minsStr;
           configs.value.http_proxy = payload.http_proxy || "";
+          settingsBaseline = {
+            ...settingsForm.value,
+            poll_interval_minutes: minsStr,
+            http_proxy: proxy
+          };
           showToast("配置保存成功，正在同步最新数据...", "success");
           currentTab.value = "overview"; // 自动平滑切回总览看板
           await syncNow("all");
