@@ -905,12 +905,7 @@ createApp({
 
           lastKnownTotalSubs = newTotal;
           lastKnownSyncTime = newSync;
-
-          // 核心实时联动：若总提交数或同步时间更新（且非首次初始化），即刻静默更新热力图与标签分布
-          if (prevTotal !== -1 && (prevTotal !== newTotal || (newSync && prevSync !== newSync))) {
-            loadHeatmap();
-            loadTags();
-          }
+          // 移除原有的内部联动调用 loadHeatmap()，统一由调度器在周期内发起，彻底杜绝重复请求
         }
 
         if (data.platforms_status && Array.isArray(data.platforms_status)) {
@@ -955,12 +950,20 @@ createApp({
       }
     };
 
+    let lastTagsHash = "";
     const loadTags = async () => {
       try {
         const res = await apiFetch("/api/stats/tags");
         const data = await res.json();
-        tagStats.value = data.tags || [];
-        renderTagBarChart();
+        const incomingTags = data.tags || [];
+        const incomingHash = JSON.stringify(incomingTags);
+        if (incomingHash !== lastTagsHash) {
+          lastTagsHash = incomingHash;
+          tagStats.value = incomingTags;
+          if (chartView.value === "tags" && currentTab.value === "overview") {
+            renderTagBarChart();
+          }
+        }
       } catch (e) {
         console.error("加载 Tag 统计失败:", e);
       }
@@ -1263,6 +1266,23 @@ createApp({
         await loadAccounts();
       } catch (e) {
         console.error("加载设置失败:", e);
+      }
+    };
+
+    // 静默轮询设置与多账号状态（只读刷新，保护用户正在编辑但未保存的 settingsForm 字段）
+    const pollSettingsReadOnly = async () => {
+      try {
+        const res = await apiFetch("/api/settings");
+        const data = await res.json();
+        if (data.configs) {
+          configs.value = data.configs;
+        }
+        if (data.status) {
+          platformStatusMap.value = data.status;
+        }
+        await loadAccounts();
+      } catch (e) {
+        console.error("静默轮询设置失败:", e);
       }
     };
 
@@ -2295,12 +2315,40 @@ createApp({
       return `status-${s}`;
     };
 
-    // --- Unified Polling Engine (A1: in-flight guard, failure backoff, tab dispatch) ---
+    // --- Unified Polling Engine (A1/A2: in-flight guard, failure backoff, tab dispatch) ---
     let pollTimeoutId = null;
     let isPollingInProgress = false;
     let consecutivePollFailures = 0;
     const BASE_POLL_INTERVAL = 15000;
     let currentPollInterval = BASE_POLL_INTERVAL;
+    let lastUserRefreshTime = 0;
+
+    const refreshCurrentUser = async (force = false) => {
+      const now = Date.now();
+      if (!force && (now - lastUserRefreshTime < 60000)) {
+        return;
+      }
+      if (!token.value) return;
+      try {
+        const res = await apiFetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.user) {
+            currentUser.value = data.user;
+            localStorage.setItem("oiboard_user", JSON.stringify(data.user));
+            lastUserRefreshTime = Date.now();
+          }
+        }
+      } catch (e) {
+        if (e.message === "UNAUTHORIZED") {
+          currentUser.value = null;
+          token.value = "";
+          localStorage.removeItem("oiboard_token");
+          localStorage.removeItem("oiboard_user");
+          fetchCaptcha();
+        }
+      }
+    };
 
     const executeTabPolling = async () => {
       if (!isLoggedIn.value || document.hidden || isSyncing.value || isSaving.value || isPollingInProgress) {
@@ -2312,14 +2360,20 @@ createApp({
       try {
         const tab = currentTab.value;
         if (tab === "overview") {
-          await Promise.all([loadOverview(), loadHeatmap()]);
+          await Promise.all([loadOverview(), loadHeatmap(), loadTags(), loadContests()]);
         } else if (tab === "submissions") {
-          await loadSubmissions();
+          await Promise.all([loadSubmissions(), loadMistakeKeys()]);
         } else if (tab === "mistakes") {
           await loadMistakes();
         } else if (tab === "contests") {
           await loadContests();
+        } else if (tab === "settings") {
+          await pollSettingsReadOnly();
         }
+
+        // 低频刷新当前用户信息 (60 秒间隔)，401 时自动回到登录态
+        await refreshCurrentUser(false);
+
         // 轮询成功，重置退避状态
         consecutivePollFailures = 0;
         currentPollInterval = BASE_POLL_INTERVAL;
@@ -2448,7 +2502,7 @@ createApp({
     // 标签页切换自动静默拉取最新数据，概览页重新加载热力图与图表，彻底告别手动硬刷新
     watch(currentTab, async (tab) => {
       if (tab === "overview") {
-        await Promise.all([loadOverview(), loadHeatmap(), loadTags()]);
+        await Promise.all([loadOverview(), loadHeatmap(), loadTags(), loadContests()]);
         nextTick(() => {
           renderHeatmap();
           renderActiveChart();
@@ -2468,6 +2522,8 @@ createApp({
           syncSegmentedThumbs();
         });
       }
+      // 切换标签后，重置并顺延后台轮询计时
+      scheduleNextPoll(BASE_POLL_INTERVAL);
     });
 
     return {
