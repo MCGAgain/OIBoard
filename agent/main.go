@@ -202,8 +202,9 @@ func main() {
 					fWatcher.ReloadFolders()
 				}
 
-				// 全量对账间隔为 24 小时兜底（日常以 FSEvents 实时事件驱动为主）
+				// 全量对账间隔为 24 小时兜底（日常以 FSEvents 实时事件驱动为主，绝不在日间频繁扫盘）
 				if cfg.Get().AutoScan && now.Sub(lastFullScan) > 24*time.Hour {
+					log.Printf("[Daemon] 触发每日例行低频兜底对账 (距离上次对账已满 24 小时)...")
 					_, _ = sc.ScanAll(false)
 					lastFullScan = now
 				}

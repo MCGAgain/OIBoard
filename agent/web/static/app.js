@@ -203,8 +203,6 @@ async function toggleFolder(folderPath, enabled) {
 async function saveSettings() {
   const serverInput = document.getElementById('cfg-server-url');
   const tokenInput = document.getElementById('cfg-sync-token');
-  const autoSyncSec = parseInt(document.getElementById('cfg-sync-sec').value, 10) || 60;
-  const autoScanSec = parseInt(document.getElementById('cfg-scan-sec').value, 10) || 30;
 
   try {
     await api('/api/config', {
@@ -213,9 +211,7 @@ async function saveSettings() {
         server_url: serverInput.value.trim(),
         sync_token: tokenInput.value.trim(),
         auto_sync: true,
-        auto_sync_sec: autoSyncSec,
-        auto_scan: true,
-        auto_scan_sec: autoScanSec
+        auto_scan: true
       })
     });
     showToast('设置已保存并生效', 'success');
@@ -344,14 +340,6 @@ function render() {
   const tokenInput = document.getElementById('cfg-sync-token');
   if (tokenInput && !tokenInput.matches(':focus')) {
     tokenInput.value = state.config.sync_token || '';
-  }
-  const syncSecInput = document.getElementById('cfg-sync-sec');
-  if (syncSecInput && !syncSecInput.matches(':focus')) {
-    syncSecInput.value = state.config.auto_sync_interval_sec || 60;
-  }
-  const scanSecInput = document.getElementById('cfg-scan-sec');
-  if (scanSecInput && !scanSecInput.matches(':focus')) {
-    scanSecInput.value = state.config.auto_scan_interval_sec || 30;
   }
 
   renderFolderList();

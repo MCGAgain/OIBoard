@@ -230,27 +230,27 @@
           </div>
 
           <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">无事件兜底巡检间隔</label>
-              <select id="cfg-scan-sec" class="ui-input text-xs font-mono">
-                <option value="60">每 1 分钟</option>
-                <option value="300" selected>每 5 分钟 (推荐)</option>
-                <option value="900">每 15 分钟</option>
-                <option value="1800">每 30 分钟</option>
-              </select>
+            <div class="p-2.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+              <div class="text-[10px] text-[var(--text-muted)] font-medium">网络同步策略</div>
+              <div class="text-xs font-semibold text-cyan-600 dark:text-cyan-400 mt-0.5 flex items-center space-x-1">
+                <span>⚡ 事件驱动防抖同步</span>
+              </div>
+              <p class="text-[9px] text-[var(--text-muted)] mt-1 leading-normal">
+                编辑保存源码后 1.5s 触发防抖同步；无代码改动时不发送任何网络心跳。
+              </p>
             </div>
-            <div>
-              <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">自动心跳同步间隔</label>
-              <select id="cfg-sync-sec" class="ui-input text-xs font-mono">
-                <option value="60">每 1 分钟</option>
-                <option value="300" selected>每 5 分钟 (推荐)</option>
-                <option value="900">每 15 分钟</option>
-                <option value="1800">每 30 分钟</option>
-              </select>
+            <div class="p-2.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+              <div class="text-[10px] text-[var(--text-muted)] font-medium">全量兜底策略</div>
+              <div class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 flex items-center space-x-1">
+                <span>🛡️ 每天 1 次兜底重扫</span>
+              </div>
+              <p class="text-[9px] text-[var(--text-muted)] mt-1 leading-normal">
+                日常 100% 仅算改动文件，每 24 小时仅在后台静默对账一次。
+              </p>
             </div>
           </div>
           <p class="text-[10px] text-[var(--text-muted)] leading-relaxed">
-            ⚡ <strong>macOS 原生 FSEvents/kqueue 实时监听已生效</strong>：编写代码保存时，系统内核仅触发单文件毫秒级重算并自动防抖同步至看板，无文件变动时守护进程完全休眠（0.0% CPU 占用）。
+            ⚡ <strong>macOS 原生 FSEvents 纯事件驱动已生效</strong>：编写代码保存时，系统内核仅通知被改动的具体文件进行微秒级增量统计并同步至看板，日常绝不扫盘、无多余心跳，无文件变动时守护进程完全休眠（0.0% CPU 占用）。
           </p>
 
           <div class="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex items-center justify-between text-[11px]">
