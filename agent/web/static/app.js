@@ -302,33 +302,38 @@ function applyTheme(theme) {
   }
 }
 
+let lastStatsJson = '';
 function render() {
   const stats = state.stats || {};
-  document.getElementById('stat-total-lines').innerText = formatNumber(stats.total_lines || 0);
-  document.getElementById('stat-today-lines').innerText = '+' + formatNumber(stats.today_lines || 0);
-  document.getElementById('stat-total-files').innerText = formatNumber(stats.total_files || 0);
-  document.getElementById('stat-today-files').innerText = formatNumber(stats.today_files || 0) + ' 个变动';
+  const currentStatsJson = JSON.stringify(stats);
+  if (currentStatsJson !== lastStatsJson) {
+    lastStatsJson = currentStatsJson;
+    document.getElementById('stat-total-lines').innerText = formatNumber(stats.total_lines || 0);
+    document.getElementById('stat-today-lines').innerText = '+' + formatNumber(stats.today_lines || 0);
+    document.getElementById('stat-total-files').innerText = formatNumber(stats.total_files || 0);
+    document.getElementById('stat-today-files').innerText = formatNumber(stats.today_files || 0) + ' 个变动';
 
-  document.getElementById('stat-c-lines').innerText = formatNumber(stats.c_lines || 0);
-  document.getElementById('stat-c-files').innerText = formatNumber(stats.c_files || 0) + ' 文件';
-  document.getElementById('stat-cpp-lines').innerText = formatNumber(stats.cpp_lines || 0);
-  document.getElementById('stat-cpp-files').innerText = formatNumber(stats.cpp_files || 0) + ' 文件';
-  document.getElementById('stat-java-lines').innerText = formatNumber(stats.java_lines || 0);
-  document.getElementById('stat-java-files').innerText = formatNumber(stats.java_files || 0) + ' 文件';
+    document.getElementById('stat-c-lines').innerText = formatNumber(stats.c_lines || 0);
+    document.getElementById('stat-c-files').innerText = formatNumber(stats.c_files || 0) + ' 文件';
+    document.getElementById('stat-cpp-lines').innerText = formatNumber(stats.cpp_lines || 0);
+    document.getElementById('stat-cpp-files').innerText = formatNumber(stats.cpp_files || 0) + ' 文件';
+    document.getElementById('stat-java-lines').innerText = formatNumber(stats.java_lines || 0);
+    document.getElementById('stat-java-files').innerText = formatNumber(stats.java_files || 0) + ' 文件';
 
-  document.getElementById('sync-last-time').innerText = formatDate(stats.last_sync_at);
-  const syncStatusEl = document.getElementById('sync-status-badge');
-  if (stats.last_sync_err) {
-    syncStatusEl.className = 'status-badge err';
-    syncStatusEl.innerText = '同步异常: ' + stats.last_sync_err;
-    syncStatusEl.title = stats.last_sync_err;
-  } else if (stats.last_sync_at && !stats.last_sync_at.startsWith('0001')) {
-    syncStatusEl.className = 'status-badge ok';
-    syncStatusEl.innerText = '已正常同步';
-    syncStatusEl.title = '最近同步成功: ' + formatDate(stats.last_sync_at);
-  } else {
-    syncStatusEl.className = 'status-badge warn';
-    syncStatusEl.innerText = '待配置同步';
+    document.getElementById('sync-last-time').innerText = formatDate(stats.last_sync_at);
+    const syncStatusEl = document.getElementById('sync-status-badge');
+    if (stats.last_sync_err) {
+      syncStatusEl.className = 'status-badge err';
+      syncStatusEl.innerText = '同步异常: ' + stats.last_sync_err;
+      syncStatusEl.title = stats.last_sync_err;
+    } else if (stats.last_sync_at && !stats.last_sync_at.startsWith('0001')) {
+      syncStatusEl.className = 'status-badge ok';
+      syncStatusEl.innerText = '已正常同步';
+      syncStatusEl.title = '最近同步成功: ' + formatDate(stats.last_sync_at);
+    } else {
+      syncStatusEl.className = 'status-badge warn';
+      syncStatusEl.innerText = '待配置同步';
+    }
   }
 
   // 设置表单初始化 (仅未输入时回填)
@@ -354,10 +359,13 @@ function render() {
   renderSyncButtons();
 }
 
+let lastScanningState = null;
 function renderScanButtons() {
   const btnInc = document.getElementById('btn-scan-inc');
   const btnFull = document.getElementById('btn-scan-full');
   const badge = document.getElementById('agent-status-badge');
+  if (state.isScanning === lastScanningState) return;
+  lastScanningState = state.isScanning;
   if (state.isScanning) {
     if (btnInc) btnInc.disabled = true;
     if (btnFull) btnFull.disabled = true;
@@ -375,9 +383,12 @@ function renderScanButtons() {
   }
 }
 
+let lastSyncingState = null;
 function renderSyncButtons() {
   const btn = document.getElementById('btn-sync-now');
   if (!btn) return;
+  if (state.isSyncing === lastSyncingState) return;
+  lastSyncingState = state.isSyncing;
   if (state.isSyncing) {
     btn.disabled = true;
     btn.innerText = '正在同步...';
@@ -387,11 +398,17 @@ function renderSyncButtons() {
   }
 }
 
+let lastRenderedFoldersJson = '';
 function renderFolderList() {
   const container = document.getElementById('folder-list-container');
   if (!container) return;
 
   const folders = state.folders || [];
+  const currentFoldersJson = JSON.stringify(folders);
+  if (currentFoldersJson === lastRenderedFoldersJson) {
+    return;
+  }
+  lastRenderedFoldersJson = currentFoldersJson;
   if (folders.length === 0) {
     container.innerHTML = `
       <div class="text-center py-6 text-xs text-[var(--text-muted)] border border-dashed rounded-xl" style="padding: 1.5rem;">
@@ -513,11 +530,22 @@ function initEventHandlers() {
   });
 }
 
-// 页面初始化与自动轮询
+// 页面初始化与自动轮询 (智能节流：后台标签页自动休眠，前台唤醒即时刷新)
 window.addEventListener('DOMContentLoaded', async () => {
   applyTheme(state.theme);
   initEventHandlers();
   await fetchStatus();
   await fetchFiles();
-  setInterval(fetchStatus, 4000);
+
+  setInterval(() => {
+    if (document.hidden) return;
+    fetchStatus();
+  }, 4000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      fetchStatus();
+      fetchFiles();
+    }
+  });
 });

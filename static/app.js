@@ -1654,7 +1654,7 @@ createApp({
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
             fontSize: getChartFontSize(12)
           },
-          extraCssText: "backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25); z-index: 99999;",
+          extraCssText: "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
           formatter: function (p) {
             const date = p.value[0];
             const subs = p.value[1] || 0;
@@ -1848,7 +1848,7 @@ createApp({
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
             fontSize: getChartFontSize(12)
           },
-          extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);",
+          extraCssText: "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
           formatter: function (params) {
             const p = params[0];
             const idx = p.dataIndex;
@@ -1975,7 +1975,7 @@ createApp({
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
             fontSize: getChartFontSize(12)
           },
-          extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);",
+          extraCssText: "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
           formatter: function (params) {
             const idx = params[0]?.dataIndex ?? 0;
             const date = fullDates[idx] || "";
@@ -2087,7 +2087,7 @@ createApp({
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
             fontSize: getChartFontSize(12)
           },
-          extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);",
+          extraCssText: "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
           formatter: function (params) {
             const p = params[0];
             const col = dark ? '#2997ff' : '#0071e3';
@@ -2175,7 +2175,7 @@ createApp({
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
             fontSize: getChartFontSize(12)
           },
-          extraCssText: "backdrop-filter: blur(24px) saturate(180%); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.25);"
+          extraCssText: "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;"
         },
         legend: {
           bottom: "6%",
