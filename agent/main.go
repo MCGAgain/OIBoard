@@ -32,6 +32,12 @@ func main() {
 	}
 	defaultDataDir := filepath.Join(home, ".oiboard-agent")
 
+	logDir := filepath.Join(home, "Library/Logs")
+	_ = os.MkdirAll(logDir, 0755)
+	if lw, err := newRotWriter(filepath.Join(logDir, "oiboard-agent.log")); err == nil {
+		log.SetOutput(lw)
+	}
+
 	portFlag := flag.Int("port", 0, "本地后台管理网页端口 (默认 2054)")
 	dataDirFlag := flag.String("data", defaultDataDir, "数据与配置文件存储目录")
 	scanNowFlag := flag.Bool("scan-now", false, "立即执行一次扫描并退出")
@@ -128,13 +134,32 @@ func main() {
 		syncDebounceTimer = time.AfterFunc(1500*time.Millisecond, triggerSync)
 	}
 
-	// 启动基于 macOS 原生 kqueue/FSEvents 的文件变动监听器
+	// 启动 HTTP 后台管理服务 (若未指定 -no-web)
+	var srv *server.Server
+	if !*noWebFlag {
+		srv = server.NewServer(cfg, st, sc, syn)
+		go func() {
+			if err := srv.Start(activePort); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("HTTP 服务异常退出: %v", err)
+			}
+		}()
+	} else {
+		log.Printf("[Mode] 正在以纯事件驱动模式运行 (无 Web 端口，0 端口暴露)")
+	}
+
+	// 启动文件变动监听器 (自动根据编译标签选择 macOS 原生 FSEvents 或跨平台 kqueue)
 	fWatcher, err := watcher.NewWatcher(cfg, sc, onFileChange)
 	if err != nil {
 		log.Printf("[Watcher] 初始化文件监听失败，将回退至定时增量轮询: %v", err)
 	} else {
+		if srv != nil {
+			srv.SetFolderChangedHook(func() {
+				fWatcher.ReloadFolders()
+			})
+		}
+		fWatcher.SetStatePath(filepath.Join(*dataDirFlag, "fsevents.json"))
 		fWatcher.Start()
-		log.Printf("[Watcher] 原生文件变动监听已启动 (基于 macOS kqueue/FSEvents，仅对改动文件进行微秒级增量统计)")
+		log.Printf("[Watcher] 原生文件变动监听已启动 (基于 macOS %s，仅对改动文件进行微秒级增量统计)", fWatcher.BackendName())
 	}
 
 	// 启动时在后台执行一次基线初始化扫描与初始同步
@@ -155,45 +180,37 @@ func main() {
 		}
 	}()
 
-	// 低开销巡检 Ticker (仅在无事件时作为兜底健康检查，默认 5 分钟，绝大部分时间 0 CPU)
+	// 巡检与健康检查 Ticker (1分钟轻量感知，外置盘重新挂载自动补 stream，24小时兜底全量对账)
 	stopChan := make(chan struct{})
 	go func() {
-		idleCheckTicker := time.NewTicker(5 * time.Minute)
-		defer idleCheckTicker.Stop()
-
+		tk := time.NewTicker(time.Minute)
+		defer tk.Stop()
+		lastFullScan := time.Now()
 		for {
 			select {
 			case <-stopChan:
 				return
-			case <-idleCheckTicker.C:
-				cfgSnap := cfg.Get()
-				if !cfgSnap.AutoScan {
-					continue
+			case <-tk.C:
+				now := time.Now().Round(0)
+
+				if st.RolloverIfNeeded(now) {
+					// 跨天后触发一次同步，让服务端拿到新的一天的基线
+					go triggerSync()
 				}
-				// 兜底校验
-				_, _ = sc.ScanAll(false)
+
+				if fWatcher != nil {
+					fWatcher.ReloadFolders()
+				}
+
+				// 全量对账间隔为 24 小时兜底（日常以 FSEvents 实时事件驱动为主）
+				if cfg.Get().AutoScan && now.Sub(lastFullScan) > 24*time.Hour {
+					_, _ = sc.ScanAll(false)
+					lastFullScan = now
+				}
 			}
 		}
 	}()
 
-	// 启动 HTTP 后台管理服务 (若未指定 -no-web)
-	var srv *server.Server
-	if !*noWebFlag {
-		srv = server.NewServer(cfg, st, sc, syn)
-		if fWatcher != nil {
-			srv.SetFolderChangedHook(func() {
-				fWatcher.ReloadFolders()
-			})
-		}
-
-		go func() {
-			if err := srv.Start(activePort); err != nil && err != http.ErrServerClosed {
-				log.Fatalf("HTTP 服务异常退出: %v", err)
-			}
-		}()
-	} else {
-		log.Printf("[Mode] 正在以纯事件驱动模式运行 (无 Web 端口，0 端口暴露)")
-	}
 
 	// 监听退出信号
 	sigChan := make(chan os.Signal, 1)

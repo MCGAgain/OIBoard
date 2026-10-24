@@ -12,13 +12,22 @@
     <true/>
     <key>KeepAlive</key>
     <true/>
-    <key>StandardOutPath</key>
-    <string>/tmp/oiboard-agent.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/oiboard-agent.error.log</string>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
     <key>ProcessType</key>
     <string>Background</string>
     <key>LowPriorityIO</key>
     <true/>
+    <key>Nice</key>
+    <integer>5</integer>
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>10240</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/dev/null</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Logs/oiboard-agent.err.log</string>
 </dict>
 </plist>

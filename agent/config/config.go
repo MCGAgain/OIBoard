@@ -18,7 +18,7 @@ type FolderConfig struct {
 	LastScan  time.Time `json:"last_scan"`
 }
 
-type Config struct {
+type ConfigData struct {
 	ServerURL           string         `json:"server_url"`
 	SyncToken           string         `json:"sync_token"`
 	Port                int            `json:"port"`
@@ -27,22 +27,27 @@ type Config struct {
 	AutoScan            bool           `json:"auto_scan"`
 	AutoScanIntervalSec int            `json:"auto_scan_interval_sec"`
 	Folders             []FolderConfig `json:"folders"`
+}
 
+type Config struct {
+	ConfigData
 	filePath string
 	mu       sync.RWMutex
 }
 
 func DefaultConfig(filePath string) *Config {
 	return &Config{
-		ServerURL:           "http://198.44.63.140:2053",
-		SyncToken:           "",
-		Port:                2054,
-		AutoSync:            true,
-		AutoSyncIntervalSec: 60,
-		AutoScan:            true,
-		AutoScanIntervalSec: 30,
-		Folders:             []FolderConfig{},
-		filePath:            filePath,
+		ConfigData: ConfigData{
+			ServerURL:           "http://198.44.63.140:2053",
+			SyncToken:           "",
+			Port:                2054,
+			AutoSync:            true,
+			AutoSyncIntervalSec: 60,
+			AutoScan:            true,
+			AutoScanIntervalSec: 30,
+			Folders:             []FolderConfig{},
+		},
+		filePath: filePath,
 	}
 }
 
@@ -61,7 +66,7 @@ func LoadConfig(filePath string) (*Config, error) {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
 
-	if err := json.Unmarshal(data, cfg); err != nil {
+	if err := json.Unmarshal(data, &cfg.ConfigData); err != nil {
 		return nil, err
 	}
 	cfg.filePath = filePath
@@ -86,7 +91,7 @@ func (c *Config) Save() error {
 		return err
 	}
 
-	data, err := json.MarshalIndent(c, "", "  ")
+	data, err := json.MarshalIndent(c.ConfigData, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -98,10 +103,48 @@ func (c *Config) Save() error {
 	return os.Rename(tmpFile, c.filePath)
 }
 
-func (c *Config) Get() Config {
+// MaskToken 返回掩码后的 token（仅保留末 4 位）
+func MaskToken(token string) string {
+	if token == "" {
+		return ""
+	}
+	if len(token) <= 4 {
+		return "****" + token
+	}
+	return "****" + token[len(token)-4:]
+}
+
+type SafeConfigData struct {
+	ServerURL           string         `json:"server_url"`
+	SyncToken           string         `json:"sync_token"`
+	HasToken            bool           `json:"has_token"`
+	Port                int            `json:"port"`
+	AutoSync            bool           `json:"auto_sync"`
+	AutoSyncIntervalSec int            `json:"auto_sync_interval_sec"`
+	AutoScan            bool           `json:"auto_scan"`
+	AutoScanIntervalSec int            `json:"auto_scan_interval_sec"`
+	Folders             []FolderConfig `json:"folders"`
+}
+
+func (c *Config) GetSafe() SafeConfigData {
+	raw := c.Get()
+	return SafeConfigData{
+		ServerURL:           raw.ServerURL,
+		SyncToken:           MaskToken(raw.SyncToken),
+		HasToken:            raw.SyncToken != "",
+		Port:                raw.Port,
+		AutoSync:            raw.AutoSync,
+		AutoSyncIntervalSec: raw.AutoSyncIntervalSec,
+		AutoScan:            raw.AutoScan,
+		AutoScanIntervalSec: raw.AutoScanIntervalSec,
+		Folders:             raw.Folders,
+	}
+}
+
+func (c *Config) Get() ConfigData {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return Config{
+	return ConfigData{
 		ServerURL:           c.ServerURL,
 		SyncToken:           c.SyncToken,
 		Port:                c.Port,
@@ -190,14 +233,20 @@ func (c *Config) ToggleFolder(folderPath string, enabled bool) error {
 func (c *Config) UpdateFolderStats(folderPath string, fileCount, lineCount int, scanTime time.Time) {
 	c.mu.Lock()
 	cleanPath := filepath.Clean(folderPath)
+	changed := false
 	for i := range c.Folders {
 		if filepath.Clean(c.Folders[i].Path) == cleanPath {
-			c.Folders[i].FileCount = fileCount
-			c.Folders[i].LineCount = lineCount
+			if c.Folders[i].FileCount != fileCount || c.Folders[i].LineCount != lineCount {
+				c.Folders[i].FileCount = fileCount
+				c.Folders[i].LineCount = lineCount
+				changed = true
+			}
 			c.Folders[i].LastScan = scanTime
 			break
 		}
 	}
 	c.mu.Unlock()
-	_ = c.Save()
+	if changed {
+		_ = c.Save()
+	}
 }

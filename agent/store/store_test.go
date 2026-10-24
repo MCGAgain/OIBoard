@@ -116,3 +116,90 @@ func TestStore_FileIDAndIncrementalStats(t *testing.T) {
 		t.Fatalf("expected 1 file after delete, got %d", stats.TotalFiles)
 	}
 }
+
+func TestStore_RolloverAndMoveFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "oiboard_store_test_rollover_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	stateFile := filepath.Join(tmpDir, "state.json")
+	st, err := NewStore(stateFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	today := time.Now()
+	// 新建一个已有 200 行的文件
+	st.SetFile(FileRecord{
+		Path:        "/test/project/old.cpp",
+		Folder:      "/test/project",
+		Ext:         "cpp",
+		Inode:       12345,
+		Lines:       200,
+		ModTime:     today.UnixNano(),
+		LastScanned: today,
+	})
+
+	// 此时 TodayLines 应该为 200
+	stats := st.RecalculateStats(today)
+	if stats.TodayLines != 200 {
+		t.Fatalf("expected TodayLines 200, got %d", stats.TodayLines)
+	}
+
+	// 模拟跨天 Rollover
+	tomorrow := today.Add(24 * time.Hour)
+	rolled := st.RolloverIfNeeded(tomorrow)
+	if !rolled {
+		t.Fatalf("expected rollover to succeed")
+	}
+
+	rec, _ := st.GetFile("/test/project/old.cpp")
+	if rec.BaseLines != 200 {
+		t.Fatalf("expected BaseLines to be rolled to 200, got %d", rec.BaseLines)
+	}
+
+	// 跨天后未修改时 TodayLines 应当变为 0
+	stats = st.RecalculateStats(tomorrow)
+	if stats.TodayLines != 0 {
+		t.Fatalf("expected TodayLines 0 on new day, got %d", stats.TodayLines)
+	}
+
+	// 模拟文件重命名: old.cpp 移到 renamed.cpp, 保持 inode 12345
+	st.MoveFile("/test/project/old.cpp", FileRecord{
+		Path:        "/test/project/renamed.cpp",
+		Folder:      "/test/project",
+		Ext:         "cpp",
+		Inode:       12345,
+		Lines:       200,
+		ModTime:     tomorrow.UnixNano(),
+		LastScanned: tomorrow,
+	})
+
+	movedRec, ok := st.GetFile("/test/project/renamed.cpp")
+	if !ok {
+		t.Fatalf("expected renamed.cpp to exist")
+	}
+	if movedRec.BaseLines != 200 {
+		t.Fatalf("expected BaseLines 200 to be inherited, got %d", movedRec.BaseLines)
+	}
+
+	// TodayLines 应当仍然是 0，而不是暴涨 200 行！
+	stats = st.RecalculateStats(tomorrow)
+	if stats.TodayLines != 0 {
+		t.Fatalf("expected TodayLines to remain 0 after rename, got %d", stats.TodayLines)
+	}
+
+	// MarkDirty 触发落盘并校验紧凑存储
+	st.MarkDirty()
+	time.Sleep(2100 * time.Millisecond) // 等待 2s 合并防抖
+
+	data, err := os.ReadFile(stateFile)
+	if err != nil {
+		t.Fatalf("failed to read state file: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatalf("state file is empty")
+	}
+}

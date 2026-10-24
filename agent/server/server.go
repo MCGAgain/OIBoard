@@ -75,7 +75,7 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/api/files", s.handleFiles)
 	mux.HandleFunc("/api/browse-folder", s.handleBrowseFolder)
 
-	addr := fmt.Sprintf(":%d", port)
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	s.httpSrv = &http.Server{
 		Addr:         addr,
 		Handler:      s.corsMiddleware(mux),
@@ -117,11 +117,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
 		return
 	}
-	cfgSnap := s.cfg.Get()
+	safeCfg := s.cfg.GetSafe()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"stats":       s.st.GetStats(),
-		"folders":     cfgSnap.Folders,
-		"config":      cfgSnap,
+		"folders":     safeCfg.Folders,
+		"config":      safeCfg,
 		"is_scanning": s.sc.IsScanning(),
 	})
 }
@@ -185,6 +185,17 @@ func (s *Server) handleFolders(w http.ResponseWriter, r *http.Request) {
 		if err != nil || !info.IsDir() {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("指定路径不存在或不是文件夹: %s", p)})
 			return
+		}
+
+		// 嵌套文件夹拒绝
+		sep := string(filepath.Separator)
+		for _, f := range s.cfg.Get().Folders {
+			fp := filepath.Clean(f.Path)
+			if p == fp || strings.HasPrefix(p, fp+sep) || strings.HasPrefix(fp, p+sep) {
+				writeJSON(w, http.StatusBadRequest, map[string]string{
+					"error": fmt.Sprintf("与已添加的文件夹重叠: %s", fp)})
+				return
+			}
 		}
 
 		added, err := s.cfg.AddFolder(p, req.Name)
@@ -296,14 +307,23 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.cfg.UpdateSettings(req.ServerURL, req.SyncToken, req.AutoSync, req.AutoSyncSec, req.AutoScan, req.AutoScanSec); err != nil {
+	currentSnap := s.cfg.Get()
+	tokenToSave := req.SyncToken
+	maskedToken := config.MaskToken(currentSnap.SyncToken)
+
+	// 规则 2: 前端提交配置时，若 token 字段为空或等于掩码值，保留原 token，不覆盖
+	if tokenToSave == "" || tokenToSave == maskedToken {
+		tokenToSave = currentSnap.SyncToken
+	}
+
+	if err := s.cfg.UpdateSettings(req.ServerURL, tokenToSave, req.AutoSync, req.AutoSyncSec, req.AutoScan, req.AutoScanSec); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
-		"config":  s.cfg.Get(),
+		"config":  s.cfg.GetSafe(),
 	})
 }
 
@@ -340,10 +360,17 @@ func (s *Server) handleTestConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	currentSnap := s.cfg.Get()
+	tokenToTest := req.SyncToken
+	maskedToken := config.MaskToken(currentSnap.SyncToken)
+	if tokenToTest == "" || tokenToTest == maskedToken {
+		tokenToTest = currentSnap.SyncToken
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 
-	username, err := s.sync.TestConnection(ctx, req.ServerURL, req.SyncToken)
+	username, err := s.sync.TestConnection(ctx, req.ServerURL, tokenToTest)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return

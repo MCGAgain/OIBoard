@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,6 +15,7 @@ type FileRecord struct {
 	Path        string    `json:"path"`
 	Folder      string    `json:"folder"`
 	Ext         string    `json:"ext"`
+	Inode       uint64    `json:"inode,omitempty"`
 	Size        int64     `json:"size"`
 	ModTime     int64     `json:"mod_time"` // Unix nano
 	Lines       int       `json:"lines"`
@@ -45,14 +47,16 @@ type StateData struct {
 }
 
 type Store struct {
-	filePath string
-	stats    GlobalStats
-	files    map[string]FileRecord
-	idMap    map[int]string
-	nextID   int
-	baseDate string
-	segTree  *SegmentTree
-	mu       sync.RWMutex
+	filePath  string
+	stats     GlobalStats
+	files     map[string]FileRecord
+	idMap     map[int]string
+	nextID    int
+	baseDate  string
+	segTree   *SegmentTree
+	mu        sync.RWMutex
+	saveMu    sync.Mutex
+	saveTimer *time.Timer
 }
 
 func NewStore(filePath string) (*Store, error) {
@@ -148,32 +152,89 @@ func (s *Store) load() error {
 	return nil
 }
 
+// MarkDirty 标记需要落盘，2 秒内的多次调用合并为一次写盘
+func (s *Store) MarkDirty() {
+	s.saveMu.Lock()
+	defer s.saveMu.Unlock()
+	if s.saveTimer != nil {
+		return
+	}
+	s.saveTimer = time.AfterFunc(2*time.Second, func() {
+		s.saveMu.Lock()
+		s.saveTimer = nil
+		s.saveMu.Unlock()
+		if err := s.Save(); err != nil {
+			log.Printf("[Store] 保存失败: %v", err)
+		}
+	})
+}
+
+// Save 改为：紧凑 JSON + fsync + 原子 rename
 func (s *Store) Save() error {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	dir := filepath.Dir(s.filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-
-	state := StateData{
-		Stats:    s.stats,
-		Files:    s.files,
-		NextID:   s.nextID,
-		BaseDate: s.baseDate,
-	}
-
-	data, err := json.MarshalIndent(state, "", "  ")
+	state := StateData{Stats: s.stats, Files: s.files, NextID: s.nextID, BaseDate: s.baseDate}
+	data, err := json.Marshal(state) // 去掉 Indent，体积和 CPU 都明显下降
+	s.mu.RUnlock()
 	if err != nil {
 		return err
 	}
-
-	tmpFile := s.filePath + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.filePath), 0755); err != nil {
 		return err
 	}
-	return os.Rename(tmpFile, s.filePath)
+	tmp := s.filePath + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil { // 断电保护
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, s.filePath)
+}
+
+// RolloverIfNeeded 日期变化时，把所有文件的基线重置为当前行数
+func (s *Store) RolloverIfNeeded(now time.Time) bool {
+	today := now.Format("2006-01-02")
+	s.mu.Lock()
+	if s.baseDate == today {
+		s.mu.Unlock()
+		return false
+	}
+	for p, r := range s.files {
+		r.BaseLines = r.Lines
+		s.files[p] = r
+	}
+	s.baseDate = today
+	s.mu.Unlock()
+
+	s.RecalculateStats(now)
+	s.MarkDirty()
+	return true
+}
+
+// MoveFile 同一个防抖批次里判定为移动时继承旧记录的 ID 与 BaseLines
+func (s *Store) MoveFile(oldPath string, rec FileRecord) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, ok := s.files[oldPath]
+	if !ok {
+		return
+	}
+	delete(s.files, oldPath)
+	rec.Path = filepath.Clean(rec.Path)
+	rec.ID = old.ID
+	rec.BaseLines = old.BaseLines // 关键：基线继承，不当作今天新写的代码
+	s.files[rec.Path] = rec
+	s.idMap[rec.ID] = rec.Path
+	s.segTree.UpdatePoint(rec.ID, rec.Lines, rec.Ext, true)
 }
 
 func (s *Store) GetFile(path string) (FileRecord, bool) {
@@ -337,30 +398,8 @@ func (s *Store) SetStats(stats GlobalStats) {
 
 func (s *Store) SetSyncStatus(syncTime time.Time, errStr string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.stats.LastSyncAt = syncTime
 	s.stats.LastSyncErr = errStr
-	_ = s.saveUnsafe()
-}
-
-func (s *Store) saveUnsafe() error {
-	dir := filepath.Dir(s.filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-	state := StateData{
-		Stats:    s.stats,
-		Files:    s.files,
-		NextID:   s.nextID,
-		BaseDate: s.baseDate,
-	}
-	data, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return err
-	}
-	tmpFile := s.filePath + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
-		return err
-	}
-	return os.Rename(tmpFile, s.filePath)
+	s.mu.Unlock()
+	s.MarkDirty()
 }
