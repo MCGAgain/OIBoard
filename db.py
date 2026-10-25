@@ -1797,5 +1797,13 @@ def get_local_code_stats(user_id: int) -> Dict[str, Any]:
         except Exception:
             d["folders"] = []
         d["has_data"] = (d["total_lines"] > 0 or d["total_files"] > 0)
+
+        # 跨天安全校验：若上次同步时间不是今日（北京时间），则今日新增行数与变动文件视作 0
+        synced_at = d.get("synced_at") or ""
+        today_beijing = get_beijing_now().strftime("%Y-%m-%d")
+        if synced_at and not synced_at.startswith(today_beijing):
+            d["today_lines"] = 0
+            d["today_files"] = 0
+
         return d
 

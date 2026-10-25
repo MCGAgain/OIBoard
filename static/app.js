@@ -1115,7 +1115,18 @@ createApp({
             last_sync_time: newSync || overview.value.last_sync_time || "",
             climbing_curve: data.climbing_curve || [],
             daily_effort: data.daily_effort || [],
-            local_code: data.local_code || { total_lines: 0, today_lines: 0, total_files: 0, today_files: 0, c_lines: 0, cpp_lines: 0, java_lines: 0, has_data: false }
+            local_code: (() => {
+              const lc = data.local_code || { total_lines: 0, today_lines: 0, total_files: 0, today_files: 0, c_lines: 0, cpp_lines: 0, java_lines: 0, has_data: false };
+              if (lc.synced_at) {
+                // 北京时间 (Asia/Shanghai) YYYY-MM-DD
+                const beijingDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+                if (!lc.synced_at.startsWith(beijingDate)) {
+                  lc.today_lines = 0;
+                  lc.today_files = 0;
+                }
+              }
+              return lc;
+            })()
           };
 
           if (currentTab.value === "overview") {

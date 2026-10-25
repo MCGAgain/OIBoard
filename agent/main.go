@@ -186,6 +186,7 @@ func main() {
 		tk := time.NewTicker(time.Minute)
 		defer tk.Stop()
 		lastFullScan := time.Now()
+		lastRolloverRetry := time.Time{}
 		for {
 			select {
 			case <-stopChan:
@@ -196,6 +197,17 @@ func main() {
 				if st.RolloverIfNeeded(now) {
 					// 跨天后触发一次同步，让服务端拿到新的一天的基线
 					go triggerSync()
+				} else {
+					// 跨天补发保护：若由于夜间睡眠断网导致跨天同步未能成功上报，
+					// 在网络恢复后（间隔 10 分钟），自动补报一次今日 0 行新基线
+					stats := st.GetStats()
+					todayStr := now.Format("2006-01-02")
+					if cfg.Get().AutoSync && cfg.Get().SyncToken != "" && !stats.LastSyncAt.IsZero() {
+						if stats.LastSyncAt.Format("2006-01-02") != todayStr && now.Sub(lastRolloverRetry) > 10*time.Minute {
+							lastRolloverRetry = now
+							go triggerSync()
+						}
+					}
 				}
 
 				if fWatcher != nil {
