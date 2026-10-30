@@ -1,0 +1,25 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="2.0"
+        android:scaleY="2.0"
+        android:translateX="22"
+        android:translateY="22">
+        <!-- 外框科技青圆角框 -->
+        <path
+            android:pathData="M 8,1 h 16 a 7,7 0 0 1 7,7 v 16 a 7,7 0 0 1 -7,7 h -16 a 7,7 0 0 1 -7,-7 v -16 a 7,7 0 0 1 7,-7 z"
+            android:strokeColor="#FF06B6D4"
+            android:strokeWidth="1.5"
+            android:strokeAlpha="0.5" />
+        <!-- 三列解题与竞赛柱状图 -->
+        <path
+            android:pathData="M 9,22 V 16 M 16,22 V 8 M 23,22 V 13"
+            android:strokeColor="#FF06B6D4"
+            android:strokeWidth="2.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

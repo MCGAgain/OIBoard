@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 默认全局禁止明文 HTTP 传输 -->
+    <base-config cleartextTrafficPermitted="false" />
+
+    <!-- 仅在 Debug 构建中，专为 Android 模拟器访问本机副本后端放行 10.0.2.2 明文连接 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

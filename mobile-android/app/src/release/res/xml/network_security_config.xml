@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Release 构建完全禁止明文 HTTP 传输，所有网络请求强制要求 HTTPS -->
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>
