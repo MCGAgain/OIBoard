@@ -21,6 +21,9 @@ type FileRecord struct {
 	Lines       int       `json:"lines"`
 	BaseLines   int       `json:"base_lines"` // 每日基线行数，用于精确计算今日增量代码
 	LastScanned time.Time `json:"last_scanned"`
+	FileUID     string    `json:"file_uid,omitempty"`
+	RelPath     string    `json:"rel_path,omitempty"`
+	ContentHash string    `json:"content_hash,omitempty"`
 }
 
 type GlobalStats struct {
@@ -388,6 +391,12 @@ func (s *Store) RecalculateStats(now time.Time) GlobalStats {
 
 	s.stats = stats
 	return stats
+}
+
+func (s *Store) GetBaseDate() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.baseDate
 }
 
 func (s *Store) SetStats(stats GlobalStats) {

@@ -161,11 +161,23 @@ class VerifyPayload(BaseModel):
     atcoder_handle: Optional[str] = ""
     http_proxy: Optional[str] = ""
 
+class FileSyncItem(BaseModel):
+    file_uid: str
+    file_name: Optional[str] = ""
+    relative_path: Optional[str] = ""
+    language: Optional[str] = ""
+    lines: int
+    base_lines: Optional[int] = 0
+    base_date: Optional[str] = ""
+    content_hash: Optional[str] = ""
+    mtime: Optional[int] = 0
+    is_deleted: Optional[bool] = False
+
 class LocalCodeSyncPayload(BaseModel):
-    total_lines: int
-    today_lines: int
-    total_files: int
-    today_files: int
+    total_lines: Optional[int] = 0
+    today_lines: Optional[int] = 0
+    total_files: Optional[int] = 0
+    today_files: Optional[int] = 0
     c_lines: Optional[int] = 0
     c_files: Optional[int] = 0
     cpp_lines: Optional[int] = 0
@@ -174,6 +186,11 @@ class LocalCodeSyncPayload(BaseModel):
     java_files: Optional[int] = 0
     folders: Optional[List[str]] = []
     synced_at: Optional[str] = ""
+    device_id: Optional[str] = ""
+    device_name: Optional[str] = ""
+    platform: Optional[str] = ""
+    sync_mode: Optional[str] = "aggregate"
+    files: Optional[List[FileSyncItem]] = None
 
 # --- Auth Dependency (安全身份拦截器) ---
 async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:

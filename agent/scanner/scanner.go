@@ -2,6 +2,8 @@ package scanner
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"os"
@@ -81,16 +83,16 @@ func inodeOf(info os.FileInfo) uint64 {
 	return 0
 }
 
-// FastCountLines 高性能分块读取换行符计数器（借鉴 scc 算法，避免堆分配；支持 20MB 大小过滤与二进制检查）
-func FastCountLines(path string) (int, error) {
+// FastCountLinesAndHash 高性能分块读取换行符计数器并计算内容摘要（借鉴 scc 算法，避免堆分配；支持 20MB 大小过滤与二进制检查）
+func FastCountLinesAndHash(path string) (int, string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	defer f.Close()
 
 	if fi, err := f.Stat(); err == nil && fi.Size() > 20<<20 { // >20MB 视为生成文件，跳过
-		return 0, errSkip
+		return 0, "", errSkip
 	}
 
 	buf := make([]byte, 32*1024)
@@ -98,6 +100,7 @@ func FastCountLines(path string) (int, error) {
 	hasBytes := false
 	lastByte := byte(0)
 	first := true
+	hasher := sha256.New()
 
 	for {
 		n, err := f.Read(buf)
@@ -105,10 +108,11 @@ func FastCountLines(path string) (int, error) {
 			if first {
 				first = false
 				if bytes.IndexByte(buf[:n], 0) >= 0 {
-					return 0, errSkip // 含 \0，判定为二进制
+					return 0, "", errSkip // 含 \0，判定为二进制
 				}
 			}
 			hasBytes = true
+			hasher.Write(buf[:n])
 			count += bytes.Count(buf[:n], []byte{'\n'})
 			lastByte = buf[n-1]
 		}
@@ -116,7 +120,7 @@ func FastCountLines(path string) (int, error) {
 			break
 		}
 		if err != nil {
-			return count, err
+			return count, "", err
 		}
 	}
 
@@ -124,7 +128,17 @@ func FastCountLines(path string) (int, error) {
 	if hasBytes && lastByte != '\n' {
 		count++
 	}
-	return count, nil
+	hashStr := ""
+	if hasBytes {
+		hashStr = hex.EncodeToString(hasher.Sum(nil)[:8])
+	}
+	return count, hashStr, nil
+}
+
+// FastCountLines 高性能分块读取换行符计数器（兼容既有接口）
+func FastCountLines(path string) (int, error) {
+	lines, _, err := FastCountLinesAndHash(path)
+	return lines, err
 }
 
 // ScanAll 执行全局增量扫描（forceFull 为 true 时强制重新统计已缓存文件）
@@ -209,16 +223,24 @@ func (s *Scanner) ScanAll(forceFull bool) (store.GlobalStats, error) {
 			cached, exists := s.st.GetFile(cleanPath)
 			// 增量命中判定：文件大小与最后修改时间完全一致
 			if !forceFull && exists && cached.Size == info.Size() && cached.ModTime == info.ModTime().UnixNano() {
+				updated := false
 				if cached.Inode == 0 && ino != 0 {
 					cached.Inode = ino
+					updated = true
+				}
+				if cached.FileUID == "" {
+					cached.FileUID, cached.RelPath = DetermineFileIdentity(cleanPath, folderPath)
+					updated = true
+				}
+				if updated {
 					s.st.SetFile(cached)
 				}
 				folderLineCount += cached.Lines
 				return nil
 			}
 
-			// 新增或修改过的文件：读取并重新计数
-			lines, err := FastCountLines(cleanPath)
+			// 新增或修改过的文件：读取并重新计数及计算摘要
+			lines, hashStr, err := FastCountLinesAndHash(cleanPath)
 			if err != nil {
 				if err == errSkip {
 					if exists {
@@ -232,6 +254,7 @@ func (s *Scanner) ScanAll(forceFull bool) (store.GlobalStats, error) {
 				return nil
 			}
 
+			fileUID, relPath := DetermineFileIdentity(cleanPath, folderPath)
 			record := store.FileRecord{
 				Path:        cleanPath,
 				Folder:      folderPath,
@@ -241,6 +264,9 @@ func (s *Scanner) ScanAll(forceFull bool) (store.GlobalStats, error) {
 				ModTime:     info.ModTime().UnixNano(),
 				Lines:       lines,
 				LastScanned: now,
+				FileUID:     fileUID,
+				RelPath:     relPath,
+				ContentHash: hashStr,
 			}
 			s.st.SetFile(record)
 			folderLineCount += lines
@@ -379,9 +405,13 @@ func (s *Scanner) ProcessBatch(paths []string) bool {
 		cached, exists := s.st.GetFile(a.path)
 		if exists && cached.Inode != 0 &&
 			cached.Size == a.info.Size() && cached.ModTime == a.info.ModTime().UnixNano() {
+			if cached.FileUID == "" {
+				cached.FileUID, cached.RelPath = DetermineFileIdentity(a.path, folder)
+				s.st.SetFile(cached)
+			}
 			continue // 未变化（Inode==0 的旧记录会走一次重算以补齐 inode）
 		}
-		lines, err := FastCountLines(a.path)
+		lines, hashStr, err := FastCountLinesAndHash(a.path)
 		if err != nil {
 			if err == errSkip && exists {
 				s.st.DeleteFile(a.path)
@@ -390,6 +420,7 @@ func (s *Scanner) ProcessBatch(paths []string) bool {
 			}
 			continue
 		}
+		fileUID, relPath := DetermineFileIdentity(a.path, folder)
 		rec := store.FileRecord{
 			Path:        a.path,
 			Folder:      folder,
@@ -399,6 +430,9 @@ func (s *Scanner) ProcessBatch(paths []string) bool {
 			ModTime:     a.info.ModTime().UnixNano(),
 			Lines:       lines,
 			LastScanned: now,
+			FileUID:     fileUID,
+			RelPath:     relPath,
+			ContentHash: hashStr,
 		}
 		if !exists && ino != 0 {
 			if oldPath, hit := goneByInode[ino]; hit {
@@ -482,11 +516,15 @@ func (s *Scanner) ProcessChangedFile(path string) (bool, error) {
 	// 增量命中判定：文件大小与修改时间与缓存一致则直接跳过，零 CPU / 零磁盘读取开销
 	cached, exists := s.st.GetFile(cleanPath)
 	if exists && cached.Size == info.Size() && cached.ModTime == info.ModTime().UnixNano() {
+		if cached.FileUID == "" {
+			cached.FileUID, cached.RelPath = DetermineFileIdentity(cleanPath, folderPath)
+			s.st.SetFile(cached)
+		}
 		return false, nil
 	}
 
 	// 仅读取并统计该单个变动文件
-	lines, err := FastCountLines(cleanPath)
+	lines, hashStr, err := FastCountLinesAndHash(cleanPath)
 	if err != nil {
 		if err == errSkip && exists {
 			s.st.DeleteFile(cleanPath)
@@ -498,6 +536,7 @@ func (s *Scanner) ProcessChangedFile(path string) (bool, error) {
 	}
 
 	now := time.Now()
+	fileUID, relPath := DetermineFileIdentity(cleanPath, folderPath)
 	rec := store.FileRecord{
 		Path:        cleanPath,
 		Folder:      folderPath,
@@ -507,6 +546,9 @@ func (s *Scanner) ProcessChangedFile(path string) (bool, error) {
 		ModTime:     info.ModTime().UnixNano(),
 		Lines:       lines,
 		LastScanned: now,
+		FileUID:     fileUID,
+		RelPath:     relPath,
+		ContentHash: hashStr,
 	}
 	s.st.SetFile(rec)
 	s.st.RecalculateStats(now)

@@ -380,6 +380,47 @@ def init_db():
             );
         """)
 
+        # 12. 用户多端设备表 (Agent Devices)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_devices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                device_id TEXT NOT NULL,
+                device_name TEXT DEFAULT '',
+                platform TEXT DEFAULT '',
+                agent_version TEXT DEFAULT '',
+                last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, device_id),
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_devices_uid ON user_devices(user_id);")
+
+        # 13. 多端文件资产总账本 (Multi-Device User Code Files - 用于跨端去重累加)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_code_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                device_id TEXT NOT NULL,
+                file_uid TEXT NOT NULL,
+                file_name TEXT DEFAULT '',
+                relative_path TEXT DEFAULT '',
+                language TEXT DEFAULT '',
+                lines INTEGER DEFAULT 0,
+                base_lines INTEGER DEFAULT 0,
+                base_date TEXT DEFAULT '',
+                content_hash TEXT DEFAULT '',
+                mtime INTEGER DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, device_id, file_uid),
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_code_files_lookup ON user_code_files(user_id, file_uid);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_code_files_hash ON user_code_files(user_id, content_hash);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_code_files_rel ON user_code_files(user_id, relative_path);")
+
         # 为主账户填充默认配置（如果缺失）
         default_configs = {
             "cf_handle": "",
@@ -1710,24 +1751,209 @@ def get_upcoming_contests(platform: str = "all", limit: int = 60) -> List[Dict[s
         return rows
 
 def save_local_code_stats(user_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
-    """保存或更新用户本地代码统计数据（由 macOS oiboard-agent 同步）"""
-    total_lines = int(data.get("total_lines", 0))
-    today_lines = int(data.get("today_lines", 0))
-    total_files = int(data.get("total_files", 0))
-    today_files = int(data.get("today_files", 0))
-    c_lines = int(data.get("c_lines", 0))
-    c_files = int(data.get("c_files", 0))
-    cpp_lines = int(data.get("cpp_lines", 0))
-    cpp_files = int(data.get("cpp_files", 0))
-    java_lines = int(data.get("java_lines", 0))
-    java_files = int(data.get("java_files", 0))
-    folders = data.get("folders", [])
-    folders_json = json.dumps(folders, ensure_ascii=False) if isinstance(folders, list) else str(folders)
+    """保存或更新用户本地代码统计数据（支持多端设备上报、智能去重与聚合）"""
+    device_id = str(data.get("device_id") or "").strip()
+    device_name = str(data.get("device_name") or "").strip()
+    platform = str(data.get("platform") or "").strip()
+    sync_mode = str(data.get("sync_mode") or "aggregate").strip()
+    files = data.get("files")
     synced_at = data.get("synced_at") or get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
     today_str = get_beijing_now().strftime("%Y-%m-%d")
 
     with get_connection() as conn:
         cursor = conn.cursor()
+
+        # 1. 如果上报了多端明细文件 files 且带有 device_id
+        if files is not None and device_id:
+            # 登记/更新设备信息
+            cursor.execute("""
+                INSERT INTO user_devices (user_id, device_id, device_name, platform, last_seen_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id, device_id) DO UPDATE SET
+                    device_name = CASE WHEN excluded.device_name != '' THEN excluded.device_name ELSE user_devices.device_name END,
+                    platform = CASE WHEN excluded.platform != '' THEN excluded.platform ELSE user_devices.platform END,
+                    last_seen_at = CURRENT_TIMESTAMP;
+            """, (user_id, device_id, device_name, platform))
+
+            incoming_uids = set()
+            for item in files:
+                fuid = str(item.get("file_uid") or "").strip()
+                if not fuid:
+                    continue
+                is_deleted = bool(item.get("is_deleted", False))
+                if is_deleted:
+                    cursor.execute("""
+                        DELETE FROM user_code_files
+                        WHERE user_id = ? AND device_id = ? AND file_uid = ?;
+                    """, (user_id, device_id, fuid))
+                    continue
+
+                incoming_uids.add(fuid)
+                fname = str(item.get("file_name") or "")
+                rel_path = str(item.get("relative_path") or "")
+                lang = str(item.get("language") or "")
+                lines = int(item.get("lines") or 0)
+                base_lines = int(item.get("base_lines") or 0)
+                base_date = str(item.get("base_date") or "")
+                content_hash = str(item.get("content_hash") or "")
+                mtime = int(item.get("mtime") or 0)
+
+                cursor.execute("""
+                    INSERT INTO user_code_files (
+                        user_id, device_id, file_uid, file_name, relative_path,
+                        language, lines, base_lines, base_date, content_hash, mtime, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(user_id, device_id, file_uid) DO UPDATE SET
+                        file_name = excluded.file_name,
+                        relative_path = excluded.relative_path,
+                        language = excluded.language,
+                        lines = excluded.lines,
+                        base_lines = excluded.base_lines,
+                        base_date = excluded.base_date,
+                        content_hash = excluded.content_hash,
+                        mtime = excluded.mtime,
+                        updated_at = CURRENT_TIMESTAMP;
+                """, (
+                    user_id, device_id, fuid, fname, rel_path,
+                    lang, lines, base_lines, base_date, content_hash, mtime
+                ))
+
+            # 若为全量对账 (full)，清理该设备上已被删除、不再上报的孤儿文件
+            if sync_mode == "full":
+                cursor.execute("SELECT file_uid FROM user_code_files WHERE user_id = ? AND device_id = ?;", (user_id, device_id))
+                existing_uids = [row["file_uid"] for row in cursor.fetchall()]
+                orphans = [u for u in existing_uids if u not in incoming_uids]
+                if orphans:
+                    for i in range(0, len(orphans), 500):
+                        batch = orphans[i:i+500]
+                        placeholders = ",".join("?" for _ in batch)
+                        cursor.execute(f"""
+                            DELETE FROM user_code_files
+                            WHERE user_id = ? AND device_id = ? AND file_uid IN ({placeholders});
+                        """, [user_id, device_id] + batch)
+
+            # 2. 从多端总账本计算智能去重聚合数据
+            # 规则：
+            # (A) Git 仓库文件以 file_uid (git:origin:relpath) 去重；
+            # (B) 普通文件若内容哈希 content_hash 相同，以内容哈希去重；
+            # (C) 否则以工程相对路径 relative_path 去重；
+            # 同组内取最新 mtime / 最大代码行数的版本。
+            cursor.execute("""
+                WITH ranked_files AS (
+                    SELECT
+                        CASE
+                            WHEN file_uid LIKE 'git:%' THEN file_uid
+                            WHEN content_hash != '' THEN 'hash:' || content_hash
+                            ELSE 'rel:' || relative_path
+                        END AS dedup_key,
+                        language,
+                        lines,
+                        base_lines,
+                        base_date,
+                        mtime,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY CASE
+                                WHEN file_uid LIKE 'git:%' THEN file_uid
+                                WHEN content_hash != '' THEN 'hash:' || content_hash
+                                ELSE 'rel:' || relative_path
+                            END
+                            ORDER BY mtime DESC, lines DESC
+                        ) AS rn
+                    FROM user_code_files
+                    WHERE user_id = ?
+                )
+                SELECT
+                    dedup_key,
+                    language,
+                    lines,
+                    base_lines,
+                    base_date,
+                    mtime
+                FROM ranked_files
+                WHERE rn = 1;
+            """, (user_id,))
+            deduped_rows = cursor.fetchall()
+
+            total_files = len(deduped_rows)
+            total_lines = 0
+            c_lines = 0
+            c_files = 0
+            cpp_lines = 0
+            cpp_files = 0
+            java_lines = 0
+            java_files = 0
+            today_lines = 0
+            today_files = 0
+
+            today_start = get_beijing_now().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start_ms = int(today_start.timestamp() * 1000)
+
+            for r in deduped_rows:
+                ln = int(r["lines"] or 0)
+                bl = int(r["base_lines"] or 0)
+                bd = str(r["base_date"] or "")
+                mt = int(r["mtime"] or 0)
+                lang = str(r["language"] or "").lower()
+
+                total_lines += ln
+                if lang == "c":
+                    c_lines += ln
+                    c_files += 1
+                elif lang == "cpp":
+                    cpp_lines += ln
+                    cpp_files += 1
+                elif lang == "java":
+                    java_lines += ln
+                    java_files += 1
+
+                # 统一转换 mtime 为毫秒
+                mt_ms = mt
+                if mt > 10**16:  # 纳秒
+                    mt_ms = mt // 1_000_000
+                elif mt < 10**11:  # 秒
+                    mt_ms = mt * 1000
+
+                is_modified_today = (mt_ms >= today_start_ms)
+                if bd == today_str:
+                    delta = max(0, ln - bl)
+                elif is_modified_today:
+                    delta = ln
+                else:
+                    delta = 0
+
+                if delta > 0 or is_modified_today:
+                    today_lines += delta
+                    today_files += 1
+
+            # 聚合各设备的监控目录
+            folders = data.get("folders", [])
+            cursor.execute("SELECT folders_json FROM local_code_stats WHERE user_id = ?;", (user_id,))
+            old_row = cursor.fetchone()
+            merged_folders = set(folders if isinstance(folders, list) else [])
+            if old_row and old_row["folders_json"]:
+                try:
+                    for f in json.loads(old_row["folders_json"]):
+                        merged_folders.add(f)
+                except Exception:
+                    pass
+            folders_json = json.dumps(sorted(list(merged_folders)), ensure_ascii=False)
+
+        else:
+            # 兼容旧版单一 Agent 纯数字上报
+            total_lines = int(data.get("total_lines", 0))
+            today_lines = int(data.get("today_lines", 0))
+            total_files = int(data.get("total_files", 0))
+            today_files = int(data.get("today_files", 0))
+            c_lines = int(data.get("c_lines", 0))
+            c_files = int(data.get("c_files", 0))
+            cpp_lines = int(data.get("cpp_lines", 0))
+            cpp_files = int(data.get("cpp_files", 0))
+            java_lines = int(data.get("java_lines", 0))
+            java_files = int(data.get("java_files", 0))
+            folders = data.get("folders", [])
+            folders_json = json.dumps(folders, ensure_ascii=False) if isinstance(folders, list) else str(folders)
+
+        # 写入 local_code_stats 汇总缓存
         cursor.execute("""
             INSERT INTO local_code_stats (
                 user_id, total_lines, today_lines, total_files, today_files,
@@ -1768,13 +1994,24 @@ def save_local_code_stats(user_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
     return get_local_code_stats(user_id)
 
 def get_local_code_stats(user_id: int) -> Dict[str, Any]:
-    """获取用户的本地代码统计数据"""
+    """获取用户的本地代码统计数据（附带多端设备列表与状态）"""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT * FROM local_code_stats WHERE user_id = ?;
         """, (user_id,))
         row = cursor.fetchone()
+
+        # 查询绑定的多端设备
+        cursor.execute("""
+            SELECT device_id, device_name, platform, agent_version, last_seen_at
+            FROM user_devices
+            WHERE user_id = ?
+            ORDER BY last_seen_at DESC;
+        """, (user_id,))
+        devices_rows = cursor.fetchall()
+        devices = [dict(r) for r in devices_rows]
+
         if not row:
             return {
                 "total_lines": 0,
@@ -1788,6 +2025,8 @@ def get_local_code_stats(user_id: int) -> Dict[str, Any]:
                 "java_lines": 0,
                 "java_files": 0,
                 "folders": [],
+                "devices": devices,
+                "device_count": len(devices),
                 "synced_at": "",
                 "has_data": False
             }
@@ -1797,6 +2036,8 @@ def get_local_code_stats(user_id: int) -> Dict[str, Any]:
         except Exception:
             d["folders"] = []
         d["has_data"] = (d["total_lines"] > 0 or d["total_files"] > 0)
+        d["devices"] = devices
+        d["device_count"] = len(devices)
 
         # 跨天安全校验：若上次同步时间不是今日（北京时间），则今日新增行数与变动文件视作 0
         synced_at = d.get("synced_at") or ""

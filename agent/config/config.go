@@ -1,7 +1,11 @@
 package config
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -26,6 +30,8 @@ type ConfigData struct {
 	AutoSyncIntervalSec int            `json:"auto_sync_interval_sec"`
 	AutoScan            bool           `json:"auto_scan"`
 	AutoScanIntervalSec int            `json:"auto_scan_interval_sec"`
+	DeviceID            string         `json:"device_id"`
+	DeviceName          string         `json:"device_name"`
 	Folders             []FolderConfig `json:"folders"`
 }
 
@@ -35,7 +41,27 @@ type Config struct {
 	mu       sync.RWMutex
 }
 
+func generateDeviceID() string {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		h := sha256.Sum256([]byte(fmt.Sprintf("%d-%d", time.Now().UnixNano(), os.Getpid())))
+		return "dev_" + hex.EncodeToString(h[:8])
+	}
+	return "dev_" + hex.EncodeToString(b)
+}
+
+func defaultDeviceName(devID string) string {
+	if h, err := os.Hostname(); err == nil && h != "" {
+		return h
+	}
+	if len(devID) > 8 {
+		return "Agent-" + devID[:8]
+	}
+	return "Agent-Host"
+}
+
 func DefaultConfig(filePath string) *Config {
+	devID := generateDeviceID()
 	return &Config{
 		ConfigData: ConfigData{
 			ServerURL:           "http://198.44.63.140:2053",
@@ -45,6 +71,8 @@ func DefaultConfig(filePath string) *Config {
 			AutoSyncIntervalSec: 60,
 			AutoScan:            true,
 			AutoScanIntervalSec: 30,
+			DeviceID:            devID,
+			DeviceName:          defaultDeviceName(devID),
 			Folders:             []FolderConfig{},
 		},
 		filePath: filePath,
@@ -64,9 +92,8 @@ func LoadConfig(filePath string) (*Config, error) {
 	}
 
 	cfg.mu.Lock()
-	defer cfg.mu.Unlock()
-
 	if err := json.Unmarshal(data, &cfg.ConfigData); err != nil {
+		cfg.mu.Unlock()
 		return nil, err
 	}
 	cfg.filePath = filePath
@@ -78,6 +105,20 @@ func LoadConfig(filePath string) (*Config, error) {
 	}
 	if cfg.AutoSyncIntervalSec <= 0 {
 		cfg.AutoSyncIntervalSec = 60
+	}
+	needSave := false
+	if cfg.DeviceID == "" {
+		cfg.DeviceID = generateDeviceID()
+		needSave = true
+	}
+	if cfg.DeviceName == "" {
+		cfg.DeviceName = defaultDeviceName(cfg.DeviceID)
+		needSave = true
+	}
+	cfg.mu.Unlock()
+
+	if needSave {
+		_ = cfg.Save()
 	}
 	return cfg, nil
 }
@@ -123,6 +164,8 @@ type SafeConfigData struct {
 	AutoSyncIntervalSec int            `json:"auto_sync_interval_sec"`
 	AutoScan            bool           `json:"auto_scan"`
 	AutoScanIntervalSec int            `json:"auto_scan_interval_sec"`
+	DeviceID            string         `json:"device_id"`
+	DeviceName          string         `json:"device_name"`
 	Folders             []FolderConfig `json:"folders"`
 }
 
@@ -137,6 +180,8 @@ func (c *Config) GetSafe() SafeConfigData {
 		AutoSyncIntervalSec: raw.AutoSyncIntervalSec,
 		AutoScan:            raw.AutoScan,
 		AutoScanIntervalSec: raw.AutoScanIntervalSec,
+		DeviceID:            raw.DeviceID,
+		DeviceName:          raw.DeviceName,
 		Folders:             raw.Folders,
 	}
 }
@@ -152,6 +197,8 @@ func (c *Config) Get() ConfigData {
 		AutoSyncIntervalSec: c.AutoSyncIntervalSec,
 		AutoScan:            c.AutoScan,
 		AutoScanIntervalSec: c.AutoScanIntervalSec,
+		DeviceID:            c.DeviceID,
+		DeviceName:          c.DeviceName,
 		Folders:             append([]FolderConfig(nil), c.Folders...),
 	}
 }

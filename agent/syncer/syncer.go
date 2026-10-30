@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"oiboard-agent/config"
+	"oiboard-agent/scanner"
 	"oiboard-agent/store"
 )
 
@@ -31,19 +34,37 @@ func NewSyncer(cfg *config.Config, st *store.Store) *Syncer {
 	}
 }
 
+type FileSyncItem struct {
+	FileUID      string `json:"file_uid"`
+	FileName     string `json:"file_name"`
+	RelativePath string `json:"relative_path"`
+	Language     string `json:"language"`
+	Lines        int    `json:"lines"`
+	BaseLines    int    `json:"base_lines"`
+	BaseDate     string `json:"base_date"`
+	ContentHash  string `json:"content_hash"`
+	ModTime      int64  `json:"mtime"`
+	IsDeleted    bool   `json:"is_deleted,omitempty"`
+}
+
 type SyncPayload struct {
-	TotalLines int      `json:"total_lines"`
-	TodayLines int      `json:"today_lines"`
-	TotalFiles int      `json:"total_files"`
-	TodayFiles int      `json:"today_files"`
-	CLines     int      `json:"c_lines"`
-	CFiles     int      `json:"c_files"`
-	CPPLines   int      `json:"cpp_lines"`
-	CPPFiles   int      `json:"cpp_files"`
-	JavaLines  int      `json:"java_lines"`
-	JavaFiles  int      `json:"java_files"`
-	Folders    []string `json:"folders"`
-	SyncedAt   string   `json:"synced_at"`
+	TotalLines int            `json:"total_lines"`
+	TodayLines int            `json:"today_lines"`
+	TotalFiles int            `json:"total_files"`
+	TodayFiles int            `json:"today_files"`
+	CLines     int            `json:"c_lines"`
+	CFiles     int            `json:"c_files"`
+	CPPLines   int            `json:"cpp_lines"`
+	CPPFiles   int            `json:"cpp_files"`
+	JavaLines  int            `json:"java_lines"`
+	JavaFiles  int            `json:"java_files"`
+	Folders    []string       `json:"folders"`
+	SyncedAt   string         `json:"synced_at"`
+	DeviceID   string         `json:"device_id"`
+	DeviceName string         `json:"device_name"`
+	Platform   string         `json:"platform"`
+	SyncMode   string         `json:"sync_mode"`
+	Files      []FileSyncItem `json:"files,omitempty"`
 }
 
 func normalizeServerURL(raw string) string {
@@ -78,6 +99,35 @@ func (s *Syncer) SyncNow(ctx context.Context) error {
 		}
 	}
 
+	allFiles := s.st.GetAllFiles()
+	baseDate := s.st.GetBaseDate()
+	if baseDate == "" {
+		baseDate = time.Now().Format("2006-01-02")
+	}
+
+	filesPayload := make([]FileSyncItem, 0, len(allFiles))
+	for _, rec := range allFiles {
+		fuid := rec.FileUID
+		rel := rec.RelPath
+		if fuid == "" {
+			fuid, rel = scanner.DetermineFileIdentity(rec.Path, rec.Folder)
+		}
+		fname := filepath.Base(rec.Path)
+		modTimeMs := rec.ModTime / 1_000_000
+
+		filesPayload = append(filesPayload, FileSyncItem{
+			FileUID:      fuid,
+			FileName:     fname,
+			RelativePath: rel,
+			Language:     rec.Ext,
+			Lines:        rec.Lines,
+			BaseLines:    rec.BaseLines,
+			BaseDate:     baseDate,
+			ContentHash:  rec.ContentHash,
+			ModTime:      modTimeMs,
+		})
+	}
+
 	payload := SyncPayload{
 		TotalLines: stats.TotalLines,
 		TodayLines: stats.TodayLines,
@@ -91,6 +141,11 @@ func (s *Syncer) SyncNow(ctx context.Context) error {
 		JavaFiles:  stats.JavaFiles,
 		Folders:    folders,
 		SyncedAt:   time.Now().Format("2006-01-02 15:04:05"),
+		DeviceID:   cfgSnap.DeviceID,
+		DeviceName: cfgSnap.DeviceName,
+		Platform:   runtime.GOOS,
+		SyncMode:   "full",
+		Files:      filesPayload,
 	}
 
 	bodyBytes, err := json.Marshal(payload)
