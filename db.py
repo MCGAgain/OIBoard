@@ -1833,46 +1833,67 @@ def save_local_code_stats(user_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
                         """, [user_id, device_id] + batch)
 
             # 2. 从多端总账本计算智能去重聚合数据
-            # 规则：
-            # (A) Git 仓库文件以 file_uid (git:origin:relpath) 去重；
-            # (B) 普通文件若内容哈希 content_hash 相同，以内容哈希去重；
-            # (C) 否则以工程相对路径 relative_path 去重；
-            # 同组内取最新 mtime / 最大代码行数的版本。
-            cursor.execute("""
-                WITH ranked_files AS (
-                    SELECT
-                        CASE
-                            WHEN file_uid LIKE 'git:%' THEN file_uid
-                            WHEN content_hash != '' THEN 'hash:' || content_hash
-                            ELSE 'rel:' || relative_path
-                        END AS dedup_key,
-                        language,
-                        lines,
-                        base_lines,
-                        base_date,
-                        mtime,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY CASE
-                                WHEN file_uid LIKE 'git:%' THEN file_uid
-                                WHEN content_hash != '' THEN 'hash:' || content_hash
-                                ELSE 'rel:' || relative_path
-                            END
-                            ORDER BY mtime DESC, lines DESC
-                        ) AS rn
-                    FROM user_code_files
-                    WHERE user_id = ?
-                )
-                SELECT
-                    dedup_key,
-                    language,
-                    lines,
-                    base_lines,
-                    base_date,
-                    mtime
-                FROM ranked_files
-                WHERE rn = 1;
-            """, (user_id,))
-            deduped_rows = cursor.fetchall()
+            # 智能对齐规则（满足任一条件即视为同一代码文件）：
+            # (A) 内容哈希 content_hash 相同（且非空） -> 代码内容完全一致的镜像/拷贝
+            # (B) 工程相对路径 relative_path 相同（且非空） -> 同一源码文件的不同版本/多端同步
+            # (C) Git 仓库唯一键 file_uid 相同 -> 同一仓库同一文件
+            # 采用连通分支聚类，每一类取最新修改时间（mtime）且代码行数最大的版本作为权威版本。
+            cursor.execute("SELECT * FROM user_code_files WHERE user_id = ?;", (user_id,))
+            all_rows = cursor.fetchall()
+
+            parent = list(range(len(all_rows)))
+            def find(i):
+                path = []
+                while parent[i] != i:
+                    path.append(i)
+                    i = parent[i]
+                for node in path:
+                    parent[node] = i
+                return i
+
+            def union(i, j):
+                pi, pj = find(i), find(j)
+                if pi != pj:
+                    parent[pi] = pj
+
+            hash_map = {}
+            rel_map = {}
+            uid_map = {}
+
+            for idx, r in enumerate(all_rows):
+                ch = str(r["content_hash"] or "").strip()
+                rel = str(r["relative_path"] or "").strip()
+                fuid = str(r["file_uid"] or "").strip()
+
+                if ch:
+                    if ch in hash_map:
+                        union(idx, hash_map[ch])
+                    else:
+                        hash_map[ch] = idx
+
+                if rel:
+                    if rel in rel_map:
+                        union(idx, rel_map[rel])
+                    else:
+                        rel_map[rel] = idx
+
+                if fuid:
+                    if fuid in uid_map:
+                        union(idx, uid_map[fuid])
+                    else:
+                        uid_map[fuid] = idx
+
+            clusters = {}
+            for idx, r in enumerate(all_rows):
+                root = find(idx)
+                if root not in clusters:
+                    clusters[root] = []
+                clusters[root].append(r)
+
+            deduped_rows = []
+            for root, file_list in clusters.items():
+                best = max(file_list, key=lambda f: (int(f["mtime"] or 0), int(f["lines"] or 0)))
+                deduped_rows.append(best)
 
             total_files = len(deduped_rows)
             total_lines = 0

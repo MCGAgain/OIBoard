@@ -232,6 +232,13 @@ func (s *Scanner) ScanAll(forceFull bool) (store.GlobalStats, error) {
 					cached.FileUID, cached.RelPath = DetermineFileIdentity(cleanPath, folderPath)
 					updated = true
 				}
+				if cached.ContentHash == "" {
+					_, hashStr, err := FastCountLinesAndHash(cleanPath)
+					if err == nil && hashStr != "" {
+						cached.ContentHash = hashStr
+						updated = true
+					}
+				}
 				if updated {
 					s.st.SetFile(cached)
 				}

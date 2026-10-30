@@ -112,6 +112,10 @@ func (s *Syncer) SyncNow(ctx context.Context) error {
 		if fuid == "" {
 			fuid, rel = scanner.DetermineFileIdentity(rec.Path, rec.Folder)
 		}
+		ch := rec.ContentHash
+		if ch == "" {
+			_, ch, _ = scanner.FastCountLinesAndHash(rec.Path)
+		}
 		fname := filepath.Base(rec.Path)
 		modTimeMs := rec.ModTime / 1_000_000
 
@@ -123,7 +127,7 @@ func (s *Syncer) SyncNow(ctx context.Context) error {
 			Lines:        rec.Lines,
 			BaseLines:    rec.BaseLines,
 			BaseDate:     baseDate,
-			ContentHash:  rec.ContentHash,
+			ContentHash:  ch,
 			ModTime:      modTimeMs,
 		})
 	}
