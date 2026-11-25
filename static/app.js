@@ -116,6 +116,7 @@ createApp({
     const heatmapFilter = ref("all");
     const selectedHeatmapYear = ref(new Date().getFullYear());
     const availableHeatmapYears = ref([new Date().getFullYear()]);
+    const heatmapLegendTips = ref(["1 次提交", "2-3 次提交", "4-6 次提交", "≥7 次提交"]);
     const tagStats = ref([]);
     const mistakes = ref([]);
     const dueMistakesList = ref([]);
@@ -1674,45 +1675,86 @@ createApp({
         .filter(item => item.date && item.date.startsWith(`${targetYear}`))
         .map(item => [item.date, item.count, item.unique_ac || 0]);
 
+      // GitHub 风格分位数自适应 4 阶色深（确保不同刷题强度下 4 个绿色阶梯都清晰可辨）
+      const nonZeroCounts = heatMapData
+        .map(item => item[1] || 0)
+        .filter(v => v > 0)
+        .sort((a, b) => a - b);
+
+      let t1 = 1, t2 = 3, t3 = 6;
+      if (nonZeroCounts.length >= 4) {
+        const q25 = nonZeroCounts[Math.floor((nonZeroCounts.length - 1) * 0.25)];
+        const q50 = nonZeroCounts[Math.floor((nonZeroCounts.length - 1) * 0.50)];
+        const q75 = nonZeroCounts[Math.floor((nonZeroCounts.length - 1) * 0.75)];
+        t1 = Math.max(1, q25);
+        t2 = Math.max(t1 + 1, q50);
+        t3 = Math.max(t2 + 1, q75);
+      }
+
+      heatmapLegendTips.value = [
+        t1 === 1 ? "1 次提交" : `1-${t1} 次提交`,
+        t1 + 1 === t2 ? `${t2} 次提交` : `${t1 + 1}-${t2} 次提交`,
+        t2 + 1 === t3 ? `${t3} 次提交` : `${t2 + 1}-${t3} 次提交`,
+        `≥${t3 + 1} 次提交`
+      ];
+
+      // GitHub 官方单色绿调色板（浅色/深色）
+      const ghPalette = dark
+        ? {
+            empty: "#1b2028",
+            gap: "#13161c",
+            l1: "#0e4429",
+            l2: "#006d32",
+            l3: "#26a641",
+            l4: "#39d353"
+          }
+        : {
+            empty: "#ebedf0",
+            gap: "#ffffff",
+            l1: "#9be9a8",
+            l2: "#40c463",
+            l3: "#30a14e",
+            l4: "#216e39"
+          };
+
       const option = {
         tooltip: {
           trigger: "item",
           appendToBody: true,
           confine: false,
           padding: [9, 14],
-          backgroundColor: dark ? "rgba(20, 20, 22, 0.96)" : "rgba(255, 255, 255, 0.96)",
+          backgroundColor: dark ? "rgba(22, 27, 34, 0.96)" : "rgba(255, 255, 255, 0.96)",
           borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
           borderWidth: 1,
           textStyle: {
-            color: dark ? "#f5f5f7" : "#1d1d1f",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+            color: dark ? "#e6edf3" : "#1f2328",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", sans-serif',
             fontSize: getChartFontSize(12)
           },
-          extraCssText: "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
+          extraCssText: "border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
           formatter: function (p) {
             const date = p.value[0];
             const subs = p.value[1] || 0;
             const ac = p.value[2] || 0;
-            let html = `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${date}</div>`;
-            html += `<div class="text-xs font-bold mt-1 font-sans" style="color: ${dark ? '#2997ff' : '#0071e3'};">提交: ${subs} 次</div>`;
+            let html = `<div class="font-mono text-xs font-semibold" style="color: ${dark ? '#9ca3af' : '#656d76'}">${date}</div>`;
+            html += `<div class="text-xs font-bold mt-1 font-sans" style="color: ${dark ? '#39d353' : '#1a7f37'};">提交: ${subs} 次</div>`;
             if (ac > 0) {
-              html += `<div class="text-xs font-bold mt-0.5 font-sans" style="color: ${dark ? '#30d158' : '#34c759'};">通过: ${ac} 题</div>`;
+              html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color: ${dark ? '#9ca3af' : '#57606a'};">通过: ${ac} 题</div>`;
             }
             return html;
           }
         },
         visualMap: {
+          type: "piecewise",
           show: false,
-          min: 1,
-          max: 10,
-          inRange: {
-            color: dark 
-              ? ["#0a2e4a", "#0f5a8a", "#1a85cc", "#2997ff"]
-              : ["#bae6fd", "#38bdf8", "#0284c7", "#0071e3"]
-          },
-          outOfRange: {
-            color: dark ? "#161618" : "#ebedf0"
-          }
+          dimension: 1,
+          pieces: [
+            { max: 0, color: ghPalette.empty },
+            { min: 1, max: t1, color: ghPalette.l1 },
+            { min: t1 + 1, max: t2, color: ghPalette.l2 },
+            { min: t2 + 1, max: t3, color: ghPalette.l3 },
+            { min: t3 + 1, color: ghPalette.l4 }
+          ]
         },
         calendar: {
           top: topOffset,
@@ -1720,30 +1762,36 @@ createApp({
           cellSize: [cellSize, cellSize], /* 动态正方形单元格 [cellSize, cellSize] 严格 1:1 */
           range: [startDateStr, endDateStr],
           itemStyle: {
-            color: dark ? "#161618" : "#ebedf0",
-            borderColor: dark ? "#000000" : "#ffffff",
-            borderWidth: cellSize >= 26 ? 3 : 2,
-            borderRadius: Math.max(2, Math.round(cellSize * 0.18))
+            color: ghPalette.empty,
+            borderColor: ghPalette.gap,
+            borderWidth: cellSize >= 26 ? 3.5 : 2.5,
+            borderRadius: Math.max(2, Math.round(cellSize * 0.2))
           },
           splitLine: { show: false },
           yearLabel: { show: false },
           dayLabel: {
             firstDay: 1,
             nameMap: ["日", "一", "二", "三", "四", "五", "六"],
-            color: dark ? "#6e6e73" : "#86868b",
-            fontSize: Math.max(10, Math.min(16, Math.round(cellSize * 0.46))),
+            color: dark ? "#7d8590" : "#656d76",
+            fontSize: Math.max(10, Math.min(15, Math.round(cellSize * 0.44))),
             fontFamily: "JetBrains Mono"
           },
           monthLabel: {
-            color: dark ? "#a1a1a6" : "#6e6e73",
-            fontSize: Math.max(11, Math.min(17, Math.round(cellSize * 0.50))),
+            color: dark ? "#8b949e" : "#57606a",
+            fontSize: Math.max(11, Math.min(16, Math.round(cellSize * 0.48))),
             fontFamily: "JetBrains Mono"
           }
         },
         series: [{
           type: "heatmap",
           coordinateSystem: "calendar",
-          data: heatMapData
+          data: heatMapData,
+          emphasis: {
+            itemStyle: {
+              borderColor: dark ? "#8b949e" : "#1f2328",
+              borderWidth: 1.5
+            }
+          }
         }]
       };
 
@@ -3335,6 +3383,7 @@ createApp({
       heatmapFilter,
       selectedHeatmapYear,
       availableHeatmapYears,
+      heatmapLegendTips,
       setHeatmapYear,
       tagStats,
       submissions,
