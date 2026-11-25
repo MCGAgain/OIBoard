@@ -553,7 +553,11 @@ function initEventHandlers() {
 
   document.getElementById('theme-toggle')?.addEventListener('click', () => {
     const next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
-    applyTheme(next);
+    if (typeof document.startViewTransition === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      document.startViewTransition(() => applyTheme(next));
+    } else {
+      applyTheme(next);
+    }
   });
 }
 

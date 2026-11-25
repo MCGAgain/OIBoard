@@ -1,93 +1,96 @@
-/* OIBoard - Minimalist Algorithmic Design System (Light & Dark, Ultra-Low CPU/GPU) */
+/* OIBoard - Hydro OJ Inspired Minimalist Algorithmic Design System (Light & Dark, Low CPU/GPU) */
 
 [v-cloak] {
   display: none !important;
 }
 
 :root {
-  /* Light Mode (Architectural Slate) */
-  --bg-canvas: #f8fafc;
+  /* Light Mode (Hydro Clean Paper & Crisp Hairlines) */
+  --bg-canvas: #f3f4f6;
   --bg-surface: #ffffff;
   --bg-card: #ffffff;
   --card-bg: #ffffff;
   --bg-card-hover: #ffffff;
-  --bg-subtle: #f1f5f9;
-  --bg-nav: rgba(248, 250, 252, 0.96);
+  --bg-subtle: #f7f8fa;
+  --bg-hover: rgba(15, 23, 42, 0.035);
+  --bg-nav: #ffffff;
   --bg-sidebar: #ffffff;
 
-  --border-subtle: rgba(15, 23, 42, 0.08);
-  --border-hover: rgba(15, 23, 42, 0.16);
-  --border-bold: rgba(15, 23, 42, 0.18);
-  --border-strong: rgba(15, 23, 42, 0.24);
-  --border-accent: rgba(37, 99, 235, 0.35);
+  --border-subtle: #e5e7eb;
+  --border-hover: #d1d5db;
+  --border-bold: #cbd5e1;
+  --border-strong: #94a3b8;
+  --border-accent: rgba(41, 121, 255, 0.35);
 
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-tertiary: #64748b;
-  --text-muted: #94a3b8;
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --text-tertiary: #6b7280;
+  --text-muted: #9ca3af;
 
-  /* Semantic Accent Palette */
-  --primary: #2563eb;
-  --apple-blue: #2563eb;
-  --apple-blue-hover: #1d4ed8;
-  --apple-blue-subtle: rgba(37, 99, 235, 0.10);
+  /* Hydro Restrained Semantic Colors (No loud neon red) */
+  --primary: #2979ff;
+  --apple-blue: #2979ff;
+  --apple-blue-hover: #1d64e0;
+  --apple-blue-subtle: rgba(41, 121, 255, 0.09);
   --apple-cyan: #0891b2;
-  --apple-green: #059669;
-  --apple-green-subtle: rgba(16, 185, 129, 0.12);
+  --apple-green: #25ad40;
+  --apple-green-subtle: rgba(37, 173, 64, 0.10);
   --apple-orange: #d97706;
-  --apple-orange-subtle: rgba(245, 158, 11, 0.12);
-  --apple-red: #dc2626;
-  --apple-red-subtle: rgba(239, 68, 68, 0.12);
-  --apple-purple: #7c3aed;
-  --apple-purple-subtle: rgba(124, 58, 237, 0.12);
+  --apple-orange-subtle: rgba(217, 119, 6, 0.10);
+  --apple-red: #b94a48;
+  --apple-red-subtle: rgba(185, 74, 72, 0.08);
+  --apple-purple: #6d5ce7;
+  --apple-purple-subtle: rgba(109, 92, 231, 0.10);
   --apple-indigo: #4f46e5;
 
   --shadow-ambient: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-hover: 0 6px 18px rgba(15, 23, 42, 0.07);
-  --shadow-pill: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-hover: 0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-pill: 0 1px 2px rgba(15, 23, 42, 0.05);
 
-  --transition-fast: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, opacity 0.16s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-hydro: cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-fast: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, opacity 0.16s ease, transform 0.18s var(--ease-hydro);
 }
 
-/* Dark Mode (Obsidian Algorithmic) */
+/* Dark Mode (Hydro Calm Charcoal) */
 html.dark, body.dark, .dark {
-  --bg-canvas: #09090b;
-  --bg-surface: #111114;
-  --bg-card: #111114;
-  --card-bg: #111114;
-  --bg-card-hover: #17171c;
-  --bg-subtle: #18181c;
-  --bg-nav: rgba(17, 17, 20, 0.96);
-  --bg-sidebar: #0d0d10;
+  --bg-canvas: #121316;
+  --bg-surface: #1b1d22;
+  --bg-card: #1b1d22;
+  --card-bg: #1b1d22;
+  --bg-card-hover: #21242b;
+  --bg-subtle: #23262e;
+  --bg-hover: rgba(255, 255, 255, 0.045);
+  --bg-nav: #1b1d22;
+  --bg-sidebar: #16181d;
 
   --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.16);
+  --border-hover: rgba(255, 255, 255, 0.15);
   --border-bold: rgba(255, 255, 255, 0.18);
-  --border-strong: rgba(255, 255, 255, 0.24);
-  --border-accent: rgba(59, 130, 246, 0.40);
+  --border-strong: rgba(255, 255, 255, 0.25);
+  --border-accent: rgba(85, 150, 230, 0.42);
 
-  --text-primary: #f4f4f5;
-  --text-secondary: #a1a1aa;
-  --text-tertiary: #71717a;
-  --text-muted: #52525b;
+  --text-primary: #e5e7eb;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #717684;
+  --text-muted: #555b66;
 
-  --primary: #3b82f6;
-  --apple-blue: #3b82f6;
-  --apple-blue-hover: #60a5fa;
-  --apple-blue-subtle: rgba(59, 130, 246, 0.16);
-  --apple-cyan: #22d3ee;
-  --apple-green: #34d399;
-  --apple-green-subtle: rgba(52, 211, 153, 0.14);
-  --apple-orange: #fbbf24;
-  --apple-orange-subtle: rgba(251, 191, 36, 0.14);
-  --apple-red: #f87171;
-  --apple-red-subtle: rgba(248, 113, 113, 0.14);
-  --apple-purple: #a78bfa;
-  --apple-purple-subtle: rgba(167, 139, 250, 0.14);
+  --primary: #5596e6;
+  --apple-blue: #5596e6;
+  --apple-blue-hover: #6aa6f0;
+  --apple-blue-subtle: rgba(85, 150, 230, 0.14);
+  --apple-cyan: #38bdf8;
+  --apple-green: #34c759;
+  --apple-green-subtle: rgba(52, 199, 89, 0.12);
+  --apple-orange: #e6a23c;
+  --apple-orange-subtle: rgba(230, 162, 60, 0.12);
+  --apple-red: #d47676;
+  --apple-red-subtle: rgba(212, 118, 118, 0.10);
+  --apple-purple: #9b8afb;
+  --apple-purple-subtle: rgba(155, 138, 251, 0.12);
 
-  --shadow-ambient: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-hover: 0 8px 22px rgba(0, 0, 0, 0.45);
-  --shadow-pill: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-ambient: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.36);
+  --shadow-pill: 0 1px 2px rgba(0, 0, 0, 0.28);
 }
 
 * {
@@ -131,14 +134,14 @@ html[data-ui-scale="175"] { font-size: 28px !important; }
   width: 100%;
   margin-left: auto;
   margin-right: auto;
-  max-width: 1400px;
+  max-width: 1380px;
 }
-@media (min-width: 1600px) { .main-content-container { max-width: 1560px; } }
-@media (min-width: 1920px) { .main-content-container { max-width: 1800px; } }
-@media (min-width: 2200px) { .main-content-container { max-width: 2060px; } }
-@media (min-width: 2560px) { .main-content-container { max-width: 2360px; } }
-@media (min-width: 3200px) { .main-content-container { max-width: 2860px; } }
-@media (min-width: 3840px) { .main-content-container { max-width: 3460px; } }
+@media (min-width: 1600px) { .main-content-container { max-width: 1520px; } }
+@media (min-width: 1920px) { .main-content-container { max-width: 1760px; } }
+@media (min-width: 2200px) { .main-content-container { max-width: 2020px; } }
+@media (min-width: 2560px) { .main-content-container { max-width: 2320px; } }
+@media (min-width: 3200px) { .main-content-container { max-width: 2820px; } }
+@media (min-width: 3840px) { .main-content-container { max-width: 3400px; } }
 
 .analytics-chart-responsive {
   width: 100%;
@@ -152,17 +155,17 @@ html[data-ui-scale="175"] { font-size: 28px !important; }
 .text-\[9px\]  { font-size: max(9px, 0.58rem) !important; }
 .text-\[10px\] { font-size: max(10px, 0.65rem) !important; }
 .text-\[11px\] { font-size: max(11px, 0.72rem) !important; }
-.pulse-dot     { width: 0.45rem !important; height: 0.45rem !important; }
+.pulse-dot     { width: 0.42rem !important; height: 0.42rem !important; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   background-color: var(--bg-canvas);
   color: var(--text-primary);
   min-height: 100vh;
-  letter-spacing: -0.011em;
+  letter-spacing: -0.008em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.24s ease, color 0.24s ease;
 }
 
 .mono {
@@ -174,13 +177,38 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ================= Cards ================= */
+/* ================= Hydro Top Route Progress Bar (Compositor-Only) ================= */
+.hydro-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary);
+  transform-origin: left center;
+  transform: scaleX(0);
+  opacity: 0;
+  z-index: 9999;
+  pointer-events: none;
+  transition: transform 0.26s var(--ease-hydro), opacity 0.2s ease;
+}
+.hydro-progress-bar.active {
+  opacity: 1;
+  transform: scaleX(0.72);
+}
+.hydro-progress-bar.done {
+  opacity: 0;
+  transform: scaleX(1);
+  transition: transform 0.16s ease-out, opacity 0.22s ease 0.1s;
+}
+
+/* ================= Hydro Section Cards (Crisp 10px Radius) ================= */
 .ui-card, .apple-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: 1rem;
+  border-radius: 10px;
   box-shadow: var(--shadow-ambient);
-  transition: border-color 0.16s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.18s ease, background-color 0.24s ease, transform 0.2s var(--ease-hydro);
   position: relative;
   overflow: hidden;
   contain: paint;
@@ -190,18 +218,90 @@ body {
   border-color: var(--border-hover);
 }
 
-/* Interactive KPI card subtle lift */
 .kpi-lift:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
+  border-color: var(--border-accent);
 }
 
-/* ================= Segmented Control ================= */
+/* ================= Hydro Sidebar Nav Item ================= */
+.hydro-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: background-color 0.16s ease, color 0.16s ease;
+  cursor: pointer;
+  overflow: hidden;
+}
+.hydro-nav-item:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+.hydro-nav-item.active {
+  color: var(--primary);
+  background: var(--apple-blue-subtle);
+  font-weight: 600;
+}
+.hydro-nav-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--primary);
+  transform: scaleY(0);
+  opacity: 0;
+  transition: transform 0.22s var(--ease-hydro), opacity 0.16s ease;
+}
+.hydro-nav-item.active::before {
+  transform: scaleY(1);
+  opacity: 1;
+}
+
+/* ================= Hydro Quiet Notice Banner (Zero Screaming Red) ================= */
+.hydro-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--apple-orange);
+  color: var(--text-secondary);
+  font-size: 12px;
+  box-shadow: var(--shadow-ambient);
+}
+
+.hydro-error-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--apple-red-subtle);
+  border: 1px solid rgba(185, 74, 72, 0.22);
+  border-left: 3px solid var(--apple-red);
+  color: var(--apple-red);
+  font-size: 12px;
+}
+
+/* ================= Segmented Control (Hydro Crisp Pill) ================= */
 .segmented-control {
   display: inline-flex;
   align-items: center;
-  padding: 3px;
+  padding: 2px;
   background: var(--bg-subtle);
-  border-radius: 9999px;
+  border-radius: 8px;
   border: 1px solid var(--border-subtle);
   position: relative;
   user-select: none;
@@ -212,21 +312,20 @@ body {
 
 .segmented-thumb {
   position: absolute;
-  top: 3px;
+  top: 2px;
   left: 0;
-  bottom: 3px;
-  border-radius: 9999px;
+  bottom: 2px;
+  border-radius: 6px;
   background: var(--bg-surface);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), width 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  transition: transform 0.24s var(--ease-hydro), width 0.22s var(--ease-hydro), opacity 0.15s ease;
   pointer-events: none;
   z-index: 1;
 }
 
 .dark .segmented-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 .segmented-item {
@@ -235,8 +334,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.32rem 0.8rem;
-  border-radius: 9999px;
+  padding: 0.3rem 0.72rem;
+  border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-secondary);
@@ -258,13 +357,13 @@ body {
 }
 
 .dark .segmented-item.active {
-  color: #ffffff;
+  color: #f3f4f6;
 }
 
 /* ================= Status Dots & Pills ================= */
 .pulse-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   position: relative;
   display: inline-block;
@@ -272,15 +371,15 @@ body {
 
 .pulse-dot.ok { background-color: var(--apple-green); }
 .pulse-dot.warning { background-color: var(--apple-orange); }
-.pulse-dot.error { background-color: var(--apple-red); }
+.pulse-dot.error { background-color: var(--apple-orange); }
 .pulse-dot.unconfigured { background-color: var(--text-muted); }
 
 .status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.18rem 0.55rem;
-  border-radius: 9999px;
+  gap: 0.32rem;
+  padding: 0.16rem 0.5rem;
+  border-radius: 6px;
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -310,23 +409,23 @@ body {
 .ui-input {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 0.65rem;
+  border-radius: 7px;
   color: var(--text-primary);
   font-size: 0.8125rem;
-  padding: 0.55rem 0.85rem;
+  padding: 0.5rem 0.8rem;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
   width: 100%;
 }
 
 .dark .ui-input {
-  background: #141418;
+  background: #14161a;
   border-color: rgba(255, 255, 255, 0.1);
 }
 
 .ui-input:focus {
   outline: none;
-  border-color: var(--apple-blue);
-  box-shadow: 0 0 0 3px var(--apple-blue-subtle);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--apple-blue-subtle);
 }
 
 .ui-input::placeholder {
@@ -335,12 +434,12 @@ body {
 
 /* ================= Buttons ================= */
 .btn-primary {
-  background: var(--apple-blue);
+  background: var(--primary);
   color: #ffffff;
   font-weight: 600;
-  border-radius: 0.65rem;
-  padding: 0.5rem 1.05rem;
-  font-size: 0.8125rem;
+  border-radius: 7px;
+  padding: 0.48rem 0.95rem;
+  font-size: 0.8rem;
   transition: var(--transition-fast);
   border: 1px solid transparent;
   cursor: pointer;
@@ -358,9 +457,9 @@ body {
   background: var(--bg-subtle);
   color: var(--text-primary);
   font-weight: 500;
-  border-radius: 0.65rem;
-  padding: 0.5rem 0.95rem;
-  font-size: 0.8125rem;
+  border-radius: 7px;
+  padding: 0.48rem 0.9rem;
+  font-size: 0.8rem;
   border: 1px solid var(--border-subtle);
   transition: var(--transition-fast);
   cursor: pointer;
@@ -375,23 +474,35 @@ body {
   transform: scale(0.98);
 }
 
-/* ================= Compositor-Only Low-CPU Animations ================= */
-@keyframes panelEnter {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+/* ================= Hydro Page & Modal Compositor Animations ================= */
+@keyframes hydroPageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes modalEnter {
-  from { opacity: 0; transform: scale(0.97) translateY(4px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
-.tab-panel-anim {
-  animation: panelEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+.hydro-page-enter {
+  animation: hydroPageIn 0.22s var(--ease-hydro) both;
 }
 
 .modal-dialog-anim {
-  animation: modalEnter 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: modalEnter 0.18s var(--ease-hydro) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -435,7 +546,7 @@ body {
 
 /* ================= Markdown Viewer ================= */
 .markdown-body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", "PingFang SC", sans-serif;
   line-height: 1.65;
   color: var(--text-primary);
   font-size: 0.875rem;
@@ -457,15 +568,15 @@ body {
   background: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
   padding: 0.12rem 0.35rem;
-  border-radius: 0.35rem;
+  border-radius: 4px;
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.85em;
-  color: var(--apple-red);
+  color: var(--primary);
 }
 .markdown-body pre {
-  background: #141418 !important;
-  color: #f4f4f5 !important;
-  border-radius: 0.75rem;
+  background: #14161a !important;
+  color: #e5e7eb !important;
+  border-radius: 8px;
   padding: 1rem;
   overflow-x: auto;
   margin-bottom: 1rem;
@@ -480,11 +591,11 @@ body {
   line-height: 1.5;
 }
 .markdown-body blockquote {
-  border-left: 3px solid var(--apple-blue);
+  border-left: 3px solid var(--primary);
   padding: 0.35rem 0.75rem;
   color: var(--text-secondary);
   background: var(--apple-blue-subtle);
-  border-radius: 0 0.5rem 0.5rem 0;
+  border-radius: 0 6px 6px 0;
   margin: 0.75rem 0;
 }
 .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }

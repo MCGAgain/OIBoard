@@ -36,6 +36,27 @@ createApp({
     });
 
     const currentTab = ref("overview"); // 'overview', 'submissions', 'mistakes', 'settings'
+    const routeProgress = ref(""); // '' | 'active' | 'done'
+    const activeTabAnim = ref(true);
+    let routeProgressTimer = null;
+
+    const triggerRouteTransition = () => {
+      if (routeProgressTimer) clearTimeout(routeProgressTimer);
+      routeProgress.value = "active";
+      activeTabAnim.value = false;
+      requestAnimationFrame(() => {
+        activeTabAnim.value = true;
+      });
+    };
+
+    const finishRouteTransition = () => {
+      if (routeProgressTimer) clearTimeout(routeProgressTimer);
+      routeProgress.value = "done";
+      routeProgressTimer = setTimeout(() => {
+        routeProgress.value = "";
+        routeProgressTimer = null;
+      }, 320);
+    };
     const searchKeyword = ref("");
     const debouncedSearchKeyword = ref("");
     let searchDebounceTimer = null;
@@ -487,12 +508,19 @@ createApp({
     const setThemePref = (mode) => {
       themePref.value = mode;
       localStorage.setItem("oiboard_theme_pref", mode);
-      applyTheme();
-      const desc = mode === "auto" 
-        ? `自动模式 (当前为${isDark.value ? '夜间深色' : '白天浅色'})` 
+      const doSwitch = () => {
+        applyTheme();
+        syncSegmentedThumbs();
+      };
+      if (typeof document.startViewTransition === "function" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        document.startViewTransition(doSwitch);
+      } else {
+        doSwitch();
+      }
+      const desc = mode === "auto"
+        ? `自动模式 (${isDark.value ? '深色' : '浅色'})`
         : (mode === "dark" ? "深色模式" : "浅色模式");
-      showToast(`已切换为 ${desc}`, "info");
-      syncSegmentedThumbs();
+      showToast(`外观已切换为 ${desc}`, "info");
     };
 
     // --- UI Scale Engine & High-DPI Adaptation ---
@@ -2866,8 +2894,9 @@ createApp({
       nextTick(syncSegmentedThumbs);
     });
 
-    // 标签页切换自动静默拉取最新数据，概览页重新加载热力图与图表，彻底告别手动硬刷新
+    // 标签页切换自动静默拉取最新数据 + Hydro 顶部细进度条与平滑入场动效
     watch(currentTab, async (tab) => {
+      triggerRouteTransition();
       try {
         if (tab === "overview") {
           await Promise.allSettled([loadOverview(), loadHeatmap(), loadTags(), loadContests()]);
@@ -2887,6 +2916,7 @@ createApp({
       } catch (err) {
         console.warn("[TabSwitch] 切换标签页加载数据异常:", err);
       } finally {
+        finishRouteTransition();
         nextTick(() => {
           syncSegmentedThumbs();
         });
@@ -2914,6 +2944,8 @@ createApp({
       handleLogout,
       handleChangePassword,
       currentTab,
+      routeProgress,
+      activeTabAnim,
       searchKeyword,
       dateFilter,
       startDate,
