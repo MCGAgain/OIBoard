@@ -6,6 +6,7 @@ import { Transport } from '../core/transport';
 
 export class CodeforcesAdapter extends BaseAdapter {
   public readonly platform: PlatformType = 'codeforces';
+  public readonly requiredHooks = { fetch: false, xhr: false, ws: false, router: false };
   private observedCells: Set<Element> = new Set();
   private observer: MutationObserver | null = null;
 

@@ -1,9 +1,10 @@
 import { BaseAdapter } from './base-adapter';
 import { PlatformType, UnifiedSubmissionPayload, VerdictType } from '../types/payload';
-import { InterceptedHttpEvent, NetworkHookBus } from '../core/network-hook';
 import { Storage } from '../core/storage';
 import { Transport } from '../core/transport';
 import { Logger } from '../core/sandbox';
+
+const KEY_RECENT_SUBMIT_TS = 'oiboard_atcoder_submit_ts';
 
 interface AtCoderColumnIndices {
   timeIndex: number;
@@ -18,33 +19,43 @@ interface AtCoderColumnIndices {
 
 export class AtCoderAdapter extends BaseAdapter {
   public readonly platform: PlatformType = 'atcoder';
+  // 零网络/路由全局劫持：纯被动 DOM 观察，彻底避免触发 AtCoder / Cloudflare WAF 403
+  public readonly requiredHooks = { fetch: false, xhr: false, ws: false, router: false };
   private observedWaitingSids: Set<string> = new Set();
   private observerInitialized = false;
+  private scanDebounceTimer: number | null = null;
 
   public matchDomain(hostname: string): boolean {
     return hostname === 'atcoder.jp' || hostname.endsWith('.atcoder.jp');
   }
 
+  /**
+   * 仅在提交列表页启用表格扫描与 DOM 观察，详情页 (/submissions/{id}) 完全静默
+   */
+  private isSubmissionsListPage(): boolean {
+    const path = window.location.pathname;
+    if (/\/submissions\/\d+/.test(path)) return false;
+    return /\/submissions(\/me)?\/?$/.test(path);
+  }
+
   public init(): void {
-    Logger.info('[AtCoderAdapter] Initialized.');
+    Logger.info('[AtCoderAdapter] Initialized (passive DOM mode, zero network hook).');
 
-    // 1. 拦截前端自动轮询的 /status/json 响应
-    NetworkHookBus.onHttp((event: InterceptedHttpEvent) => {
-      this.handleHttpEvent(event);
-    });
-
-    // 2. 监听提交按钮/表单，主动触发胶囊反馈
+    // 1. 监听提交按钮，记录最近提交时间戳（用于捕获秒判完成的提交）
     this.bindSubmitListener();
 
-    // 3. 页面表格扫描与 MutationObserver 监听
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
-        this.scanStaticSubmissions();
-        this.initDomObserver();
-      });
-    } else {
+    // 2. 仅在提交列表页启动表格扫描与防抖 MutationObserver
+    if (!this.isSubmissionsListPage()) return;
+
+    const start = () => {
       this.scanStaticSubmissions();
       this.initDomObserver();
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', start, { once: true });
+    } else {
+      start();
     }
   }
 
@@ -53,6 +64,9 @@ export class AtCoderAdapter extends BaseAdapter {
       const target = e.target as HTMLElement | null;
       const btn = target?.closest('#submit, button[type="submit"], input[type="submit"]');
       if (btn && (window.location.pathname.includes('/tasks/') || window.location.pathname.includes('/submit'))) {
+        try {
+          sessionStorage.setItem(KEY_RECENT_SUBMIT_TS, String(Date.now()));
+        } catch (_) {}
         Logger.info('[AtCoderAdapter] Submit button clicked. Waiting for judge...');
         Transport.notifyStatus('syncing', 'AtCoder 代码已提交，等待评测...');
       }
@@ -66,7 +80,13 @@ export class AtCoderAdapter extends BaseAdapter {
 
     this.observerInitialized = true;
     const observer = new MutationObserver(() => {
-      this.scanStaticSubmissions();
+      if (this.scanDebounceTimer !== null) {
+        window.clearTimeout(this.scanDebounceTimer);
+      }
+      this.scanDebounceTimer = window.setTimeout(() => {
+        this.scanDebounceTimer = null;
+        this.scanStaticSubmissions();
+      }, 150);
     });
 
     observer.observe(table, {
@@ -77,74 +97,28 @@ export class AtCoderAdapter extends BaseAdapter {
     Logger.info('[AtCoderAdapter] Submissions table DOM observer active.');
   }
 
-  private handleHttpEvent(event: InterceptedHttpEvent): void {
-    // 匹配 /contests/{cid}/submissions/me/status/json 或 /contests/{cid}/submissions/status/json
-    if (event.url.includes('/status/json') && event.responseText) {
-      try {
-        const json = JSON.parse(event.responseText);
-        const result = json.Result;
-        if (!result || typeof result !== 'object') return;
-
-        for (const [sid, item] of Object.entries(result)) {
-          const detail = item as { Html?: string; Interval?: number | null };
-          if (!detail) continue;
-
-          const html = detail.Html || '';
-          const isWaiting = (typeof detail.Interval === 'number' && detail.Interval > 0) ||
-            html.includes('WJ') ||
-            html.includes('waiting-judge') ||
-            /\d+\s*\/\s*\d+/.test(html) ||
-            html.includes('Waiting for Judging');
-
-          if (isWaiting) {
-            this.observedWaitingSids.add(sid);
-            Transport.notifyStatus('syncing', `AtCoder 正在评测 (${sid})...`);
-          } else {
-            // 评测完成判断：!detail.Interval (兼容 null/缺失/0) 且 html 中不含 WJ/等待状态
-            this.observedWaitingSids.delete(sid);
-            Transport.notifyStatus('syncing', `AtCoder 评测完成 (${sid})，正在同步...`);
-            this.handleFinishedSubmission(sid, html);
-          }
-        }
-      } catch (e) {
-        Logger.error('[AtCoderAdapter] Error parsing status json:', e);
+  private hasRecentSubmitIntent(): boolean {
+    try {
+      const raw = sessionStorage.getItem(KEY_RECENT_SUBMIT_TS);
+      if (!raw) return false;
+      const ts = parseInt(raw, 10);
+      if (!isNaN(ts) && Date.now() - ts < 90_000) {
+        return true;
       }
-    }
+      sessionStorage.removeItem(KEY_RECENT_SUBMIT_TS);
+    } catch (_) {}
+    return false;
   }
 
-  private handleFinishedSubmission(sid: string, htmlSnippet: string): void {
-    if (Storage.isDuplicate(this.platform, sid)) return;
-
-    const verdict = this.parseVerdictFromHtml(htmlSnippet);
-    const score = this.parseScoreFromHtml(htmlSnippet);
-    const timeMs = this.parseTimeFromHtml(htmlSnippet);
-    const memoryKb = this.parseMemoryFromHtml(htmlSnippet);
-
-    const { problemId, problemTitle, problemUrl, language, submittedAtMs } = this.extractRowMeta(sid);
-
-    const payload: UnifiedSubmissionPayload = {
-      platform: 'atcoder',
-      platformSubmissionId: String(sid),
-      problemId: problemId || 'atcoder_unknown',
-      problemTitle: problemTitle || problemId,
-      problemUrl: problemUrl || window.location.href,
-      platformUserHandle: this.extractUserHandle(),
-      verdict,
-      rawStatus: verdict,
-      score: typeof score === 'number' ? score : (verdict === 'AC' ? 100 : 0),
-      language: language || 'unknown',
-      sourceCode: '',
-      executionTimeMs: timeMs,
-      memoryUsedKb: memoryKb,
-      submittedAt: submittedAtMs > 0 ? submittedAtMs : Date.now(),
-      clientVersion: '1.0.0',
-    };
-
-    this.submitPayload(payload);
+  private clearRecentSubmitIntent(): void {
+    try {
+      sessionStorage.removeItem(KEY_RECENT_SUBMIT_TS);
+    } catch (_) {}
   }
 
   /**
-   * 表格扫描：只处理当前用户的行，且仅上报本会话中观察到由 WJ/等待 变为终态的行；历史行跳过交给爬虫补
+   * 表格扫描：只处理当前用户的行；
+   * 上报本会话观察到由 WJ/等待变为终态的行，或刚点击提交后 90s 内落在 /submissions/me 首行的秒判记录
    */
   private scanStaticSubmissions(): void {
     const table = document.querySelector('table');
@@ -155,6 +129,7 @@ export class AtCoderAdapter extends BaseAdapter {
 
     const cols = this.getTableColumnMap(table as HTMLTableElement);
     const currentUser = this.extractUserHandle();
+    const recentSubmit = this.hasRecentSubmitIntent();
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i] as HTMLTableRowElement;
@@ -184,9 +159,17 @@ export class AtCoderAdapter extends BaseAdapter {
         this.observedWaitingSids.add(sid);
         Transport.notifyStatus('syncing', `AtCoder 正在评测 (${sid})...`);
       } else if (this.observedWaitingSids.has(sid)) {
-        // 仅上报本页面会话中观察到由 WJ/等待变为终态的行
+        // 本页面会话中观察到由 WJ/等待变为终态的行
         this.observedWaitingSids.delete(sid);
+        this.clearRecentSubmitIntent();
         this.handleFinishedRow(sid, row, statusText, cols);
+      } else if (i === 0 && recentSubmit) {
+        // 刚提交后跳到 /submissions/me 且评测瞬间完成（90s 内）
+        const meta = this.extractRowMeta(sid, row);
+        if (meta.submittedAtMs > 0 && Math.abs(Date.now() - meta.submittedAtMs) < 120_000) {
+          this.clearRecentSubmitIntent();
+          this.handleFinishedRow(sid, row, statusText, cols);
+        }
       }
     }
   }
@@ -338,17 +321,6 @@ export class AtCoderAdapter extends BaseAdapter {
     return { problemId, problemTitle, problemUrl, language, submittedAtMs };
   }
 
-  private parseVerdictFromHtml(html: string): VerdictType {
-    if (html.includes('>AC<') || html.includes('label-success')) return 'AC';
-    if (html.includes('>WA<')) return 'WA';
-    if (html.includes('>TLE<')) return 'TLE';
-    if (html.includes('>MLE<')) return 'MLE';
-    if (html.includes('>RE<')) return 'RE';
-    if (html.includes('>CE<')) return 'CE';
-    if (html.includes('>OLE<')) return 'OTHER';
-    return 'OTHER';
-  }
-
   private mapStatusTextToVerdict(text: string): VerdictType {
     const s = text.trim();
     if (s === 'AC') return 'AC';
@@ -358,21 +330,6 @@ export class AtCoderAdapter extends BaseAdapter {
     if (s === 'RE') return 'RE';
     if (s === 'CE') return 'CE';
     return 'OTHER';
-  }
-
-  private parseScoreFromHtml(html: string): number {
-    const m = html.match(/submission-score[^>]*>\s*(\d+)/i);
-    return m ? parseInt(m[1], 10) : 0;
-  }
-
-  private parseTimeFromHtml(html: string): number {
-    const m = html.match(/(\d+)\s*ms/i);
-    return m ? parseInt(m[1], 10) : 0;
-  }
-
-  private parseMemoryFromHtml(html: string): number {
-    const m = html.match(/(\d+)\s*KB/i);
-    return m ? parseInt(m[1], 10) : 0;
   }
 
   private parseTimeFromText(text: string): number {

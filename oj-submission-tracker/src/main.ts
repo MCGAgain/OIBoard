@@ -14,11 +14,7 @@ import { AtCoderAdapter } from './adapters/atcoder-adapter';
 function bootstrap(): void {
   Logger.info('Starting OJ Submission Tracker bootstrap...');
 
-  // 1. 在 document-start 阶段初始化网络与路由拦截总线
-  NetworkHookBus.init(pageWindow);
-  RouterHookBus.init(pageWindow);
-
-  // 2. 注册各平台适配器
+  // 1. 先匹配当前站点对应的平台适配器，按需启用 Hook（避免对 AtCoder/CF 等站点注入不必要的全局劫持）
   const adapters: BaseAdapter[] = [
     new LeetCodeAdapter(),
     new LuoguAdapter(),
@@ -38,6 +34,18 @@ function bootstrap(): void {
   }
 
   if (activeAdapter) {
+    const hooks = activeAdapter.requiredHooks || {};
+    if (hooks.fetch || hooks.xhr || hooks.ws) {
+      NetworkHookBus.init(pageWindow, {
+        fetch: !!hooks.fetch,
+        xhr: !!hooks.xhr,
+        ws: !!hooks.ws,
+      });
+    }
+    if (hooks.router) {
+      RouterHookBus.init(pageWindow);
+    }
+
     Logger.info(`Matched platform adapter: [${activeAdapter.platform}] for ${currentHostname}`);
     activeAdapter.init();
     StatusBadge.init(activeAdapter.platform.toUpperCase());
@@ -45,7 +53,7 @@ function bootstrap(): void {
     Logger.info(`No specific platform adapter matched for ${currentHostname}. Tracker is in passive mode.`);
   }
 
-  // 3. 页面就绪后尝试补发之前可能离线暂存的提交
+  // 2. 页面就绪后尝试补发之前可能离线暂存的提交
   setTimeout(() => {
     Transport.flushOfflineQueue();
   }, 3000);

@@ -3,352 +3,282 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OIBoard Agent - 本地代码统计服务</title>
-  <!-- Tailwind CSS 动态引擎 -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>OIBoard Agent</title>
   <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            appleBlue: '#0071e3',
-          }
-        }
-      }
-    };
+    (function() {
+      try {
+        var t = localStorage.getItem('agent_theme') || 'auto';
+        var dark = t === 'dark' || (t === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+      } catch (e) {}
+    })();
   </script>
-  <!-- 100% 自包含 Apple Bento 样式表 (离线容灾支持) -->
   <link rel="stylesheet" href="/static/style.css">
-  <style>
-    .filter-lang-btn.active {
-      background: var(--apple-blue) !important;
-      color: #fff !important;
-      border-color: var(--apple-blue) !important;
-    }
-  </style>
 </head>
 <body>
+  <div class="app-shell">
 
-  <div class="app-container">
-
-    <!-- 顶栏 (Header) -->
-    <header class="bento-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-      <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-500 shadow-sm shrink-0">
-          <svg width="20" height="20" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+    <!-- Header -->
+    <header class="card header-bar animate-in">
+      <div class="brand-group">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
           </svg>
         </div>
-        <div>
-          <div class="flex items-center space-x-2">
-            <h1 class="text-base font-bold tracking-tight text-[var(--text-primary)]">OIBoard Agent</h1>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">macOS Native</span>
+        <div class="brand-meta">
+          <div class="brand-title-row">
+            <h1 class="brand-title">OIBoard Agent</h1>
+            <span class="chip mono">:2054</span>
             <span id="agent-status-badge" class="status-badge ok">
-              <span class="pulse-dot"></span> 服务运行中
+              <span class="dot"></span>运行中
             </span>
           </div>
-          <p class="text-xs text-[var(--text-secondary)] mt-0.5">本地极致轻量代码行数统计与同步守护进程 (Port: 2054)</p>
+          <p class="brand-sub">本地代码统计 · 事件驱动</p>
         </div>
       </div>
 
-      <!-- 顶部操作按钮 -->
-      <div class="flex items-center space-x-2.5 w-full sm:w-auto justify-end">
-        <button id="btn-scan-inc" class="btn-primary text-xs shadow-sm" title="快速增量扫描有修改的文件">
-          <svg width="14" height="14" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+      <div class="header-actions">
+        <button id="btn-scan-inc" class="btn btn-primary" title="增量扫描">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 2v6h-6"></path>
+            <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+            <path d="M3 22v-6h6"></path>
+            <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
           </svg>
           <span>增量扫描</span>
         </button>
-
-        <button id="btn-scan-full" class="btn-secondary text-xs" title="强制跳过缓存重新读取统计所有文件">
-          <span>全量重扫</span>
-        </button>
-
-        <button id="theme-toggle" class="btn-secondary text-xs px-2.5" title="昼夜外观切换">
-          <svg width="14" height="14" class="w-3.5 h-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="5"></circle>
-            <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+        <button id="btn-scan-full" class="btn btn-secondary" title="全量重扫">全量重扫</button>
+        <button id="theme-toggle" class="btn btn-icon" title="切换外观" aria-label="切换深浅色模式">
+          <svg id="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+          </svg>
+          <svg id="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
           </svg>
         </button>
       </div>
     </header>
 
-    <!-- Row 1: KPI Bento 统计卡片 (4 模块) -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem;">
-      <!-- 总代码行数 -->
-      <div class="bento-card flex flex-col justify-between">
-        <div class="flex items-center justify-between text-xs text-[var(--text-secondary)] font-medium">
+    <!-- Row 1: KPI Cards -->
+    <section class="kpi-grid animate-in" style="animation-delay: 40ms;">
+      <div class="card kpi-card">
+        <div class="kpi-head">
           <span>总代码行数</span>
-          <span class="status-badge ok">总计</span>
+          <span class="chip">LOC</span>
         </div>
-        <div class="mt-3 flex items-baseline space-x-1.5">
-          <span id="stat-total-lines" class="text-3xl font-extrabold text-[var(--text-primary)] mono">0</span>
-          <span class="text-xs text-[var(--text-tertiary)]">行</span>
+        <div class="kpi-value-row">
+          <span id="stat-total-lines" class="kpi-value mono">0</span>
+          <span class="kpi-unit">行</span>
         </div>
-        <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[10px] text-[var(--text-muted)] flex items-center justify-between">
-          <span>.c / .cpp / .java 源码</span>
-          <span class="font-mono text-cyan-600 dark:text-cyan-400">线段树单点维护 (O(log N) 修改 / O(1) 聚合)</span>
+        <div class="kpi-foot mono">.c · .cpp · .java</div>
+      </div>
+
+      <div class="card kpi-card">
+        <div class="kpi-head">
+          <span>今日变动</span>
+          <span class="chip ok">TODAY</span>
+        </div>
+        <div class="kpi-value-row">
+          <span id="stat-today-lines" class="kpi-value mono accent-green">+0</span>
+          <span class="kpi-unit">行</span>
+        </div>
+        <div class="kpi-foot">
+          <span id="stat-today-files" class="mono">0 个文件</span>
         </div>
       </div>
 
-      <!-- 今日代码行数 -->
-      <div class="bento-card flex flex-col justify-between">
-        <div class="flex items-center justify-between text-xs text-[var(--text-secondary)] font-medium">
-          <span>今日变动代码</span>
-          <span class="status-badge ok">今日</span>
+      <div class="card kpi-card">
+        <div class="kpi-head">
+          <span>源码文件</span>
+          <span class="chip info">FILES</span>
         </div>
-        <div class="mt-3 flex items-baseline space-x-1.5">
-          <span id="stat-today-lines" class="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mono">+0</span>
-          <span class="text-xs text-[var(--text-tertiary)]">行</span>
+        <div class="kpi-value-row">
+          <span id="stat-total-files" class="kpi-value mono">0</span>
+          <span class="kpi-unit">个</span>
         </div>
-        <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[10px] text-[var(--text-muted)] flex items-center justify-between">
-          <span id="stat-today-files">0 个变动</span>
-          <span>今日 00:00 至今</span>
-        </div>
+        <div class="kpi-foot">已建立索引</div>
       </div>
 
-      <!-- 监控源码文件数 -->
-      <div class="bento-card flex flex-col justify-between">
-        <div class="flex items-center justify-between text-xs text-[var(--text-secondary)] font-medium">
-          <span>已索引源码文件</span>
-          <span class="status-badge scanning">文件</span>
+      <div class="card kpi-card">
+        <div class="kpi-head">
+          <span>语言分布</span>
+          <span class="chip">LANG</span>
         </div>
-        <div class="mt-3 flex items-baseline space-x-1.5">
-          <span id="stat-total-files" class="text-3xl font-extrabold text-[var(--text-primary)] mono">0</span>
-          <span class="text-xs text-[var(--text-tertiary)]">个</span>
-        </div>
-        <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[10px] text-[var(--text-muted)] flex items-center justify-between">
-          <span>自动排除构建目录与缓存</span>
-          <span class="font-mono">已就绪</span>
-        </div>
-      </div>
-
-      <!-- 语言分布明细 -->
-      <div class="bento-card flex flex-col justify-between">
-        <div class="flex items-center justify-between text-xs text-[var(--text-secondary)] font-medium">
-          <span>语言分类分布</span>
-          <span class="status-badge ok">语言</span>
-        </div>
-        <div class="mt-2 space-y-1.5 text-xs font-mono">
-          <div class="flex items-center justify-between">
-            <span class="text-sky-500 font-bold">C:</span>
-            <span><b id="stat-c-lines">0</b> 行 (<span id="stat-c-files" class="text-[10px] text-[var(--text-muted)]">0 文件</span>)</span>
+        <div class="lang-rows mono">
+          <div class="lang-row">
+            <span class="lang-tag c">C</span>
+            <span><b id="stat-c-lines">0</b> <span id="stat-c-files" class="muted">0</span></span>
           </div>
-          <div class="flex items-center justify-between">
-            <span class="text-indigo-500 font-bold">C++:</span>
-            <span><b id="stat-cpp-lines">0</b> 行 (<span id="stat-cpp-files" class="text-[10px] text-[var(--text-muted)]">0 文件</span>)</span>
+          <div class="lang-row">
+            <span class="lang-tag cpp">C++</span>
+            <span><b id="stat-cpp-lines">0</b> <span id="stat-cpp-files" class="muted">0</span></span>
           </div>
-          <div class="flex items-center justify-between">
-            <span class="text-amber-500 font-bold">Java:</span>
-            <span><b id="stat-java-lines">0</b> 行 (<span id="stat-java-files" class="text-[10px] text-[var(--text-muted)]">0 文件</span>)</span>
+          <div class="lang-row">
+            <span class="lang-tag java">Java</span>
+            <span><b id="stat-java-lines">0</b> <span id="stat-java-files" class="muted">0</span></span>
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Row 2: 管理面板网格 (左侧：监控目录 / 右侧：同步与配置) -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; align-items: start;">
-      
-      <!-- 左侧：监控文件夹导入与管理 -->
-      <div class="bento-card space-y-4">
-        <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
-          <div class="flex items-center space-x-2">
-            <svg width="16" height="16" class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+    <!-- Row 2: Folders & Cloud Sync -->
+    <section class="panel-grid animate-in" style="animation-delay: 80ms;">
+      <!-- Folders -->
+      <div class="card panel">
+        <div class="panel-head">
+          <div class="panel-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
             </svg>
-            <h2 class="text-xs font-bold text-[var(--text-primary)]">监控文件夹导入与管理</h2>
+            <h2>监控目录</h2>
           </div>
-          <span class="text-[10px] text-[var(--text-muted)] font-mono">首次全量，此后增量</span>
-        </div>
-
-        <!-- 添加新目录表单 -->
-        <div class="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-2.5">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-semibold text-[var(--text-secondary)]">导入新文件夹</span>
-            <button type="button" id="btn-browse-folder" class="btn-secondary text-[11px] px-2.5 py-1 flex items-center space-x-1" title="调用系统原生 Finder 对话框选取">
-              <svg width="13" height="13" class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"></path>
-              </svg>
-              <span>浏览选取文件夹...</span>
-            </button>
-          </div>
-
-          <div class="space-y-2">
-            <input id="new-folder-path" type="text" placeholder="输入或选取 Mac 绝对路径 (例如: /Users/Zhuanz/Documents/Program/LeetCode)" class="ui-input font-mono text-xs">
-            <div class="flex items-center space-x-2">
-              <input id="new-folder-name" type="text" placeholder="别名 (可选，默认取文件夹名称)" class="ui-input text-xs flex-1">
-              <button id="btn-add-folder" class="btn-primary text-xs px-3.5 py-1.5 shrink-0">
-                <svg width="14" height="14" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                <span>导入并扫描</span>
-              </button>
-            </div>
-          </div>
-          <p class="text-[10px] text-[var(--text-muted)] leading-relaxed">
-            提示：支持点击「浏览选取文件夹」直接调起 macOS 原生访达目录选择器，也可直接粘贴绝对路径。仅统计 <code>.c, .cpp, .java</code> 文件，自动过滤编译缓存。
-          </p>
-        </div>
-
-        <!-- 监控目录列表 -->
-        <div class="space-y-2">
-          <div class="text-[11px] font-semibold text-[var(--text-secondary)]">当前监控目录</div>
-          <div id="folder-list-container" class="space-y-2 max-h-72 overflow-y-auto pr-1">
-            <!-- 动态渲染 -->
-          </div>
-        </div>
-      </div>
-
-      <!-- 右侧：OIBoard 看板服务器同步与参数配置 -->
-      <div class="bento-card space-y-4">
-        <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
-          <div class="flex items-center space-x-2">
-            <svg width="16" height="16" class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+          <button type="button" id="btn-browse-folder" class="btn btn-secondary btn-sm">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <h2 class="text-xs font-bold text-[var(--text-primary)]">OIBoard 看板服务器同步配置</h2>
-          </div>
-          <span id="sync-status-badge" class="status-badge warn">待同步</span>
+            <span>选择文件夹</span>
+          </button>
         </div>
 
-        <div class="space-y-3.5 text-xs">
-          <div>
-            <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">OIBoard 服务器地址</label>
-            <input id="cfg-server-url" type="text" placeholder="http://198.44.63.140:2053 或 http://127.0.0.1:2053" class="ui-input font-mono text-xs">
+        <div class="sub-box">
+          <input id="new-folder-path" type="text" placeholder="输入路径，如 ~/Projects/OI" class="input mono">
+          <div class="inline-row">
+            <input id="new-folder-name" type="text" placeholder="别名（可选）" class="input">
+            <button id="btn-add-folder" class="btn btn-primary shrink-0">添加</button>
+          </div>
+        </div>
+
+        <div id="folder-list-container" class="folder-list"></div>
+      </div>
+
+      <!-- Sync Config -->
+      <div class="card panel">
+        <div class="panel-head">
+          <div class="panel-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 16 12 12 8 16"></polyline>
+              <line x1="12" y1="12" x2="12" y2="21"></line>
+              <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path>
+            </svg>
+            <h2>云端同步</h2>
+          </div>
+          <span id="sync-status-badge" class="status-badge warn">待配置</span>
+        </div>
+
+        <div class="form-stack">
+          <div class="field">
+            <label class="label" for="cfg-server-url">服务器地址</label>
+            <input id="cfg-server-url" type="text" placeholder="http://198.44.63.140:2053" class="input mono">
           </div>
 
-          <div>
-            <div class="flex items-center justify-between mb-1">
-              <label class="text-[var(--text-secondary)] text-[11px] font-medium">同步认证凭据 (Session Token)</label>
-              <button id="btn-open-login-modal" class="text-[10px] text-blue-600 dark:text-blue-400 hover:underline">
-                账号密码一键获取 Token →
-              </button>
+          <div class="field">
+            <div class="label-row">
+              <label class="label" for="cfg-sync-token">同步 Token</label>
+              <button type="button" id="btn-open-login-modal" class="link-btn">账号登录获取 →</button>
             </div>
-            <input id="cfg-sync-token" type="password" placeholder="在看板设置页复制或点击右上角获取" class="ui-input font-mono text-xs">
+            <input id="cfg-sync-token" type="password" placeholder="粘贴 Token 或点击右侧登录获取" class="input mono">
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
-            <div class="p-2.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-              <div class="text-[10px] text-[var(--text-muted)] font-medium">网络同步策略</div>
-              <div class="text-xs font-semibold text-cyan-600 dark:text-cyan-400 mt-0.5 flex items-center space-x-1">
-                <span>⚡ 事件驱动防抖同步</span>
-              </div>
-              <p class="text-[9px] text-[var(--text-muted)] mt-1 leading-normal">
-                编辑保存源码后 1.5s 触发防抖同步；无代码改动时不发送任何网络心跳。
-              </p>
-            </div>
-            <div class="p-2.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-              <div class="text-[10px] text-[var(--text-muted)] font-medium">全量兜底策略</div>
-              <div class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 flex items-center space-x-1">
-                <span>🛡️ 每天 1 次兜底重扫</span>
-              </div>
-              <p class="text-[9px] text-[var(--text-muted)] mt-1 leading-normal">
-                日常 100% 仅算改动文件，每 24 小时仅在后台静默对账一次。
-              </p>
-            </div>
-          </div>
-          <p class="text-[10px] text-[var(--text-muted)] leading-relaxed">
-            ⚡ <strong>macOS 原生 FSEvents 纯事件驱动已生效</strong>：编写代码保存时，系统内核仅通知被改动的具体文件进行微秒级增量统计并同步至看板，日常绝不扫盘、无多余心跳，无文件变动时守护进程完全休眠（0.0% CPU 占用）。
-          </p>
-
-          <div class="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex items-center justify-between text-[11px]">
-            <span class="text-[var(--text-secondary)]">上次同步时间:</span>
-            <span id="sync-last-time" class="font-mono text-[var(--text-primary)] font-semibold">未同步</span>
+          <div class="meta-strip">
+            <span class="muted">上次同步</span>
+            <span id="sync-last-time" class="mono strong">未同步</span>
           </div>
 
-          <div class="pt-2 flex items-center justify-between gap-2">
-            <div class="flex items-center space-x-2">
-              <button id="btn-test-conn" class="btn-secondary text-xs">
-                测试连通性
-              </button>
-              <button id="btn-save-cfg" class="btn-secondary text-xs">
-                保存配置
-              </button>
+          <div class="action-row">
+            <div class="btn-group">
+              <button id="btn-test-conn" class="btn btn-secondary">测试连接</button>
+              <button id="btn-save-cfg" class="btn btn-secondary">保存</button>
             </div>
-            <button id="btn-sync-now" class="btn-primary text-xs shadow-sm">
-              立即同步至看板
-            </button>
+            <button id="btn-sync-now" class="btn btn-primary">立即同步</button>
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Row 3: 源码文件审计与检索列表 -->
-    <div class="bento-card space-y-4">
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
-        <div class="flex items-center space-x-2">
-          <svg width="16" height="16" class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+    <!-- Row 3: Files Table -->
+    <section class="card panel animate-in" style="animation-delay: 120ms;">
+      <div class="panel-head wrap">
+        <div class="panel-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
           </svg>
-          <h2 class="text-xs font-bold text-[var(--text-primary)]">已扫描源码文件明细</h2>
-          <span id="file-count-label" class="text-[10px] text-[var(--text-muted)] font-mono">共 0 个文件</span>
+          <h2>文件明细</h2>
+          <span id="file-count-label" class="chip mono">0</span>
         </div>
 
-        <div class="flex items-center space-x-2 w-full sm:w-auto">
-          <!-- 语言快捷过滤 -->
-          <div class="flex items-center space-x-1 text-xs">
-            <button class="filter-lang-btn active btn-secondary text-xs px-2.5 py-1" data-lang="all">全部</button>
-            <button class="filter-lang-btn btn-secondary text-xs px-2.5 py-1" data-lang="c">C</button>
-            <button class="filter-lang-btn btn-secondary text-xs px-2.5 py-1" data-lang="cpp">C++</button>
-            <button class="filter-lang-btn btn-secondary text-xs px-2.5 py-1" data-lang="java">Java</button>
+        <div class="table-tools">
+          <div class="seg-group" role="tablist">
+            <button class="filter-lang-btn active" data-lang="all">全部</button>
+            <button class="filter-lang-btn" data-lang="c">C</button>
+            <button class="filter-lang-btn" data-lang="cpp">C++</button>
+            <button class="filter-lang-btn" data-lang="java">Java</button>
           </div>
-          <input id="file-search" type="text" placeholder="搜索文件路径..." class="ui-input text-xs font-mono max-w-xs">
+          <input id="file-search" type="text" placeholder="搜索路径..." class="input mono search-input">
         </div>
       </div>
 
-      <!-- 表格展示 -->
-      <div style="overflow-x: auto; max-height: 24rem; overflow-y: auto;">
+      <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th class="text-left" style="width: 4.5rem;">#ID</th>
-              <th class="text-left">文件路径</th>
-              <th class="text-left" style="width: 5rem;">语言</th>
-              <th class="text-right" style="width: 7rem;">代码行数</th>
-              <th class="text-right" style="width: 7rem;">文件大小</th>
-              <th class="text-right" style="width: 11rem;">扫描时间</th>
+              <th style="width: 4.5rem;">#</th>
+              <th>路径</th>
+              <th style="width: 4.5rem;">语言</th>
+              <th class="right" style="width: 6.5rem;">行数</th>
+              <th class="right" style="width: 6.5rem;">大小</th>
+              <th class="right" style="width: 11rem;">更新时间</th>
             </tr>
           </thead>
-          <tbody id="file-list-body">
-            <!-- 动态渲染 -->
-          </tbody>
+          <tbody id="file-list-body"></tbody>
         </table>
       </div>
-    </div>
+    </section>
 
   </div>
 
-  <!-- 账号快捷登录弹窗 Modal -->
-  <div id="login-modal" class="modal-overlay">
-    <div class="modal-box space-y-4">
-      <div class="flex items-center justify-between pb-2 border-b border-[var(--border-subtle)]">
-        <h3 class="text-xs font-bold text-[var(--text-primary)]">登录 OIBoard 获取同步 Token</h3>
-        <button onclick="closeLoginModal()" class="text-base text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer">&times;</button>
+  <!-- Login Modal (with CAPTCHA) -->
+  <div id="login-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="login-modal-title">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 id="login-modal-title">登录 OIBoard</h3>
+        <button type="button" id="btn-modal-close" class="icon-close" aria-label="关闭">&times;</button>
       </div>
-      <p class="text-xs text-[var(--text-secondary)] leading-relaxed">
-        直接输入您在 OIBoard 看板上的登录账号密码，Agent 将自动调用服务端登录接口换取 Session Token 并保存。
-      </p>
-      <div class="space-y-3 text-xs">
-        <div>
-          <label class="block text-[var(--text-secondary)] mb-1 font-medium">看板用户名</label>
-          <input id="modal-username" type="text" placeholder="请输入用户名" class="ui-input text-xs font-mono">
+
+      <form id="login-form" class="form-stack">
+        <div class="field">
+          <label class="label" for="modal-username">用户名</label>
+          <input id="modal-username" type="text" autocomplete="username" placeholder="输入用户名" class="input mono" required>
         </div>
-        <div>
-          <label class="block text-[var(--text-secondary)] mb-1 font-medium">登录密码</label>
-          <input id="modal-password" type="password" placeholder="请输入密码" class="ui-input text-xs font-mono">
+        <div class="field">
+          <label class="label" for="modal-password">密码</label>
+          <input id="modal-password" type="password" autocomplete="current-password" placeholder="输入密码" class="input mono" required>
         </div>
-      </div>
-      <div class="flex items-center justify-end space-x-2 pt-2 border-t border-[var(--border-subtle)]">
-        <button id="btn-modal-cancel" class="btn-secondary text-xs">取消</button>
-        <button id="btn-modal-login" class="btn-primary text-xs">登录并提取 Token</button>
-      </div>
+        <div class="field">
+          <label class="label" for="modal-captcha">验证码</label>
+          <div class="captcha-row">
+            <input id="modal-captcha" type="text" maxlength="6" autocomplete="off" placeholder="输入验证码" class="input mono captcha-input" required>
+            <button type="button" id="btn-refresh-captcha" class="captcha-box" title="点击刷新验证码">
+              <img id="modal-captcha-img" alt="验证码" style="display:none;">
+              <span id="modal-captcha-placeholder" class="muted mono" style="font-size:11px;">加载中...</span>
+            </button>
+          </div>
+        </div>
+        <div id="modal-login-err" class="form-error" style="display:none;"></div>
+        <div class="modal-foot">
+          <button type="button" id="btn-modal-cancel" class="btn btn-secondary">取消</button>
+          <button type="submit" id="btn-modal-login" class="btn btn-primary">登录并绑定</button>
+        </div>
+      </form>
     </div>
   </div>
 
-  <!-- 浮动 Toast 提示 -->
-  <div id="toast"></div>
+  <!-- Toast -->
+  <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/app.js"></script>
 </body>

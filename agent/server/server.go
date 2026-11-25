@@ -71,6 +71,7 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/sync", s.handleSync)
 	mux.HandleFunc("/api/test-connection", s.handleTestConnection)
+	mux.HandleFunc("/api/captcha", s.handleCaptcha)
 	mux.HandleFunc("/api/login", s.handleLogin)
 	mux.HandleFunc("/api/files", s.handleFiles)
 	mux.HandleFunc("/api/browse-folder", s.handleBrowseFolder)
@@ -382,34 +383,79 @@ func (s *Server) handleTestConnection(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+func (s *Server) handleCaptcha(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
 		return
 	}
-	var req struct {
-		ServerURL string `json:"server_url"`
-		Username  string `json:"username"`
-		Password  string `json:"password"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "无效请求参数"})
-		return
+	serverURL := strings.TrimSpace(r.URL.Query().Get("server_url"))
+	if serverURL == "" {
+		serverURL = s.cfg.Get().ServerURL
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 
-	token, username, err := s.sync.LoginViaCredentials(ctx, req.ServerURL, req.Username, req.Password)
+	captchaID, captchaImg, err := s.sync.FetchCaptcha(ctx, serverURL)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
+		"success":       true,
+		"captcha_id":    captchaID,
+		"captcha_image": captchaImg,
+	})
+}
+
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "Method not allowed"})
+		return
+	}
+	var req struct {
+		ServerURL   string `json:"server_url"`
+		Username    string `json:"username"`
+		Password    string `json:"password"`
+		CaptchaID   string `json:"captcha_id"`
+		CaptchaCode string `json:"captcha_code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "无效请求参数"})
+		return
+	}
+
+	serverURL := strings.TrimSpace(req.ServerURL)
+	if serverURL == "" {
+		serverURL = s.cfg.Get().ServerURL
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	token, username, err := s.sync.LoginViaCredentials(ctx, serverURL, req.Username, req.Password, req.CaptchaID, req.CaptchaCode)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// 登录成功后自动持久化服务器地址与 Token，并触发一次静默同步
+	snap := s.cfg.Get()
+	_ = s.cfg.UpdateSettings(serverURL, token, snap.AutoSync, snap.AutoSyncIntervalSec, snap.AutoScan, snap.AutoScanIntervalSec)
+	if snap.AutoSync {
+		go func() {
+			syncCtx, syncCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer syncCancel()
+			_ = s.sync.SyncNow(syncCtx)
+		}()
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
 		"success":  true,
-		"token":    token,
+		"token":    config.MaskToken(token),
 		"username": username,
+		"config":   s.cfg.GetSafe(),
 	})
 }
 

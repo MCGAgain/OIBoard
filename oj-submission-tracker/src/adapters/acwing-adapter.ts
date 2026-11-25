@@ -16,6 +16,7 @@ interface AcWingPendingSubmission {
 
 export class AcWingAdapter extends BaseAdapter {
   public readonly platform: PlatformType = 'acwing';
+  public readonly requiredHooks = { fetch: true, xhr: true, ws: true, router: false };
   private pendingSubmission: AcWingPendingSubmission | null = null;
   private observerInitialized = false;
   private _resolveSeq = 0;

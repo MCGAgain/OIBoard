@@ -231,19 +231,59 @@ func (s *Syncer) TestConnection(ctx context.Context, serverURL, token string) (s
 	return data.User.Username, nil
 }
 
-// LoginViaCredentials 通过用户名密码一键向 OIBoard 获取登录 Token
-func (s *Syncer) LoginViaCredentials(ctx context.Context, serverURL, username, password string) (string, string, error) {
+// FetchCaptcha 从 OIBoard 服务器获取图形验证码 (captcha_id, data URL)
+func (s *Syncer) FetchCaptcha(ctx context.Context, serverURL string) (string, string, error) {
+	serverURL = normalizeServerURL(serverURL)
+	reqURL := fmt.Sprintf("%s/api/auth/captcha?t=%d", serverURL, time.Now().UnixMilli())
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+	if err != nil {
+		return "", "", err
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("无法获取验证码 (%s): %w", serverURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", "", fmt.Errorf("验证码接口异常 (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var data struct {
+		CaptchaID    string `json:"captcha_id"`
+		CaptchaImage string `json:"captcha_image"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return "", "", fmt.Errorf("解析验证码失败: %w", err)
+	}
+	if data.CaptchaID == "" || data.CaptchaImage == "" {
+		return "", "", errors.New("服务器未返回有效验证码")
+	}
+	return data.CaptchaID, data.CaptchaImage, nil
+}
+
+// LoginViaCredentials 通过用户名、密码与图形验证码向 OIBoard 获取登录 Token
+func (s *Syncer) LoginViaCredentials(ctx context.Context, serverURL, username, password, captchaID, captchaCode string) (string, string, error) {
 	serverURL = normalizeServerURL(serverURL)
 	username = strings.TrimSpace(username)
 	password = strings.TrimSpace(password)
+	captchaID = strings.TrimSpace(captchaID)
+	captchaCode = strings.TrimSpace(captchaCode)
 
 	if username == "" || password == "" {
 		return "", "", errors.New("用户名和密码不能为空")
 	}
+	if captchaID == "" || captchaCode == "" {
+		return "", "", errors.New("请填写图形验证码")
+	}
 
 	loginPayload := map[string]string{
-		"username": username,
-		"password": password,
+		"username":     username,
+		"password":     password,
+		"captcha_id":   captchaID,
+		"captcha_code": captchaCode,
 	}
 	b, _ := json.Marshal(loginPayload)
 

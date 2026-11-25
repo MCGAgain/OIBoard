@@ -254,12 +254,6 @@ createApp({
     const nowTimestamp = ref(Math.floor(Date.now() / 1000));
 
     const configs = ref({
-      cf_handle: "",
-      luogu_uid: "",
-      luogu_cookie: "",
-      acwing_user_id: "",
-      acwing_cookie: "",
-      atcoder_handle: "",
       poll_interval_minutes: "30",
       sprint_mode: "false",
       last_sync_time: "",
@@ -305,12 +299,6 @@ createApp({
     };
 
     const settingsForm = ref({
-      cf_handle: "",
-      luogu_uid: "",
-      luogu_cookie: "",
-      acwing_user_id: "",
-      acwing_cookie: "",
-      atcoder_handle: "",
       poll_interval_minutes: "30",
       http_proxy: ""
     });
@@ -322,14 +310,13 @@ createApp({
     // ECharts 实例引用
     let heatmapChart = null;
     let analyticsChart = null;
-    let tagBarChart = null;
     const chartView = ref("climbing"); // 'climbing' | 'daily' | 'tags' | 'platforms'
     const isCurveSmooth = ref(true); // 累计曲线是否启用高斯核自然平滑拟合
 
     // --- Contest Computed & Helpers 字典引用 ---
     const contestMetaMap = ref({});
 
-    // --- 跨用户缓存签名与调度状态 (A8-2: 退出登录/会话过期时集中重置，彻底杜绝多账号切换残留) ---
+    // --- 跨用户缓存签名与调度状态 (退出登录/会话过期时集中重置) ---
     let lastKnownTotalSubs = -1;
     let lastKnownSyncTime = "";
     let lastHeatmapDataStr = "";
@@ -340,12 +327,6 @@ createApp({
     let lastPieKey = "";
     let lastTagsHash = "";
     let settingsBaseline = {
-      cf_handle: "",
-      luogu_uid: "",
-      luogu_cookie: "",
-      acwing_user_id: "",
-      acwing_cookie: "",
-      atcoder_handle: "",
       poll_interval_minutes: "30",
       http_proxy: "",
       sprint_mode: "false"
@@ -409,12 +390,6 @@ createApp({
       lastPieKey = "";
       lastTagsHash = "";
       settingsBaseline = {
-        cf_handle: "",
-        luogu_uid: "",
-        luogu_cookie: "",
-        acwing_user_id: "",
-        acwing_cookie: "",
-        atcoder_handle: "",
         poll_interval_minutes: "30",
         http_proxy: "",
         sprint_mode: "false"
@@ -426,9 +401,6 @@ createApp({
       }
       if (analyticsChart) {
         try { analyticsChart.clear(); } catch (e) {}
-      }
-      if (tagBarChart) {
-        try { tagBarChart.clear(); } catch (e) {}
       }
     };
 
@@ -569,11 +541,14 @@ createApp({
     };
 
     // --- Toast 消息提示 ---
+    let toastTimer = null;
     const showToast = (message, type = "success") => {
+      if (toastTimer) clearTimeout(toastTimer);
       toast.value = { show: true, message, type };
-      setTimeout(() => {
+      toastTimer = setTimeout(() => {
         toast.value.show = false;
-      }, 3500);
+        toastTimer = null;
+      }, 3200);
     };
 
     // --- 安全统一 API 请求包装器 (彻底杜绝浏览器/CDN缓存 + 差异化请求超时熔断) ---
@@ -940,12 +915,6 @@ createApp({
       const start = (currentPage.value - 1) * pageSize.value;
       return filteredSubmissions.value.slice(start, start + pageSize.value);
     });
-
-    const setSubFilter = (p) => {
-      subFilter.value = p;
-      currentPage.value = 1;
-      nextTick(syncSegmentedThumbs);
-    };
 
     const setDateFilter = (preset) => {
       dateFilter.value = preset;
@@ -1444,15 +1413,6 @@ createApp({
       return `<pre class='p-3 bg-black/5 dark:bg-white/5 rounded-xl font-mono text-xs overflow-x-auto'>${content}</pre>`;
     };
 
-    const insertCodeSnippet = (lang = "cpp") => {
-      const templates = {
-        cpp: "\n```cpp\n#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    // 核心思路与解法注释\n    \n    return 0;\n}\n```\n",
-        python: "\n```python\n# 核心思路与解法注释\ndef solve():\n    pass\n\nif __name__ == '__main__':\n    solve()\n```\n",
-        java: "\n```java\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        // 核心思路与解法注释\n    }\n}\n```\n"
-      };
-      mistakeForm.value.notes += templates[lang] || templates.cpp;
-    };
-
     const loadSubmissions = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/stats/submissions?limit=2000");
@@ -1509,12 +1469,6 @@ createApp({
         platformStatusMap.value = data.status || {};
 
         const snapshot = {
-          cf_handle: configs.value.cf_handle || "",
-          luogu_uid: configs.value.luogu_uid || "",
-          luogu_cookie: configs.value.luogu_cookie || "",
-          acwing_user_id: configs.value.acwing_user_id || "",
-          acwing_cookie: configs.value.acwing_cookie || "",
-          atcoder_handle: configs.value.atcoder_handle || "",
           poll_interval_minutes: configs.value.poll_interval_minutes || "30",
           http_proxy: configs.value.http_proxy || "",
           sprint_mode: configs.value.sprint_mode || "false"
@@ -1527,27 +1481,21 @@ createApp({
       }
     };
 
-    // A7-2: 设置表单脏状态检测（以基准快照 settingsBaseline 为参照，比对表单所有字段，并排查输入框聚焦）
+    // 设置表单脏状态检测
     const isSettingsFormDirty = () => {
       const b = settingsBaseline || {};
       const s = settingsForm.value || {};
       const isProxyChanged = (s.http_proxy || "").trim() !== (b.http_proxy || "").trim();
       const isIntervalChanged = String(s.poll_interval_minutes || "30") !== String(b.poll_interval_minutes || "30");
-      const isCfChanged = (s.cf_handle || "").trim() !== (b.cf_handle || "").trim();
-      const isLuoguUidChanged = (s.luogu_uid || "").trim() !== (b.luogu_uid || "").trim();
-      const isLuoguCookieChanged = (s.luogu_cookie || "").trim() !== (b.luogu_cookie || "").trim();
-      const isAcwingUidChanged = (s.acwing_user_id || "").trim() !== (b.acwing_user_id || "").trim();
-      const isAcwingCookieChanged = (s.acwing_cookie || "").trim() !== (b.acwing_cookie || "").trim();
-      const isAtcoderChanged = (s.atcoder_handle || "").trim() !== (b.atcoder_handle || "").trim();
       const isSprintChanged = String(s.sprint_mode || "false") !== String(b.sprint_mode || "false");
 
       const activeEl = document.activeElement;
       const isInputFocused = currentTab.value === "settings" && activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.tagName === "SELECT");
 
-      return isProxyChanged || isIntervalChanged || isCfChanged || isLuoguUidChanged || isLuoguCookieChanged || isAcwingUidChanged || isAcwingCookieChanged || isAtcoderChanged || isSprintChanged || isInputFocused;
+      return isProxyChanged || isIntervalChanged || isSprintChanged || isInputFocused;
     };
 
-    // 静默轮询设置与多账号状态（支持独立基准脏状态保护与弹窗焦点保护）
+    // 静默轮询设置与多账号状态
     const pollSettingsReadOnly = async ({ throwOnError = false } = {}) => {
       try {
         const res = await apiFetch("/api/settings");
@@ -1558,15 +1506,8 @@ createApp({
 
         if (data.configs) {
           configs.value = data.configs;
-          // A7-2: 表单未编辑且无焦点时，同步远端最新配置并推进基线；编辑中只更新只读展示 configs，绝对不覆盖表单
           if (!isSettingsFormDirty()) {
             const incoming = {
-              cf_handle: data.configs.cf_handle || "",
-              luogu_uid: data.configs.luogu_uid || "",
-              luogu_cookie: data.configs.luogu_cookie || "",
-              acwing_user_id: data.configs.acwing_user_id || "",
-              acwing_cookie: data.configs.acwing_cookie || "",
-              atcoder_handle: data.configs.atcoder_handle || "",
               poll_interval_minutes: data.configs.poll_interval_minutes || "30",
               http_proxy: data.configs.http_proxy || "",
               sprint_mode: data.configs.sprint_mode || "false"
@@ -2311,39 +2252,6 @@ createApp({
       }
     };
 
-    const verifyPlatform = async (platform) => {
-      isVerifying.value[platform] = true;
-      try {
-        const payload = {
-          platform,
-          cf_handle: settingsForm.value.cf_handle,
-          luogu_uid: settingsForm.value.luogu_uid,
-          luogu_cookie: settingsForm.value.luogu_cookie,
-          acwing_user_id: settingsForm.value.acwing_user_id,
-          acwing_cookie: settingsForm.value.acwing_cookie,
-          atcoder_handle: settingsForm.value.atcoder_handle,
-          http_proxy: settingsForm.value.http_proxy
-        };
-        const res = await apiFetch("/api/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          timeoutMs: 60000
-        });
-        const data = await res.json();
-        if (data.valid) {
-          showToast(data.message || "连接测试成功！", "success");
-        } else {
-          showToast(data.message || "连接测试失败", "error");
-        }
-        await Promise.all([loadSettings(), loadOverview()]);
-      } catch (e) {
-        showToast("测试异常: " + e.message, "error");
-      } finally {
-        isVerifying.value[platform] = false;
-      }
-    };
-
     const saveSystemSettingsOnly = async () => {
       const proxy = (settingsForm.value.http_proxy || "").trim();
       if (proxy && !/^(http|https|socks5|socks5h|socks4):\/\//i.test(proxy)) {
@@ -3019,10 +2927,8 @@ createApp({
       availableHeatmapYears,
       setHeatmapYear,
       tagStats,
-      mistakes,
       submissions,
       subFilter,
-      setSubFilter,
       configs,
       platformStatusMap,
       isSyncing,
@@ -3036,7 +2942,6 @@ createApp({
       setHeatmapFilter,
       syncNow,
       toggleSprintMode,
-      verifyPlatform,
       saveSettingsAndSync,
       saveSystemSettingsOnly,
       // Multi-Account Management exports
@@ -3126,7 +3031,6 @@ createApp({
       startNoteModalResize,
       openViewNoteModal,
       renderMarkdown,
-      insertCodeSnippet,
       // Local Agent Token exports
       isTokenCopied,
       copySyncToken

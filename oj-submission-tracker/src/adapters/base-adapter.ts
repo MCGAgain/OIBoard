@@ -2,8 +2,25 @@ import { PlatformType, UnifiedSubmissionPayload } from '../types/payload';
 import { Transport } from '../core/transport';
 import { Logger } from '../core/sandbox';
 
+export interface AdapterHookRequirements {
+  fetch?: boolean;
+  xhr?: boolean;
+  ws?: boolean;
+  router?: boolean;
+}
+
 export abstract class BaseAdapter {
   public abstract readonly platform: PlatformType;
+
+  /**
+   * 声明该适配器所需的底层 Hook，避免对不需要的平台（如 AtCoder/CF）进行全局劫持触发 WAF
+   */
+  public readonly requiredHooks: AdapterHookRequirements = {
+    fetch: true,
+    xhr: true,
+    ws: false,
+    router: false,
+  };
 
   /**
    * 判断当前页面 Hostname 是否匹配该适配器

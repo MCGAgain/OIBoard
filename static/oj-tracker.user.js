@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OJ Submission Tracker (多平台 OJ 提交采集与端云核实)
 // @namespace    https://github.com/OIBoard/oj-tracker
-// @version      1.1.0
+// @version      1.1.1
 // @author       OIBoard
 // @description  实时截获力扣、洛谷、AcWing、Codeforces、AtCoder 的判题与提交记录，并秒级同步至后端对账核实
 // @match        https://leetcode.cn/*
@@ -20,14 +20,15 @@
 // @run-at       document-start
 // ==/UserScript==
 
-(function () {
-  'use strict';
-
+"use strict";
+(() => {
   var __defProp = Object.defineProperty;
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-  const pageWindow = typeof unsafeWindow !== "undefined" ? unsafeWindow : window;
-  class Logger {
+
+  // src/core/sandbox.ts
+  var pageWindow = typeof unsafeWindow !== "undefined" ? unsafeWindow : window;
+  var Logger = class {
     static info(...args) {
       console.info(this.prefix, ...args);
     }
@@ -40,15 +41,20 @@
     static debug(...args) {
       console.debug(this.prefix, ...args);
     }
-  }
+  };
   __publicField(Logger, "prefix", "[OJ-Tracker]");
-  const _NetworkHookBus = class _NetworkHookBus {
-    static init(targetWindow) {
+
+  // src/core/network-hook.ts
+  var _NetworkHookBus = class _NetworkHookBus {
+    static init(targetWindow, options = { fetch: true, xhr: true, ws: true }) {
       if (this.initialized) return;
       this.initialized = true;
+      const hookFetch = options.fetch !== false;
+      const hookXhr = options.xhr !== false;
+      const hookWs = options.ws !== false;
       const originalFetch = targetWindow.fetch ? targetWindow.fetch.bind(targetWindow) : fetch.bind(window);
       this.rawFetch = originalFetch;
-      if (targetWindow.fetch) {
+      if (hookFetch && targetWindow.fetch) {
         targetWindow.fetch = async function(...args) {
           let url = "";
           let method = "GET";
@@ -102,7 +108,7 @@
         };
       }
       const OriginalXHR = targetWindow.XMLHttpRequest;
-      if (OriginalXHR && OriginalXHR.prototype) {
+      if (hookXhr && OriginalXHR && OriginalXHR.prototype) {
         const originalOpen = OriginalXHR.prototype.open;
         const originalSend = OriginalXHR.prototype.send;
         OriginalXHR.prototype.open = function(method, url, ...rest) {
@@ -156,7 +162,7 @@
         };
       }
       const OriginalWS = targetWindow.WebSocket;
-      if (OriginalWS) {
+      if (hookWs && OriginalWS) {
         const PatchedWS = function(url, protocols) {
           const wsInstance = protocols ? new OriginalWS(url, protocols) : new OriginalWS(url);
           try {
@@ -232,8 +238,10 @@
   __publicField(_NetworkHookBus, "wsSendListeners", []);
   __publicField(_NetworkHookBus, "initialized", false);
   __publicField(_NetworkHookBus, "rawFetch");
-  let NetworkHookBus = _NetworkHookBus;
-  const _RouterHookBus = class _RouterHookBus {
+  var NetworkHookBus = _NetworkHookBus;
+
+  // src/core/router-hook.ts
+  var _RouterHookBus = class _RouterHookBus {
     static init(targetWindow) {
       if (this.initialized) return;
       this.initialized = true;
@@ -291,20 +299,22 @@
   __publicField(_RouterHookBus, "listeners", []);
   __publicField(_RouterHookBus, "initialized", false);
   __publicField(_RouterHookBus, "currentUrl", "");
-  let RouterHookBus = _RouterHookBus;
-  const KEY_REPORTED_IDS = "reported_ids";
-  const KEY_BACKEND_URL = "backend_url";
-  const KEY_USER_TOKEN = "user_token";
-  const KEY_FAILED_QUEUE = "failed_payload_queue";
-  const KEY_BADGE_POS = "badge_position";
-  const MAX_DEDUPLICATION_CAPACITY = 500;
-  class Storage {
+  var RouterHookBus = _RouterHookBus;
+
+  // src/core/storage.ts
+  var KEY_REPORTED_IDS = "reported_ids";
+  var KEY_BACKEND_URL = "backend_url";
+  var KEY_USER_TOKEN = "user_token";
+  var KEY_FAILED_QUEUE = "failed_payload_queue";
+  var KEY_BADGE_POS = "badge_position";
+  var MAX_DEDUPLICATION_CAPACITY = 500;
+  var Storage = class {
     /**
      * 初始化存储与油猴菜单命令
      */
     static init(onOpenConfigModal) {
       if (typeof GM_registerMenuCommand === "function" && onOpenConfigModal) {
-        GM_registerMenuCommand("打开 OJ Tracker 配置面板", onOpenConfigModal);
+        GM_registerMenuCommand("\u6253\u5F00 OJ Tracker \u914D\u7F6E\u9762\u677F", onOpenConfigModal);
       }
     }
     /**
@@ -494,9 +504,11 @@
       }
       return this.cachedReportedSet;
     }
-  }
+  };
   __publicField(Storage, "cachedReportedSet", null);
-  class Transport {
+
+  // src/core/transport.ts
+  var Transport = class {
     static onStatus(listener) {
       this.statusListeners.push(listener);
     }
@@ -533,19 +545,19 @@
       const token = Storage.getUserToken();
       if (!backendUrl) {
         Logger.warn("[Transport] Backend URL is not configured.");
-        this.notifyStatus("error", "未配置后端地址");
+        this.notifyStatus("error", "\u672A\u914D\u7F6E\u540E\u7AEF\u5730\u5740");
         Storage.saveFailedPayload(payload);
         this.inflightSet.delete(flightKey);
         return false;
       }
-      this.notifyStatus("syncing", `正在同步 ${payload.problemId}...`);
+      this.notifyStatus("syncing", `\u6B63\u5728\u540C\u6B65 ${payload.problemId}...`);
       Logger.info(
         `[Transport] Sending submission (${flightKey}, attempt ${retryCount + 1})...`
       );
       return new Promise((resolve) => {
         if (typeof GM_xmlhttpRequest !== "function") {
           Logger.error("GM_xmlhttpRequest is not available in current environment!");
-          this.notifyStatus("error", "GM_xmlhttpRequest 未授权");
+          this.notifyStatus("error", "GM_xmlhttpRequest \u672A\u6388\u6743");
           Storage.saveFailedPayload(payload);
           this.inflightSet.delete(flightKey);
           resolve(false);
@@ -572,7 +584,7 @@
               );
               Storage.markReported(payload.platform, payload.platformSubmissionId);
               Storage.removeFailedPayload(payload.platform, payload.platformSubmissionId);
-              this.notifyStatus("synced", `已同步 ✓ (${payload.problemId})`);
+              this.notifyStatus("synced", `\u5DF2\u540C\u6B65 \u2713 (${payload.problemId})`);
               setTimeout(() => this.flushOfflineQueue(), 1500);
               resolve(true);
             } else {
@@ -584,11 +596,11 @@
           },
           onerror: (err) => {
             Logger.error("[Transport] Network error:", err);
-            this.handleRetry(payload, retryCount, resolve, "网络错误");
+            this.handleRetry(payload, retryCount, resolve, "\u7F51\u7EDC\u9519\u8BEF");
           },
           ontimeout: () => {
             Logger.warn("[Transport] Request timed out.");
-            this.handleRetry(payload, retryCount, resolve, "连接超时");
+            this.handleRetry(payload, retryCount, resolve, "\u8FDE\u63A5\u8D85\u65F6");
           }
         });
       });
@@ -604,7 +616,7 @@
         Logger.info(
           `[Transport] Retrying ${flightKey} in ${delayMs}ms (retry ${retryCount + 1}/${MAX_RETRIES})...`
         );
-        this.notifyStatus("syncing", `同步失败 (${reason})，${delayMs / 1e3}s 后重试...`);
+        this.notifyStatus("syncing", `\u540C\u6B65\u5931\u8D25 (${reason})\uFF0C${delayMs / 1e3}s \u540E\u91CD\u8BD5...`);
         setTimeout(async () => {
           const ok = await this.send(payload, retryCount + 1);
           resolve(ok);
@@ -615,7 +627,7 @@
           `[Transport] Exceeded max retries for ${flightKey}. Saving to offline queue.`
         );
         Storage.saveFailedPayload(payload);
-        this.notifyStatus("error", `同步失败 (${reason})，已加入离线暂存队列`);
+        this.notifyStatus("error", `\u540C\u6B65\u5931\u8D25 (${reason})\uFF0C\u5DF2\u52A0\u5165\u79BB\u7EBF\u6682\u5B58\u961F\u5217`);
         resolve(false);
       }
     }
@@ -645,11 +657,13 @@
       }
       this.isFlushingFailedQueue = false;
     }
-  }
+  };
   __publicField(Transport, "statusListeners", []);
   __publicField(Transport, "isFlushingFailedQueue", false);
   __publicField(Transport, "inflightSet", /* @__PURE__ */ new Set());
-  class StatusBadge {
+
+  // src/ui/status-badge.ts
+  var StatusBadge = class {
     static init(platformName) {
       this.currentPlatform = platformName;
       const mount = () => {
@@ -707,12 +721,14 @@
         display: inline-block;
       }
 
-      /* 可拖拽胶囊状态栏 */
+      /* \u53EF\u62D6\u62FD\u80F6\u56CA\u72B6\u6001\u680F */
       .badge-capsule {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        background: #ffffff;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         border: 1px solid rgba(226, 232, 240, 0.95);
         box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.1), 0 2px 6px -1px rgba(0, 0, 0, 0.05);
         border-radius: 9999px;
@@ -731,7 +747,7 @@
         cursor: grabbing;
       }
 
-      /* 状态圆点 */
+      /* \u72B6\u6001\u5706\u70B9 */
       .status-dot {
         width: 8px;
         height: 8px;
@@ -806,7 +822,7 @@
         transform: rotate(30deg);
       }
 
-      /* 配置弹窗 */
+      /* \u914D\u7F6E\u5F39\u7A97 */
       .modal-overlay {
         position: absolute;
         bottom: calc(100% + 10px);
@@ -976,48 +992,48 @@
       <style>${styles}</style>
       
       <div class="badge-container" id="container">
-        <!-- 可拖拽胶囊状态栏 -->
-        <div class="badge-capsule" id="capsule" title="可长按拖拽任意位置">
+        <!-- \u53EF\u62D6\u62FD\u80F6\u56CA\u72B6\u6001\u680F -->
+        <div class="badge-capsule" id="capsule" title="\u53EF\u957F\u6309\u62D6\u62FD\u4EFB\u610F\u4F4D\u7F6E">
           <span class="status-dot" id="status-dot"></span>
           <span class="badge-text" id="status-text">${this.currentPlatform} Ready</span>
-          <button class="btn-settings" id="btn-open-settings" title="配置 OJ Tracker">${gearSvg}</button>
+          <button class="btn-settings" id="btn-open-settings" title="\u914D\u7F6E OJ Tracker">${gearSvg}</button>
         </div>
 
-        <!-- 配置弹窗 -->
+        <!-- \u914D\u7F6E\u5F39\u7A97 -->
         <div class="modal-overlay" id="modal">
           <div class="modal-header">
             <div class="modal-title">
               ${serverSvg}
-              <span>OJ Tracker 配置</span>
+              <span>OJ Tracker \u914D\u7F6E</span>
             </div>
-            <button class="modal-close" id="btn-close-modal" title="关闭">${closeSvg}</button>
+            <button class="modal-close" id="btn-close-modal" title="\u5173\u95ED">${closeSvg}</button>
           </div>
 
           <div class="form-group">
-            <label class="form-label">后端接收 API URL</label>
+            <label class="form-label">\u540E\u7AEF\u63A5\u6536 API URL</label>
             <input type="text" class="form-input" id="input-backend-url" placeholder="http://localhost:8000/api/v1/submissions/push" />
           </div>
 
           <div class="form-group">
-            <label class="form-label">个人认证 Token / 凭据 (Bearer)</label>
-            <input type="password" class="form-input" id="input-user-token" placeholder="留空或输入 OIBoard 同步 Token / 用户名" />
+            <label class="form-label">\u4E2A\u4EBA\u8BA4\u8BC1 Token / \u51ED\u636E (Bearer)</label>
+            <input type="password" class="form-input" id="input-user-token" placeholder="\u7559\u7A7A\u6216\u8F93\u5165 OIBoard \u540C\u6B65 Token / \u7528\u6237\u540D" />
             <div style="font-size: 10px; color: #94a3b8; margin-top: 4px; line-height: 1.4;">
-              提示: 可在 OIBoard「设置 -> 账号设置」中复制当前同步凭据 (Sync Token) 填入此处，亦可留空或输入登录用户名。
+              \u63D0\u793A: \u53EF\u5728 OIBoard\u300C\u8BBE\u7F6E -> \u8D26\u53F7\u8BBE\u7F6E\u300D\u4E2D\u590D\u5236\u5F53\u524D\u540C\u6B65\u51ED\u636E (Sync Token) \u586B\u5165\u6B64\u5904\uFF0C\u4EA6\u53EF\u7559\u7A7A\u6216\u8F93\u5165\u767B\u5F55\u7528\u6237\u540D\u3002
             </div>
           </div>
 
           <div class="stats-box">
-            <span>平台: <b>${this.currentPlatform}</b></span>
-            <span id="cache-stats">缓存: ${Storage.getReportedCount()}/500</span>
+            <span>\u5E73\u53F0: <b>${this.currentPlatform}</b></span>
+            <span id="cache-stats">\u7F13\u5B58: ${Storage.getReportedCount()}/500</span>
           </div>
 
           <div class="btn-row" style="margin-bottom: 8px;">
-            <button class="btn btn-secondary" id="btn-test-conn">测试连接</button>
-            <button class="btn btn-primary" id="btn-save">保存配置</button>
+            <button class="btn btn-secondary" id="btn-test-conn">\u6D4B\u8BD5\u8FDE\u63A5</button>
+            <button class="btn btn-primary" id="btn-save">\u4FDD\u5B58\u914D\u7F6E</button>
           </div>
 
           <div class="btn-row">
-            <button class="btn btn-danger" id="btn-clear-cache">清空去重缓存</button>
+            <button class="btn btn-danger" id="btn-clear-cache">\u6E05\u7A7A\u53BB\u91CD\u7F13\u5B58</button>
           </div>
 
           <div class="feedback-msg" id="feedback"></div>
@@ -1163,30 +1179,30 @@
       const btnClearCache = this.shadowRoot.getElementById("btn-clear-cache");
       const inputUrl = this.shadowRoot.getElementById("input-backend-url");
       const inputToken = this.shadowRoot.getElementById("input-user-token");
-      capsule == null ? void 0 : capsule.addEventListener("click", (e) => {
+      capsule?.addEventListener("click", (e) => {
         if (e.target !== btnOpenSettings) {
           this.toggleModal(!this.isModalOpen);
         }
       });
-      btnOpenSettings == null ? void 0 : btnOpenSettings.addEventListener("click", (e) => {
+      btnOpenSettings?.addEventListener("click", (e) => {
         e.stopPropagation();
         this.toggleModal(!this.isModalOpen);
       });
-      btnCloseModal == null ? void 0 : btnCloseModal.addEventListener("click", (e) => {
+      btnCloseModal?.addEventListener("click", (e) => {
         e.stopPropagation();
         this.toggleModal(false);
       });
-      btnSave == null ? void 0 : btnSave.addEventListener("click", () => {
-        const url = (inputUrl == null ? void 0 : inputUrl.value) || "";
-        const token = (inputToken == null ? void 0 : inputToken.value) || "";
+      btnSave?.addEventListener("click", () => {
+        const url = inputUrl?.value || "";
+        const token = inputToken?.value || "";
         Storage.setBackendUrl(url);
         Storage.setUserToken(token);
-        this.showFeedback("配置已保存", "#059669");
+        this.showFeedback("\u914D\u7F6E\u5DF2\u4FDD\u5B58", "#059669");
       });
-      btnTest == null ? void 0 : btnTest.addEventListener("click", () => {
-        const url = (inputUrl == null ? void 0 : inputUrl.value) || Storage.getBackendUrl();
-        const token = (inputToken == null ? void 0 : inputToken.value) || Storage.getUserToken();
-        this.showFeedback("正在测试连接...", "#3b82f6");
+      btnTest?.addEventListener("click", () => {
+        const url = inputUrl?.value || Storage.getBackendUrl();
+        const token = inputToken?.value || Storage.getUserToken();
+        this.showFeedback("\u6B63\u5728\u6D4B\u8BD5\u8FDE\u63A5...", "#3b82f6");
         if (typeof GM_xmlhttpRequest === "function") {
           GM_xmlhttpRequest({
             method: "GET",
@@ -1195,52 +1211,49 @@
             timeout: 5e3,
             onload: (res) => {
               if (res.status >= 200 && res.status < 400) {
-                this.showFeedback(`连接成功 (HTTP ${res.status})`, "#059669");
+                this.showFeedback(`\u8FDE\u63A5\u6210\u529F (HTTP ${res.status})`, "#059669");
               } else {
-                this.showFeedback(`服务响应 HTTP ${res.status}`, "#d97706");
+                this.showFeedback(`\u670D\u52A1\u54CD\u5E94 HTTP ${res.status}`, "#d97706");
               }
             },
             onerror: () => {
-              this.showFeedback("连接失败：网络错误或跨域拒绝", "#dc2626");
+              this.showFeedback("\u8FDE\u63A5\u5931\u8D25\uFF1A\u7F51\u7EDC\u9519\u8BEF\u6216\u8DE8\u57DF\u62D2\u7EDD", "#dc2626");
             },
             ontimeout: () => {
-              this.showFeedback("连接超时", "#dc2626");
+              this.showFeedback("\u8FDE\u63A5\u8D85\u65F6", "#dc2626");
             }
           });
         } else {
-          this.showFeedback("当前环境缺少 GM_xmlhttpRequest", "#dc2626");
+          this.showFeedback("\u5F53\u524D\u73AF\u5883\u7F3A\u5C11 GM_xmlhttpRequest", "#dc2626");
         }
       });
-      btnClearCache == null ? void 0 : btnClearCache.addEventListener("click", () => {
-        var _a;
+      btnClearCache?.addEventListener("click", () => {
         Storage.clearReported();
-        const cacheStats = (_a = this.shadowRoot) == null ? void 0 : _a.getElementById("cache-stats");
-        if (cacheStats) cacheStats.textContent = "缓存: 0/500";
-        this.showFeedback("已清空去重队列", "#059669");
+        const cacheStats = this.shadowRoot?.getElementById("cache-stats");
+        if (cacheStats) cacheStats.textContent = "\u7F13\u5B58: 0/500";
+        this.showFeedback("\u5DF2\u6E05\u7A7A\u53BB\u91CD\u961F\u5217", "#059669");
       });
     }
     static toggleModal(open) {
-      var _a, _b, _c, _d;
       this.isModalOpen = open;
-      const modal = (_a = this.shadowRoot) == null ? void 0 : _a.getElementById("modal");
-      const inputUrl = (_b = this.shadowRoot) == null ? void 0 : _b.getElementById("input-backend-url");
-      const inputToken = (_c = this.shadowRoot) == null ? void 0 : _c.getElementById("input-user-token");
-      const cacheStats = (_d = this.shadowRoot) == null ? void 0 : _d.getElementById("cache-stats");
+      const modal = this.shadowRoot?.getElementById("modal");
+      const inputUrl = this.shadowRoot?.getElementById("input-backend-url");
+      const inputToken = this.shadowRoot?.getElementById("input-user-token");
+      const cacheStats = this.shadowRoot?.getElementById("cache-stats");
       if (modal) {
         if (open) {
           this.repositionModal();
           modal.classList.add("open");
           if (inputUrl) inputUrl.value = Storage.getBackendUrl();
           if (inputToken) inputToken.value = Storage.getUserToken();
-          if (cacheStats) cacheStats.textContent = `缓存: ${Storage.getReportedCount()}/500`;
+          if (cacheStats) cacheStats.textContent = `\u7F13\u5B58: ${Storage.getReportedCount()}/500`;
         } else {
           modal.classList.remove("open");
         }
       }
     }
     static showFeedback(msg, color) {
-      var _a;
-      const fb = (_a = this.shadowRoot) == null ? void 0 : _a.getElementById("feedback");
+      const fb = this.shadowRoot?.getElementById("feedback");
       if (fb) {
         fb.style.color = color;
         fb.textContent = msg;
@@ -1289,13 +1302,26 @@
           break;
       }
     }
-  }
+  };
   __publicField(StatusBadge, "hostElement", null);
   __publicField(StatusBadge, "shadowRoot", null);
   __publicField(StatusBadge, "isModalOpen", false);
   __publicField(StatusBadge, "currentPlatform", "OJ");
   __publicField(StatusBadge, "syncingTimeoutTimer", null);
-  class BaseAdapter {
+
+  // src/adapters/base-adapter.ts
+  var BaseAdapter = class {
+    constructor() {
+      /**
+       * 声明该适配器所需的底层 Hook，避免对不需要的平台（如 AtCoder/CF）进行全局劫持触发 WAF
+       */
+      __publicField(this, "requiredHooks", {
+        fetch: true,
+        xhr: true,
+        ws: false,
+        router: false
+      });
+    }
     /**
      * 提交标准化数据
      */
@@ -1303,8 +1329,10 @@
       Logger.info(`[${this.platform}] Submitting payload for problem: ${payload.problemId}, verdict: ${payload.verdict}`);
       return Transport.send(payload);
     }
-  }
-  class LeetCodeAdapter extends BaseAdapter {
+  };
+
+  // src/adapters/leetcode-adapter.ts
+  var LeetCodeAdapter = class extends BaseAdapter {
     constructor() {
       super(...arguments);
       __publicField(this, "platform", "leetcode_cn");
@@ -1361,7 +1389,7 @@
           code: reqBody.typed_code || "",
           timestamp: Date.now()
         });
-        Transport.notifyStatus("syncing", `力扣已提交判题: ${titleSlug}...`);
+        Transport.notifyStatus("syncing", `\u529B\u6263\u5DF2\u63D0\u4EA4\u5224\u9898: ${titleSlug}...`);
         Logger.info(`[LeetCodeAdapter] Cached pending submission: ID=${subIdStr}, Title=${titleSlug}`);
         this.startPollingCheckStatus(subIdStr, titleSlug);
       } catch (e) {
@@ -1424,7 +1452,7 @@
         const verdict = this.mapStatusCodeToVerdict(data.status_code);
         const runtimeMs = this.cleanRuntime(data.status_runtime);
         const memoryKb = this.cleanMemory(data.status_memory);
-        const problemSlug = (pending == null ? void 0 : pending.titleSlug) || this.extractSlugFromUrl();
+        const problemSlug = pending?.titleSlug || this.extractSlugFromUrl();
         const problemTitle = this.extractProblemTitle() || problemSlug;
         const userHandle = this.extractUserHandle();
         const payload = {
@@ -1437,8 +1465,8 @@
           verdict,
           rawStatus: data.status_msg || String(data.status_code),
           score: verdict === "AC" ? 100 : 0,
-          language: (pending == null ? void 0 : pending.lang) || data.lang || "unknown",
-          sourceCode: (pending == null ? void 0 : pending.code) || "",
+          language: pending?.lang || data.lang || "unknown",
+          sourceCode: pending?.code || "",
           executionTimeMs: runtimeMs,
           memoryUsedKb: memoryKb,
           submittedAt: Date.now(),
@@ -1454,11 +1482,10 @@
      * 拦截新版 GraphQL submissionDetails 响应
      */
     handleGraphQLSubmissionDetail(event) {
-      var _a, _b, _c, _d, _e;
       try {
         if (!event.responseText) return;
         const json = JSON.parse(event.responseText);
-        const detail = ((_a = json.data) == null ? void 0 : _a.submissionDetail) || ((_b = json.data) == null ? void 0 : _b.submissionDetails);
+        const detail = json.data?.submissionDetail || json.data?.submissionDetails;
         if (!detail) return;
         const subIdStr = String(detail.id || detail.submissionId);
         if (!subIdStr) return;
@@ -1467,8 +1494,8 @@
         const verdict = this.mapStatusDisplayToVerdict(statusDisplay);
         const runtimeMs = typeof detail.runtime === "number" ? detail.runtime : this.cleanRuntime(detail.runtime || detail.statusRuntime);
         const memoryKb = typeof detail.memory === "number" ? Math.round(detail.memory / 1024) : this.cleanMemory(detail.memory || detail.statusMemory);
-        const problemSlug = (pending == null ? void 0 : pending.titleSlug) || ((_c = detail.question) == null ? void 0 : _c.titleSlug) || this.extractSlugFromUrl();
-        const problemTitle = ((_d = detail.question) == null ? void 0 : _d.title) || this.extractProblemTitle() || problemSlug;
+        const problemSlug = pending?.titleSlug || detail.question?.titleSlug || this.extractSlugFromUrl();
+        const problemTitle = detail.question?.title || this.extractProblemTitle() || problemSlug;
         const userHandle = this.extractUserHandle();
         const payload = {
           platform: "leetcode_cn",
@@ -1480,8 +1507,8 @@
           verdict,
           rawStatus: statusDisplay,
           score: verdict === "AC" ? 100 : 0,
-          language: ((_e = detail.lang) == null ? void 0 : _e.name) || (pending == null ? void 0 : pending.lang) || "unknown",
-          sourceCode: detail.code || (pending == null ? void 0 : pending.code) || "",
+          language: detail.lang?.name || pending?.lang || "unknown",
+          sourceCode: detail.code || pending?.code || "",
           executionTimeMs: runtimeMs,
           memoryUsedKb: memoryKb,
           submittedAt: detail.timestamp ? Number(detail.timestamp) * 1e3 : Date.now(),
@@ -1511,7 +1538,6 @@
       });
     }
     scanDomForSubmissionResult() {
-      var _a;
       if (!this.pendingMap.size) return;
       const pageText = document.body.innerText || "";
       let foundVerdict = null;
@@ -1520,41 +1546,41 @@
         '[data-e2e-locator="submission-result"], .text-green-s, .text-red-s, [class*="result-status"]'
       );
       for (const el of Array.from(resultBadges)) {
-        const t = ((_a = el.textContent) == null ? void 0 : _a.trim()) || "";
-        if (t === "通过" || t === "Accepted") {
+        const t = el.textContent?.trim() || "";
+        if (t === "\u901A\u8FC7" || t === "Accepted") {
           foundVerdict = "AC";
           foundStatusText = t;
           break;
-        } else if (t === "解答错误" || t === "Wrong Answer") {
+        } else if (t === "\u89E3\u7B54\u9519\u8BEF" || t === "Wrong Answer") {
           foundVerdict = "WA";
           foundStatusText = t;
           break;
-        } else if (t === "超出时间限制" || t === "Time Limit Exceeded") {
+        } else if (t === "\u8D85\u51FA\u65F6\u95F4\u9650\u5236" || t === "Time Limit Exceeded") {
           foundVerdict = "TLE";
           foundStatusText = t;
           break;
-        } else if (t === "超出内存限制" || t === "Memory Limit Exceeded") {
+        } else if (t === "\u8D85\u51FA\u5185\u5B58\u9650\u5236" || t === "Memory Limit Exceeded") {
           foundVerdict = "MLE";
           foundStatusText = t;
           break;
-        } else if (t.includes("执行出错") || t.includes("Runtime Error")) {
+        } else if (t.includes("\u6267\u884C\u51FA\u9519") || t.includes("Runtime Error")) {
           foundVerdict = "RE";
           foundStatusText = t;
           break;
-        } else if (t.includes("编译出错") || t.includes("Compile Error")) {
+        } else if (t.includes("\u7F16\u8BD1\u51FA\u9519") || t.includes("Compile Error")) {
           foundVerdict = "CE";
           foundStatusText = t;
           break;
         }
       }
       if (!foundVerdict) {
-        if (pageText.includes("执行用时分布") || pageText.includes("消耗内存分布")) {
-          if (/(\n|^)\s*通过\s*(\n|$)/m.test(pageText) || pageText.includes("状态：通过") || pageText.includes("状态: 通过")) {
+        if (pageText.includes("\u6267\u884C\u7528\u65F6\u5206\u5E03") || pageText.includes("\u6D88\u8017\u5185\u5B58\u5206\u5E03")) {
+          if (/(\n|^)\s*通过\s*(\n|$)/m.test(pageText) || pageText.includes("\u72B6\u6001\uFF1A\u901A\u8FC7") || pageText.includes("\u72B6\u6001: \u901A\u8FC7")) {
             foundVerdict = "AC";
-            foundStatusText = "通过";
+            foundStatusText = "\u901A\u8FC7";
           } else if (/(\n|^)\s*解答错误\s*(\n|$)/m.test(pageText)) {
             foundVerdict = "WA";
-            foundStatusText = "解答错误";
+            foundStatusText = "\u89E3\u7B54\u9519\u8BEF";
           }
         }
       }
@@ -1600,7 +1626,7 @@
         const cleaned = rawTitle.replace(/\s*-\s*力扣.*$/, "").replace(/^\d+\.\s*/, "").trim();
         if (cleaned) return cleaned;
         const h4 = document.querySelector('h4, [data-e2e-locator="question-title"]');
-        if (h4 == null ? void 0 : h4.textContent) return h4.textContent.replace(/^\d+\.\s*/, "").trim();
+        if (h4?.textContent) return h4.textContent.replace(/^\d+\.\s*/, "").trim();
       } catch (_) {
       }
       return "";
@@ -1656,30 +1682,32 @@
       return Math.round(parseFloat(s) * 1024) || 0;
     }
     extractUserHandle() {
-      var _a, _b, _c, _d;
       try {
         const userAvatar = document.querySelector('a[href^="/u/"]');
         if (userAvatar) {
           const href = userAvatar.getAttribute("href");
-          const m = href == null ? void 0 : href.match(/\/u\/([^/]+)/);
+          const m = href?.match(/\/u\/([^/]+)/);
           if (m) return m[1];
         }
-        if ((_a = pageWindow.userStatus) == null ? void 0 : _a.username) {
+        if (pageWindow.userStatus?.username) {
           return pageWindow.userStatus.username;
         }
         const nextData = pageWindow.__NEXT_DATA__;
-        if ((_d = (_c = (_b = nextData == null ? void 0 : nextData.props) == null ? void 0 : _b.pageProps) == null ? void 0 : _c.userStatus) == null ? void 0 : _d.username) {
+        if (nextData?.props?.pageProps?.userStatus?.username) {
           return nextData.props.pageProps.userStatus.username;
         }
       } catch (_) {
       }
       return void 0;
     }
-  }
-  class LuoguAdapter extends BaseAdapter {
+  };
+
+  // src/adapters/luogu-adapter.ts
+  var LuoguAdapter = class extends BaseAdapter {
     constructor() {
       super(...arguments);
       __publicField(this, "platform", "luogu");
+      __publicField(this, "requiredHooks", { fetch: true, xhr: true, ws: true, router: true });
       __publicField(this, "pendingMap", /* @__PURE__ */ new Map());
       __publicField(this, "activePollers", /* @__PURE__ */ new Set());
     }
@@ -1699,7 +1727,6 @@
       }
     }
     handleHttpEvent(event) {
-      var _a;
       if (event.method !== "POST") return;
       const submitMatch = event.url.match(/(?:fe\/api\/problem\/submit|api\/problem\/submit)\/([A-Za-z0-9_]+)/);
       if (!submitMatch || !event.responseText) return;
@@ -1707,7 +1734,7 @@
         const problemId = submitMatch[1];
         const reqBody = event.requestBody ? JSON.parse(event.requestBody) : {};
         const resBody = JSON.parse(event.responseText);
-        const rid = ((_a = resBody.data) == null ? void 0 : _a.rid) || resBody.rid;
+        const rid = resBody.data?.rid || resBody.rid;
         if (!rid) return;
         const ridStr = String(rid);
         this.pendingMap.set(ridStr, {
@@ -1717,7 +1744,7 @@
           timestamp: Date.now()
         });
         Logger.info(`[LuoguAdapter] Intercepted submit for problem ${problemId}, rid: ${ridStr}`);
-        Transport.notifyStatus("syncing", `洛谷已提交: ${problemId} (rid: ${ridStr})...`);
+        Transport.notifyStatus("syncing", `\u6D1B\u8C37\u5DF2\u63D0\u4EA4: ${problemId} (rid: ${ridStr})...`);
         this.startActivePolling(ridStr);
       } catch (e) {
         Logger.error("[LuoguAdapter] Error parsing submit response:", e);
@@ -1740,7 +1767,7 @@
       if (this.activePollers.has(rid)) return;
       if (Storage.isDuplicate(this.platform, rid)) return;
       this.activePollers.add(rid);
-      Transport.notifyStatus("syncing", `正在等待洛谷评测出资 (rid: ${rid})...`);
+      Transport.notifyStatus("syncing", `\u6B63\u5728\u7B49\u5F85\u6D1B\u8C37\u8BC4\u6D4B\u51FA\u8D44 (rid: ${rid})...`);
       let attempts = 0;
       const maxAttempts = 20;
       const intervalMs = 2e3;
@@ -1787,13 +1814,12 @@
      * 双格式兼容解析（旧版 currentData 与新版 lentille-context）
      */
     parseRecordData(text) {
-      var _a, _b, _c, _d;
       if (!text) return null;
       if (text.trim().startsWith("{")) {
         try {
           const json = JSON.parse(text);
-          if ((_a = json.currentData) == null ? void 0 : _a.record) return json.currentData.record;
-          if ((_b = json.data) == null ? void 0 : _b.record) return json.data.record;
+          if (json.currentData?.record) return json.currentData.record;
+          if (json.data?.record) return json.data.record;
           if (json.record) return json.record;
         } catch (_) {
         }
@@ -1802,26 +1828,25 @@
         const match = text.match(/<script\s+id="lentille-context"\s+type="application\/json">([\s\S]*?)<\/script>/i);
         if (match && match[1]) {
           const context = JSON.parse(match[1]);
-          if ((_c = context.data) == null ? void 0 : _c.record) return context.data.record;
-          if ((_d = context.currentData) == null ? void 0 : _d.record) return context.currentData.record;
+          if (context.data?.record) return context.data.record;
+          if (context.currentData?.record) return context.currentData.record;
         }
       } catch (_) {
       }
       return null;
     }
     handleRecordFinished(rid, record) {
-      var _a, _b, _c, _d;
       const pending = this.pendingMap.get(rid);
       const statusCode = record.status;
       const score = typeof record.score === "number" ? record.score : 0;
       const verdict = this.mapStatusToVerdict(statusCode, score);
-      const problemId = ((_a = record.problem) == null ? void 0 : _a.pid) || (pending == null ? void 0 : pending.problemId) || "P_UNKNOWN";
-      const problemTitle = ((_b = record.problem) == null ? void 0 : _b.title) || "";
+      const problemId = record.problem?.pid || pending?.problemId || "P_UNKNOWN";
+      const problemTitle = record.problem?.title || "";
       const executionTimeMs = typeof record.time === "number" ? record.time : 0;
       const memoryUsedKb = typeof record.memory === "number" ? record.memory : 0;
-      const language = this.mapLuoguLanguage(record.language || (pending == null ? void 0 : pending.lang));
-      const sourceCode = record.sourceCode || (pending == null ? void 0 : pending.code) || "";
-      const userHandle = (((_c = record.user) == null ? void 0 : _c.uid) ? String(record.user.uid) : "") || ((_d = record.user) == null ? void 0 : _d.name) || void 0;
+      const language = this.mapLuoguLanguage(record.language || pending?.lang);
+      const sourceCode = record.sourceCode || pending?.code || "";
+      const userHandle = (record.user?.uid ? String(record.user.uid) : "") || record.user?.name || void 0;
       const submittedAt = record.submitTime ? record.submitTime * 1e3 : Date.now();
       const payload = {
         platform: "luogu",
@@ -1887,11 +1912,14 @@
           return "WA";
       }
     }
-  }
-  class AcWingAdapter extends BaseAdapter {
+  };
+
+  // src/adapters/acwing-adapter.ts
+  var AcWingAdapter = class extends BaseAdapter {
     constructor() {
       super(...arguments);
       __publicField(this, "platform", "acwing");
+      __publicField(this, "requiredHooks", { fetch: true, xhr: true, ws: true, router: false });
       __publicField(this, "pendingSubmission", null);
       __publicField(this, "observerInitialized", false);
       __publicField(this, "_resolveSeq", 0);
@@ -1949,7 +1977,6 @@
      * 从 Ace Editor 或页面 DOM 中截获代码与语言
      */
     captureEditorState() {
-      var _a, _b;
       try {
         let code = "";
         let language = "unknown";
@@ -1961,7 +1988,7 @@
               code = editor.getValue();
             }
             if (editor.getSession) {
-              const modeId = ((_a = editor.getSession().getMode()) == null ? void 0 : _a.$id) || "";
+              const modeId = editor.getSession().getMode()?.$id || "";
               if (modeId.includes("c_cpp")) language = "C++";
               else if (modeId.includes("python")) language = "Python3";
               else if (modeId.includes("java")) language = "Java";
@@ -1986,7 +2013,7 @@
         const urlMatch = window.location.pathname.match(/\/problem\/content\/(?:submission\/code_detail\/|submission\/|)(\d+)/);
         const problemId = urlMatch ? `acwing_${urlMatch[1]}` : "acwing_unknown";
         const titleElem = document.querySelector(".problem-content-title");
-        const problemTitle = titleElem ? ((_b = titleElem.textContent) == null ? void 0 : _b.trim()) || "" : "";
+        const problemTitle = titleElem ? titleElem.textContent?.trim() || "" : "";
         this.pendingSubmission = {
           problemId,
           problemTitle,
@@ -1995,7 +2022,7 @@
           timestamp: Date.now()
         };
         Logger.info(`[AcWingAdapter] Captured editor code for ${problemId}, lang: ${language}, length: ${code.length}`);
-        Transport.notifyStatus("syncing", `AcWing 已提交判题: ${problemTitle || problemId}...`);
+        Transport.notifyStatus("syncing", `AcWing \u5DF2\u63D0\u4EA4\u5224\u9898: ${problemTitle || problemId}...`);
       } catch (e) {
         Logger.error("[AcWingAdapter] Error capturing editor state:", e);
       }
@@ -2031,24 +2058,23 @@
       return "unknown";
     }
     extractLanguageFromDom() {
-      var _a, _b, _c, _d, _e;
       try {
         const langSelect = document.querySelector('#code_language, select[name="language"]');
         if (langSelect) {
           const opt = langSelect.options[langSelect.selectedIndex];
-          const val = ((_a = opt == null ? void 0 : opt.text) == null ? void 0 : _a.trim()) || ((_b = opt == null ? void 0 : opt.value) == null ? void 0 : _b.trim()) || ((_c = langSelect.value) == null ? void 0 : _c.trim());
+          const val = opt?.text?.trim() || opt?.value?.trim() || langSelect.value?.trim();
           if (val && val !== "unknown") return val;
         }
         const activeBtn = document.querySelector(".btn-language.active, [data-language].active");
         if (activeBtn) {
-          const val = activeBtn.getAttribute("data-language") || ((_d = activeBtn.textContent) == null ? void 0 : _d.trim());
+          const val = activeBtn.getAttribute("data-language") || activeBtn.textContent?.trim();
           if (val) return val;
         }
         const ace = pageWindow.ace;
         if (ace && typeof ace.edit === "function") {
           const editor = ace.edit("code_editor") || ace.edit(document.querySelector("#code_editor"));
           if (editor && editor.getSession) {
-            const modeId = ((_e = editor.getSession().getMode()) == null ? void 0 : _e.$id) || "";
+            const modeId = editor.getSession().getMode()?.$id || "";
             if (modeId.includes("c_cpp")) return "C++";
             if (modeId.includes("python")) return "Python3";
             if (modeId.includes("java")) return "Java";
@@ -2062,14 +2088,13 @@
       return "unknown";
     }
     extractLanguageFromSubmissionList(sid) {
-      var _a;
       try {
         const link = document.querySelector(`a[href*="/code_detail/${sid}/"], tr[data-submission-id="${sid}"]`);
         if (link) {
           const row = link.closest("tr");
           if (row) {
             const langCell = row.querySelector(".submission-language, .language, td:nth-child(4)");
-            const text = (_a = langCell == null ? void 0 : langCell.textContent) == null ? void 0 : _a.trim();
+            const text = langCell?.textContent?.trim();
             if (text && !text.includes(":") && !text.includes("/")) return text;
           }
         }
@@ -2078,7 +2103,6 @@
       return "unknown";
     }
     handleHttpEvent(event) {
-      var _a;
       if (event.method === "POST" && event.url.includes("/problem/content/submission/")) {
         if (event.requestBody && typeof event.requestBody === "string") {
           try {
@@ -2095,15 +2119,15 @@
             }
             if (code || lang) {
               const urlMatch = event.url.match(/\/problem\/content\/submission\/(\d+)/);
-              const problemId = urlMatch ? `acwing_${urlMatch[1]}` : ((_a = this.pendingSubmission) == null ? void 0 : _a.problemId) || "acwing_unknown";
+              const problemId = urlMatch ? `acwing_${urlMatch[1]}` : this.pendingSubmission?.problemId || "acwing_unknown";
               const prev = this.getValidPendingSubmission();
               this.pendingSubmission = {
                 problemId,
-                problemTitle: (prev == null ? void 0 : prev.problemTitle) || "",
-                code: code || (prev == null ? void 0 : prev.code) || "",
-                language: lang || (prev == null ? void 0 : prev.language) || "unknown",
+                problemTitle: prev?.problemTitle || "",
+                code: code || prev?.code || "",
+                language: lang || prev?.language || "unknown",
                 timestamp: Date.now(),
-                submissionId: prev == null ? void 0 : prev.submissionId
+                submissionId: prev?.submissionId
               };
               Logger.info(`[AcWingAdapter] Captured submission POST params. Lang: ${this.pendingSubmission.language}`);
             }
@@ -2173,7 +2197,7 @@
         const verdict = this.mapStatusStringToVerdict(statusStr);
         if (!verdict) {
           if (/pending|judging|running|compiling|queue/i.test(statusStr)) {
-            Transport.notifyStatus("syncing", `AcWing 判题中 (${statusStr})...`);
+            Transport.notifyStatus("syncing", `AcWing \u5224\u9898\u4E2D (${statusStr})...`);
           } else {
             Logger.info(`[AcWingAdapter] Unrecognized status ignored: ${statusStr}`);
           }
@@ -2234,7 +2258,7 @@
       const problemNum = pidMatch ? pidMatch[1] : urlMatch ? urlMatch[1] : null;
       if (!problemNum) {
         Logger.warn("[AcWingAdapter] Cannot determine problem number, giving up. pathname=" + window.location.pathname);
-        Transport.notifyStatus("error", "AcWing 无法识别题号，未同步");
+        Transport.notifyStatus("error", "AcWing \u65E0\u6CD5\u8BC6\u522B\u9898\u53F7\uFF0C\u672A\u540C\u6B65");
         return;
       }
       const delays = [800, 1500, 2e3, 2500, 3e3, 4e3];
@@ -2273,7 +2297,7 @@
         }
       }
       Logger.warn("[AcWingAdapter] Could not resolve submission id from list page, giving up.");
-      Transport.notifyStatus("error", "AcWing 已出结果，但未能获取提交 ID，未同步");
+      Transport.notifyStatus("error", "AcWing \u5DF2\u51FA\u7ED3\u679C\uFF0C\u4F46\u672A\u80FD\u83B7\u53D6\u63D0\u4EA4 ID\uFF0C\u672A\u540C\u6B65");
     }
     /**
      * 初始化 DOM MutationObserver 双保险
@@ -2292,20 +2316,19 @@
       Logger.info("[AcWingAdapter] DOM MutationObserver started.");
     }
     scanDomForStatus() {
-      var _a, _b;
       const statusBlock = document.querySelector(
         '#submit-code-status-block, #submission-status-block, .submission-status-text, #submit_code_result, #run_code_result, .run-code-result, #code_result, [id*="submission-result-"]'
       );
       if (!statusBlock) return;
-      const text = ((_a = statusBlock.textContent) == null ? void 0 : _a.trim()) || "";
-      if (!text || text.includes("Running") || text.includes("Pending") || text.includes("Compiling") || text.includes("判题中") || text.includes("排队中")) {
+      const text = statusBlock.textContent?.trim() || "";
+      if (!text || text.includes("Running") || text.includes("Pending") || text.includes("Compiling") || text.includes("\u5224\u9898\u4E2D") || text.includes("\u6392\u961F\u4E2D")) {
         return;
       }
       const verdict = this.mapStatusStringToVerdict(text);
       if (!verdict) return;
       let submissionId = "";
       const pending = this.getValidPendingSubmission();
-      if ((pending == null ? void 0 : pending.submissionId) && /^\d+$/.test(pending.submissionId)) {
+      if (pending?.submissionId && /^\d+$/.test(pending.submissionId)) {
         submissionId = pending.submissionId;
       }
       if (!submissionId) {
@@ -2313,7 +2336,7 @@
           'a[href*="/problem/content/submission/code_detail/"], a[href*="/code_detail/"]'
         );
         if (detailLink) {
-          const m = (_b = detailLink.getAttribute("href")) == null ? void 0 : _b.match(/code_detail\/(\d+)/);
+          const m = detailLink.getAttribute("href")?.match(/code_detail\/(\d+)/);
           if (m) submissionId = m[1];
         }
       }
@@ -2367,13 +2390,12 @@
       return null;
     }
     emitUnifiedSubmission(submissionId, verdict, rawStatus, timeMs, memoryKb, respLang) {
-      var _a, _b;
       if (Storage.isDuplicate(this.platform, submissionId)) return;
       const pending = this.getValidPendingSubmission();
       const urlMatch = window.location.pathname.match(/\/problem\/content\/(?:submission\/code_detail\/|submission\/|)(\d+)/);
-      const problemId = (pending == null ? void 0 : pending.problemId) || (urlMatch ? `acwing_${urlMatch[1]}` : "acwing_unknown");
-      const problemTitle = (pending == null ? void 0 : pending.problemTitle) || ((_b = (_a = document.querySelector(".problem-content-title")) == null ? void 0 : _a.textContent) == null ? void 0 : _b.trim()) || problemId;
-      const language = this.resolveLanguage(pending == null ? void 0 : pending.language, respLang, submissionId);
+      const problemId = pending?.problemId || (urlMatch ? `acwing_${urlMatch[1]}` : "acwing_unknown");
+      const problemTitle = pending?.problemTitle || document.querySelector(".problem-content-title")?.textContent?.trim() || problemId;
+      const language = this.resolveLanguage(pending?.language, respLang, submissionId);
       const payload = {
         platform: "acwing",
         platformSubmissionId: String(submissionId),
@@ -2386,10 +2408,10 @@
         score: verdict === "AC" ? 100 : 0,
         language: language !== "unknown" ? language : "C++",
         // 无法识别时给 AcWing 常见默认而非 unknown
-        sourceCode: (pending == null ? void 0 : pending.code) || "",
+        sourceCode: pending?.code || "",
         executionTimeMs: timeMs,
         memoryUsedKb: memoryKb,
-        submittedAt: (pending == null ? void 0 : pending.timestamp) || Date.now(),
+        submittedAt: pending?.timestamp || Date.now(),
         clientVersion: "1.1.0"
       };
       this.pendingSubmission = null;
@@ -2397,16 +2419,15 @@
     }
     mapStatusStringToVerdict(status) {
       const s = String(status).toLowerCase().replace(/[_\-]+/g, " ").trim();
-      if (s.includes("accepted") || s.includes("通过") && !s.includes("未通过") && !s.includes("不通过")) return "AC";
-      if (s.includes("wrong answer") || s.includes("答案错误")) return "WA";
-      if (s.includes("time limit") || s.includes("时间超限")) return "TLE";
-      if (s.includes("memory limit") || s.includes("内存超限")) return "MLE";
-      if (s.includes("runtime error") || s.includes("运行时错误") || s.includes("segmentation") || s.includes("段错误")) return "RE";
-      if (s.includes("compile error") || s.includes("compilation error") || s.includes("编译错误")) return "CE";
+      if (s.includes("accepted") || s.includes("\u901A\u8FC7") && !s.includes("\u672A\u901A\u8FC7") && !s.includes("\u4E0D\u901A\u8FC7")) return "AC";
+      if (s.includes("wrong answer") || s.includes("\u7B54\u6848\u9519\u8BEF")) return "WA";
+      if (s.includes("time limit") || s.includes("\u65F6\u95F4\u8D85\u9650")) return "TLE";
+      if (s.includes("memory limit") || s.includes("\u5185\u5B58\u8D85\u9650")) return "MLE";
+      if (s.includes("runtime error") || s.includes("\u8FD0\u884C\u65F6\u9519\u8BEF") || s.includes("segmentation") || s.includes("\u6BB5\u9519\u8BEF")) return "RE";
+      if (s.includes("compile error") || s.includes("compilation error") || s.includes("\u7F16\u8BD1\u9519\u8BEF")) return "CE";
       return null;
     }
     extractUserHandle() {
-      var _a;
       try {
         const userElem = document.querySelector(
           '#user-menu a[href*="/user/myspace/index/"], a[href*="/user/myspace/index/"], a.navbar-user-name, #navbar-user-name'
@@ -2417,8 +2438,8 @@
           if (m && m[1]) {
             return m[1];
           }
-          const text = (_a = userElem.textContent) == null ? void 0 : _a.trim();
-          if (text && !text.includes("登录") && !text.includes("注册")) {
+          const text = userElem.textContent?.trim();
+          if (text && !text.includes("\u767B\u5F55") && !text.includes("\u6CE8\u518C")) {
             return text;
           }
         }
@@ -2426,11 +2447,14 @@
       }
       return void 0;
     }
-  }
-  class CodeforcesAdapter extends BaseAdapter {
+  };
+
+  // src/adapters/codeforces-adapter.ts
+  var CodeforcesAdapter = class extends BaseAdapter {
     constructor() {
       super(...arguments);
       __publicField(this, "platform", "codeforces");
+      __publicField(this, "requiredHooks", { fetch: false, xhr: false, ws: false, router: false });
       __publicField(this, "observedCells", /* @__PURE__ */ new Set());
       __publicField(this, "observer", null);
     }
@@ -2482,7 +2506,7 @@
       if (waiting === "true") {
         if (!this.observedCells.has(verdictCell)) {
           this.observedCells.add(verdictCell);
-          Transport.notifyStatus("syncing", `Codeforces 判题中 (#${submissionId})...`);
+          Transport.notifyStatus("syncing", `Codeforces \u5224\u9898\u4E2D (#${submissionId})...`);
           Logger.info(`[CodeforcesAdapter] Observing waiting submission: #${submissionId}`);
           const cellObserver = new MutationObserver(() => {
             const currentWaiting = verdictCell.getAttribute("waiting");
@@ -2504,16 +2528,15 @@
       this.extractAndSubmit(row, submissionId, verdictCell);
     }
     extractAndSubmit(row, submissionId, verdictCell) {
-      var _a, _b;
       if (Storage.isDuplicate(this.platform, submissionId)) return;
       const problemCell = row.querySelector("td[data-problemid]") || row.querySelector("td:nth-child(4)");
-      const problemLink = (problemCell == null ? void 0 : problemCell.querySelector("a")) || row.querySelector('a[href*="/problem/"]');
+      const problemLink = problemCell?.querySelector("a") || row.querySelector('a[href*="/problem/"]');
       let problemId = "CF_UNKNOWN";
       let problemTitle = "";
       let problemUrl = "";
       if (problemLink) {
         problemUrl = problemLink.href;
-        problemTitle = ((_a = problemLink.textContent) == null ? void 0 : _a.trim()) || "";
+        problemTitle = problemLink.textContent?.trim() || "";
         const href = problemLink.getAttribute("href") || "";
         const contestMatch = href.match(/(?:contest|gym|problemset\/problem)\/(\d+)\/(?:problem\/)?([A-Za-z0-9_]+)/);
         if (contestMatch) {
@@ -2523,11 +2546,11 @@
         }
       }
       const verdict = this.parseVerdict(verdictCell);
-      const rawStatus = ((_b = verdictCell.textContent) == null ? void 0 : _b.trim()) || "";
+      const rawStatus = verdictCell.textContent?.trim() || "";
       const timeCell = row.querySelector("td.time-consumed-cell");
-      const timeMs = this.parseNumber((timeCell == null ? void 0 : timeCell.textContent) || "");
+      const timeMs = this.parseNumber(timeCell?.textContent || "");
       const memoryCell = row.querySelector("td.memory-consumed-cell");
-      const memoryKb = this.parseNumber((memoryCell == null ? void 0 : memoryCell.textContent) || "");
+      const memoryKb = this.parseNumber(memoryCell?.textContent || "");
       const language = this.extractLanguage(row, problemCell, verdictCell);
       const userHandle = this.extractUserHandle() || this.extractRowUserHandle(row);
       const payload = {
@@ -2557,10 +2580,9 @@
      * 3. 标准第 5 列 (td:nth-child(5)) 兜底
      */
     extractLanguage(row, problemCell, verdictCell) {
-      var _a;
       const candidates = [
-        problemCell == null ? void 0 : problemCell.nextElementSibling,
-        verdictCell == null ? void 0 : verdictCell.previousElementSibling,
+        problemCell?.nextElementSibling,
+        verdictCell?.previousElementSibling,
         row.querySelector("td:nth-child(5)")
       ];
       for (const cell of candidates) {
@@ -2568,13 +2590,12 @@
         if (cell.hasAttribute("data-problemid") || cell.classList.contains("status-verdict-cell")) {
           continue;
         }
-        const text = ((_a = cell.textContent) == null ? void 0 : _a.trim()) || "";
+        const text = cell.textContent?.trim() || "";
         if (text) return text;
       }
       return "unknown";
     }
     extractRowUserHandle(row) {
-      var _a;
       try {
         const partyLink = row.querySelector('td.status-party-cell a[href^="/profile/"]');
         if (partyLink) {
@@ -2584,7 +2605,7 @@
         }
         const partyCell = row.querySelector("td.status-party-cell");
         if (partyCell) {
-          const text = (_a = partyCell.textContent) == null ? void 0 : _a.trim();
+          const text = partyCell.textContent?.trim();
           if (text) return text.replace(/[*#].*$/, "").trim();
         }
       } catch (_) {
@@ -2620,40 +2641,56 @@
       }
       return void 0;
     }
-  }
-  class AtCoderAdapter extends BaseAdapter {
+  };
+
+  // src/adapters/atcoder-adapter.ts
+  var KEY_RECENT_SUBMIT_TS = "oiboard_atcoder_submit_ts";
+  var AtCoderAdapter = class extends BaseAdapter {
     constructor() {
       super(...arguments);
       __publicField(this, "platform", "atcoder");
+      // 零网络/路由全局劫持：纯被动 DOM 观察，彻底避免触发 AtCoder / Cloudflare WAF 403
+      __publicField(this, "requiredHooks", { fetch: false, xhr: false, ws: false, router: false });
       __publicField(this, "observedWaitingSids", /* @__PURE__ */ new Set());
       __publicField(this, "observerInitialized", false);
+      __publicField(this, "scanDebounceTimer", null);
     }
     matchDomain(hostname) {
       return hostname === "atcoder.jp" || hostname.endsWith(".atcoder.jp");
     }
+    /**
+     * 仅在提交列表页启用表格扫描与 DOM 观察，详情页 (/submissions/{id}) 完全静默
+     */
+    isSubmissionsListPage() {
+      const path = window.location.pathname;
+      if (/\/submissions\/\d+/.test(path)) return false;
+      return /\/submissions(\/me)?\/?$/.test(path);
+    }
     init() {
-      Logger.info("[AtCoderAdapter] Initialized.");
-      NetworkHookBus.onHttp((event) => {
-        this.handleHttpEvent(event);
-      });
+      Logger.info("[AtCoderAdapter] Initialized (passive DOM mode, zero network hook).");
       this.bindSubmitListener();
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", () => {
-          this.scanStaticSubmissions();
-          this.initDomObserver();
-        });
-      } else {
+      if (!this.isSubmissionsListPage()) return;
+      const start = () => {
         this.scanStaticSubmissions();
         this.initDomObserver();
+      };
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", start, { once: true });
+      } else {
+        start();
       }
     }
     bindSubmitListener() {
       document.addEventListener("click", (e) => {
         const target = e.target;
-        const btn = target == null ? void 0 : target.closest('#submit, button[type="submit"], input[type="submit"]');
+        const btn = target?.closest('#submit, button[type="submit"], input[type="submit"]');
         if (btn && (window.location.pathname.includes("/tasks/") || window.location.pathname.includes("/submit"))) {
+          try {
+            sessionStorage.setItem(KEY_RECENT_SUBMIT_TS, String(Date.now()));
+          } catch (_) {
+          }
           Logger.info("[AtCoderAdapter] Submit button clicked. Waiting for judge...");
-          Transport.notifyStatus("syncing", "AtCoder 代码已提交，等待评测...");
+          Transport.notifyStatus("syncing", "AtCoder \u4EE3\u7801\u5DF2\u63D0\u4EA4\uFF0C\u7B49\u5F85\u8BC4\u6D4B...");
         }
       }, true);
     }
@@ -2663,7 +2700,13 @@
       if (!table) return;
       this.observerInitialized = true;
       const observer = new MutationObserver(() => {
-        this.scanStaticSubmissions();
+        if (this.scanDebounceTimer !== null) {
+          window.clearTimeout(this.scanDebounceTimer);
+        }
+        this.scanDebounceTimer = window.setTimeout(() => {
+          this.scanDebounceTimer = null;
+          this.scanStaticSubmissions();
+        }, 150);
       });
       observer.observe(table, {
         childList: true,
@@ -2672,106 +2715,81 @@
       });
       Logger.info("[AtCoderAdapter] Submissions table DOM observer active.");
     }
-    handleHttpEvent(event) {
-      if (event.url.includes("/status/json") && event.responseText) {
-        try {
-          const json = JSON.parse(event.responseText);
-          const result = json.Result;
-          if (!result || typeof result !== "object") return;
-          for (const [sid, item] of Object.entries(result)) {
-            const detail = item;
-            if (!detail) continue;
-            const html = detail.Html || "";
-            const isWaiting = typeof detail.Interval === "number" && detail.Interval > 0 || html.includes("WJ") || html.includes("waiting-judge") || /\d+\s*\/\s*\d+/.test(html) || html.includes("Waiting for Judging");
-            if (isWaiting) {
-              this.observedWaitingSids.add(sid);
-              Transport.notifyStatus("syncing", `AtCoder 正在评测 (${sid})...`);
-            } else {
-              this.observedWaitingSids.delete(sid);
-              Transport.notifyStatus("syncing", `AtCoder 评测完成 (${sid})，正在同步...`);
-              this.handleFinishedSubmission(sid, html);
-            }
-          }
-        } catch (e) {
-          Logger.error("[AtCoderAdapter] Error parsing status json:", e);
+    hasRecentSubmitIntent() {
+      try {
+        const raw = sessionStorage.getItem(KEY_RECENT_SUBMIT_TS);
+        if (!raw) return false;
+        const ts = parseInt(raw, 10);
+        if (!isNaN(ts) && Date.now() - ts < 9e4) {
+          return true;
         }
+        sessionStorage.removeItem(KEY_RECENT_SUBMIT_TS);
+      } catch (_) {
+      }
+      return false;
+    }
+    clearRecentSubmitIntent() {
+      try {
+        sessionStorage.removeItem(KEY_RECENT_SUBMIT_TS);
+      } catch (_) {
       }
     }
-    handleFinishedSubmission(sid, htmlSnippet) {
-      if (Storage.isDuplicate(this.platform, sid)) return;
-      const verdict = this.parseVerdictFromHtml(htmlSnippet);
-      const score = this.parseScoreFromHtml(htmlSnippet);
-      const timeMs = this.parseTimeFromHtml(htmlSnippet);
-      const memoryKb = this.parseMemoryFromHtml(htmlSnippet);
-      const { problemId, problemTitle, problemUrl, language, submittedAtMs } = this.extractRowMeta(sid);
-      const payload = {
-        platform: "atcoder",
-        platformSubmissionId: String(sid),
-        problemId: problemId || "atcoder_unknown",
-        problemTitle: problemTitle || problemId,
-        problemUrl: problemUrl || window.location.href,
-        platformUserHandle: this.extractUserHandle(),
-        verdict,
-        rawStatus: verdict,
-        score: typeof score === "number" ? score : verdict === "AC" ? 100 : 0,
-        language: language || "unknown",
-        sourceCode: "",
-        executionTimeMs: timeMs,
-        memoryUsedKb: memoryKb,
-        submittedAt: submittedAtMs > 0 ? submittedAtMs : Date.now(),
-        clientVersion: "1.0.0"
-      };
-      this.submitPayload(payload);
-    }
     /**
-     * 表格扫描：只处理当前用户的行，且仅上报本会话中观察到由 WJ/等待 变为终态的行；历史行跳过交给爬虫补
+     * 表格扫描：只处理当前用户的行；
+     * 上报本会话观察到由 WJ/等待变为终态的行，或刚点击提交后 90s 内落在 /submissions/me 首行的秒判记录
      */
     scanStaticSubmissions() {
-      var _a, _b, _c, _d;
       const table = document.querySelector("table");
       if (!table) return;
       const rows = table.querySelectorAll("tbody tr");
       if (!rows || rows.length === 0) return;
       const cols = this.getTableColumnMap(table);
       const currentUser = this.extractUserHandle();
+      const recentSubmit = this.hasRecentSubmitIntent();
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         const subLink = row.querySelector('a[href*="/submissions/"]');
         if (!subLink) continue;
-        const subMatch = (_a = subLink.getAttribute("href")) == null ? void 0 : _a.match(/\/submissions\/(\d+)/);
+        const subMatch = subLink.getAttribute("href")?.match(/\/submissions\/(\d+)/);
         if (!subMatch) continue;
         const sid = subMatch[1];
         if (Storage.isDuplicate(this.platform, sid)) continue;
         if (cols.userIndex >= 0 && currentUser) {
-          const rowUser = (_c = (_b = row.children[cols.userIndex]) == null ? void 0 : _b.textContent) == null ? void 0 : _c.trim();
+          const rowUser = row.children[cols.userIndex]?.textContent?.trim();
           if (rowUser && rowUser !== currentUser) {
             continue;
           }
         }
         const statusSpan = row.querySelector(".label");
-        const statusText = ((_d = statusSpan == null ? void 0 : statusSpan.textContent) == null ? void 0 : _d.trim()) || "";
+        const statusText = statusSpan?.textContent?.trim() || "";
         const isWaiting = !statusText || statusText === "WJ" || statusText.includes("/") || statusText.includes("Waiting");
         if (isWaiting) {
           this.observedWaitingSids.add(sid);
-          Transport.notifyStatus("syncing", `AtCoder 正在评测 (${sid})...`);
+          Transport.notifyStatus("syncing", `AtCoder \u6B63\u5728\u8BC4\u6D4B (${sid})...`);
         } else if (this.observedWaitingSids.has(sid)) {
           this.observedWaitingSids.delete(sid);
+          this.clearRecentSubmitIntent();
           this.handleFinishedRow(sid, row, statusText, cols);
+        } else if (i === 0 && recentSubmit) {
+          const meta = this.extractRowMeta(sid, row);
+          if (meta.submittedAtMs > 0 && Math.abs(Date.now() - meta.submittedAtMs) < 12e4) {
+            this.clearRecentSubmitIntent();
+            this.handleFinishedRow(sid, row, statusText, cols);
+          }
         }
       }
     }
     handleFinishedRow(sid, row, statusText, cols) {
-      var _a, _b, _c, _d, _e, _f;
       if (Storage.isDuplicate(this.platform, sid)) return;
       const verdict = this.mapStatusTextToVerdict(statusText);
-      const scoreText = cols.scoreIndex >= 0 ? (_b = (_a = row.children[cols.scoreIndex]) == null ? void 0 : _a.textContent) == null ? void 0 : _b.trim() : "";
+      const scoreText = cols.scoreIndex >= 0 ? row.children[cols.scoreIndex]?.textContent?.trim() : "";
       const score = parseInt(scoreText || "", 10) || (verdict === "AC" ? 100 : 0);
-      const timeText = cols.execTimeIndex >= 0 ? (_d = (_c = row.children[cols.execTimeIndex]) == null ? void 0 : _c.textContent) == null ? void 0 : _d.trim() : "";
-      const memText = cols.memoryIndex >= 0 ? (_f = (_e = row.children[cols.memoryIndex]) == null ? void 0 : _e.textContent) == null ? void 0 : _f.trim() : "";
+      const timeText = cols.execTimeIndex >= 0 ? row.children[cols.execTimeIndex]?.textContent?.trim() : "";
+      const memText = cols.memoryIndex >= 0 ? row.children[cols.memoryIndex]?.textContent?.trim() : "";
       const timeMs = this.parseTimeFromText(timeText || "");
       const memoryKb = this.parseMemoryFromText(memText || "");
       const { problemId, problemTitle, problemUrl, language, submittedAtMs } = this.extractRowMeta(sid, row);
-      Transport.notifyStatus("syncing", `AtCoder 评测完成 (${sid})，正在同步...`);
+      Transport.notifyStatus("syncing", `AtCoder \u8BC4\u6D4B\u5B8C\u6210 (${sid})\uFF0C\u6B63\u5728\u540C\u6B65...`);
       const payload = {
         platform: "atcoder",
         platformSubmissionId: String(sid),
@@ -2810,28 +2828,27 @@
       if (!ths || ths.length === 0) return colMap;
       ths.forEach((th, idx) => {
         const text = (th.textContent || "").trim().toLowerCase();
-        if (text.includes("提出日時") || text.includes("submission time") || text.includes("date")) {
+        if (text.includes("\u63D0\u51FA\u65E5\u6642") || text.includes("submission time") || text.includes("date")) {
           colMap.timeIndex = idx;
-        } else if (text.includes("問題") || text.includes("task") || text.includes("problem")) {
+        } else if (text.includes("\u554F\u984C") || text.includes("task") || text.includes("problem")) {
           colMap.taskIndex = idx;
-        } else if (text.includes("ユーザ") || text.includes("user")) {
+        } else if (text.includes("\u30E6\u30FC\u30B6") || text.includes("user")) {
           colMap.userIndex = idx;
-        } else if (text.includes("言語") || text.includes("language")) {
+        } else if (text.includes("\u8A00\u8A9E") || text.includes("language")) {
           colMap.langIndex = idx;
-        } else if (text.includes("得点") || text.includes("score")) {
+        } else if (text.includes("\u5F97\u70B9") || text.includes("score")) {
           colMap.scoreIndex = idx;
-        } else if (text.includes("結果") || text.includes("status")) {
+        } else if (text.includes("\u7D50\u679C") || text.includes("status")) {
           colMap.statusIndex = idx;
-        } else if (text.includes("実行時間") || text.includes("exec time") || text.includes("time") && !text.includes("submission")) {
+        } else if (text.includes("\u5B9F\u884C\u6642\u9593") || text.includes("exec time") || text.includes("time") && !text.includes("submission")) {
           colMap.execTimeIndex = idx;
-        } else if (text.includes("メモリ") || text.includes("memory")) {
+        } else if (text.includes("\u30E1\u30E2\u30EA") || text.includes("memory")) {
           colMap.memoryIndex = idx;
         }
       });
       return colMap;
     }
     extractRowMeta(sid, targetRow) {
-      var _a, _b, _c, _d;
       let row = targetRow;
       if (!row) {
         const link = document.querySelector(`a[href$="/submissions/${sid}"]`);
@@ -2848,7 +2865,7 @@
       if (cols.timeIndex >= 0 && row.children[cols.timeIndex]) {
         const timeCell = row.children[cols.timeIndex];
         const timeElem = timeCell.querySelector("time");
-        const timeStr = (timeElem == null ? void 0 : timeElem.getAttribute("datetime")) || ((_a = timeCell.textContent) == null ? void 0 : _a.trim()) || "";
+        const timeStr = timeElem?.getAttribute("datetime") || timeCell.textContent?.trim() || "";
         if (timeStr) {
           const parsed = Date.parse(timeStr);
           if (!isNaN(parsed) && parsed > 0) {
@@ -2860,30 +2877,20 @@
       let problemTitle = "";
       let problemUrl = "";
       const taskCell = cols.taskIndex >= 0 ? row.children[cols.taskIndex] : row;
-      const taskLink = taskCell == null ? void 0 : taskCell.querySelector('a[href*="/tasks/"]');
+      const taskLink = taskCell?.querySelector('a[href*="/tasks/"]');
       if (taskLink) {
         problemUrl = taskLink.href;
-        problemTitle = ((_b = taskLink.textContent) == null ? void 0 : _b.trim()) || "";
-        const m = (_c = taskLink.getAttribute("href")) == null ? void 0 : _c.match(/\/tasks\/([A-Za-z0-9_]+)/);
+        problemTitle = taskLink.textContent?.trim() || "";
+        const m = taskLink.getAttribute("href")?.match(/\/tasks\/([A-Za-z0-9_]+)/);
         if (m) {
           problemId = m[1];
         }
       }
       let language = "";
       if (cols.langIndex >= 0 && row.children[cols.langIndex]) {
-        language = ((_d = row.children[cols.langIndex].textContent) == null ? void 0 : _d.trim()) || "";
+        language = row.children[cols.langIndex].textContent?.trim() || "";
       }
       return { problemId, problemTitle, problemUrl, language, submittedAtMs };
-    }
-    parseVerdictFromHtml(html) {
-      if (html.includes(">AC<") || html.includes("label-success")) return "AC";
-      if (html.includes(">WA<")) return "WA";
-      if (html.includes(">TLE<")) return "TLE";
-      if (html.includes(">MLE<")) return "MLE";
-      if (html.includes(">RE<")) return "RE";
-      if (html.includes(">CE<")) return "CE";
-      if (html.includes(">OLE<")) return "OTHER";
-      return "OTHER";
     }
     mapStatusTextToVerdict(text) {
       const s = text.trim();
@@ -2895,18 +2902,6 @@
       if (s === "CE") return "CE";
       return "OTHER";
     }
-    parseScoreFromHtml(html) {
-      const m = html.match(/submission-score[^>]*>\s*(\d+)/i);
-      return m ? parseInt(m[1], 10) : 0;
-    }
-    parseTimeFromHtml(html) {
-      const m = html.match(/(\d+)\s*ms/i);
-      return m ? parseInt(m[1], 10) : 0;
-    }
-    parseMemoryFromHtml(html) {
-      const m = html.match(/(\d+)\s*KB/i);
-      return m ? parseInt(m[1], 10) : 0;
-    }
     parseTimeFromText(text) {
       const m = text.match(/(\d+)\s*ms/i);
       return m ? parseInt(m[1], 10) : 0;
@@ -2916,7 +2911,6 @@
       return m ? parseInt(m[1], 10) : 0;
     }
     extractUserHandle() {
-      var _a;
       try {
         const userLink = document.querySelector(
           '#header a[href^="/users/"], .navbar a[href^="/users/"], a.username, a[href^="/users/"]'
@@ -2930,8 +2924,8 @@
               return raw;
             }
           }
-          const text = (_a = userLink.textContent) == null ? void 0 : _a.trim();
-          if (text && !["我的资料", "My Profile", "プロフィール", "Profile", "Sign In", "ログイン"].includes(text)) {
+          const text = userLink.textContent?.trim();
+          if (text && !["\u6211\u7684\u8D44\u6599", "My Profile", "\u30D7\u30ED\u30D5\u30A3\u30FC\u30EB", "Profile", "Sign In", "\u30ED\u30B0\u30A4\u30F3"].includes(text)) {
             return text;
           }
         }
@@ -2939,11 +2933,11 @@
       }
       return void 0;
     }
-  }
+  };
+
+  // src/main.ts
   function bootstrap() {
     Logger.info("Starting OJ Submission Tracker bootstrap...");
-    NetworkHookBus.init(pageWindow);
-    RouterHookBus.init(pageWindow);
     const adapters = [
       new LeetCodeAdapter(),
       new LuoguAdapter(),
@@ -2960,6 +2954,17 @@
       }
     }
     if (activeAdapter) {
+      const hooks = activeAdapter.requiredHooks || {};
+      if (hooks.fetch || hooks.xhr || hooks.ws) {
+        NetworkHookBus.init(pageWindow, {
+          fetch: !!hooks.fetch,
+          xhr: !!hooks.xhr,
+          ws: !!hooks.ws
+        });
+      }
+      if (hooks.router) {
+        RouterHookBus.init(pageWindow);
+      }
       Logger.info(`Matched platform adapter: [${activeAdapter.platform}] for ${currentHostname}`);
       activeAdapter.init();
       StatusBadge.init(activeAdapter.platform.toUpperCase());
@@ -2971,5 +2976,4 @@
     }, 3e3);
   }
   bootstrap();
-
 })();

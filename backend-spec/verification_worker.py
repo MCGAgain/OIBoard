@@ -290,7 +290,7 @@ class VerificationWorker:
                 return VerificationStatus.FALLBACK_TRUSTED, f"LeetCode verify failed: {e}; fallback trusted."
 
     # -------------------------------------------------------------
-    # 4. AtCoder 单点提交页核实
+    # 4. AtCoder 核实（使用 Kenkoooo 公开 API，禁止直接抓 atcoder.jp 详情页触发 403/WAF）
     # -------------------------------------------------------------
     async def _verify_atcoder(
         self,
@@ -301,45 +301,32 @@ class VerificationWorker:
         problem_url: Optional[str],
         retry_count: int,
     ) -> Tuple[str, Optional[str]]:
-        contest_id = "practice"
-        if problem_url:
-            m = re.search(r"/contests/([^/]+)/", problem_url)
-            if m:
-                contest_id = m.group(1)
+        if not handle:
+            return VerificationStatus.FALLBACK_TRUSTED, "AtCoder handle not provided; fallback trusted."
 
-        url = f"https://atcoder.jp/contests/{contest_id}/submissions/{sid}"
+        from_sec = max(0, int(__import__("time").time()) - 3600)
+        url = f"https://kenkoooo.com/atcoder/atcoder-api/v3/user/submissions?user={handle}&from_second={from_sec}"
         async with httpx.AsyncClient(timeout=10.0, headers=self.headers, follow_redirects=True) as client:
             try:
                 resp = await client.get(url)
                 if resp.status_code == 200:
-                    soup = BeautifulSoup(resp.text, "html.parser")
-                    status_span = soup.find("span", class_=re.compile(r"label-(success|warning|danger)"))
-                    if status_span:
-                        status_text = status_span.get_text(strip=True)
-                        is_ac = status_text == "AC"
-                        if is_ac == (verdict == "AC"):
-                            return VerificationStatus.VERIFIED, f"AtCoder submission {sid} verified ({status_text})"
-                        else:
-                            return (
-                                VerificationStatus.REJECTED,
-                                f"AtCoder status mismatch: expected {verdict}, got {status_text}",
-                            )
-                    return VerificationStatus.FALLBACK_TRUSTED, "Could not locate status badge in AtCoder HTML"
-                elif resp.status_code in (403, 429):
-                    if retry_count < 3:
-                        return VerificationStatus.OPTIMISTIC, f"AtCoder rate limit {resp.status_code}"
-                    return (
-                        VerificationStatus.FALLBACK_TRUSTED,
-                        f"AtCoder rate limited ({resp.status_code}); fallback trusted.",
-                    )
-                elif resp.status_code == 404:
-                    return VerificationStatus.REJECTED, f"Submission {sid} not found on AtCoder (404)"
-                else:
-                    return VerificationStatus.FALLBACK_TRUSTED, f"AtCoder returned HTTP {resp.status_code}"
+                    subs = resp.json()
+                    if isinstance(subs, list):
+                        for item in subs:
+                            if str(item.get("id")) == str(sid):
+                                remote_result = str(item.get("result", "")).strip().upper()
+                                is_ac = remote_result == "AC"
+                                if is_ac == (verdict == "AC"):
+                                    return VerificationStatus.VERIFIED, f"AtCoder submission {sid} verified via Kenkoooo ({remote_result})"
+                                return (
+                                    VerificationStatus.REJECTED,
+                                    f"AtCoder status mismatch: expected {verdict}, got {remote_result}",
+                                )
+                    # Kenkoooo 索引存在数十秒延迟，未命中时直接回退采信，不反复请求 AtCoder
+                    return VerificationStatus.FALLBACK_TRUSTED, "AtCoder submission pending Kenkoooo index; fallback trusted."
+                return VerificationStatus.FALLBACK_TRUSTED, f"Kenkoooo API returned HTTP {resp.status_code}; fallback trusted."
             except Exception as e:
-                if retry_count < 3:
-                    return VerificationStatus.OPTIMISTIC, f"AtCoder verify error: {e}"
-                return VerificationStatus.FALLBACK_TRUSTED, f"AtCoder verify exception: {e}"
+                return VerificationStatus.FALLBACK_TRUSTED, f"AtCoder Kenkoooo verify fallback: {e}"
 
     # -------------------------------------------------------------
     # 5. AcWing 适配与回退策略

@@ -45,9 +45,9 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=3.0.0">
+  <link rel="stylesheet" href="/static/style.css?v=3.1.0">
 </head>
-<body :class="[isDark ? 'dark text-[#f5f5f7]' : 'text-[#1d1d1f]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white transition-colors duration-300">
+<body :class="[isDark ? 'dark text-[#f4f4f5]' : 'text-[#0f172a]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white transition-colors duration-200">
   <div id="app" v-cloak class="flex w-full min-h-screen">
 
     <!-- 初始会话验证过渡态 (杜绝已登录刷新时闪烁登录卡片) -->
@@ -160,17 +160,13 @@
           </div>
 
           <button type="submit" :disabled="isAuthLoading"
-                  class="btn-primary w-full py-2.5 flex items-center justify-center space-x-2 text-xs font-semibold mt-2 shadow-md">
+                  class="btn-primary w-full py-2.5 flex items-center justify-center space-x-2 text-xs font-semibold mt-2 shadow-sm">
             <svg v-if="isAuthLoading" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
-            <span>{{ isAuthLoading ? '处理中...' : authMode === 'login' ? '立即登录' : '注册账号' }}</span>
+            <span>{{ isAuthLoading ? '处理中...' : authMode === 'login' ? '登录' : '注册' }}</span>
           </button>
         </form>
-
-        <div class="pt-2 text-center text-[11px] text-[var(--text-muted)] font-sans">
-          <span>跨平台算法训练与数据看板</span>
-        </div>
       </div>
     </div>
 
@@ -303,20 +299,15 @@
       <!-- 主工作区 (Main Content Area, 左侧预留侧边栏间距) -->
       <main class="flex-1 ml-16 p-4 sm:p-6 lg:p-8 2xl:p-10 space-y-6 main-content-container w-full transition-all">
 
-        <!-- 顶栏 (Apple Glassmorphism Navigation Bar) -->
+        <!-- 顶栏 -->
         <header class="ui-card p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div class="flex items-center space-x-3">
-            <div>
-              <div class="flex items-center space-x-2.5">
-                <h1 class="text-base font-bold tracking-tight font-sans text-[var(--text-primary)]">
-                  {{ currentTab === 'overview' ? '数据总览' : 
-                     currentTab === 'contests' ? '比赛日历' : 
-                     currentTab === 'submissions' ? '提交记录' : 
-                     currentTab === 'mistakes' ? '错题集' : '系统设置' }}
-                </h1>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-sans font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">实时同步</span>
-              </div>
-            </div>
+            <h1 class="text-base font-bold tracking-tight font-sans text-[var(--text-primary)]">
+              {{ currentTab === 'overview' ? '数据总览' : 
+                 currentTab === 'contests' ? '比赛日历' : 
+                 currentTab === 'submissions' ? '提交记录' : 
+                 currentTab === 'mistakes' ? '错题集' : '系统设置' }}
+            </h1>
           </div>
 
           <!-- 右侧控制与状态区 -->
@@ -403,22 +394,22 @@
         </header>
 
         <!-- 告警提示条 -->
-        <div v-if="warningBanner" class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center justify-between text-xs text-rose-300 font-sans">
+        <div v-if="warningBanner" class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center justify-between text-xs text-rose-600 dark:text-rose-300 font-sans">
           <div class="flex items-center space-x-2">
-            <svg class="w-4 h-4 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-rose-500 dark:text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
             </svg>
             <span>{{ warningBanner }}</span>
           </div>
-          <button @click="currentTab = 'settings'" class="underline hover:text-rose-200 font-sans">前往设置</button>
+          <button @click="currentTab = 'settings'" class="underline hover:opacity-80 font-medium font-sans">前往设置</button>
         </div>
 
-        <!-- ================= TAB 1: 数据总览 (Apple Bento Grid) ================= -->
-        <div v-show="currentTab === 'overview'" class="space-y-6">
-          <!-- Bento Row 1: KPI 5 模块 (算法解题 + 本地代码监控) -->
+        <!-- ================= TAB 1: 数据总览 ================= -->
+        <div v-show="currentTab === 'overview'" class="space-y-6 tab-panel-anim">
+          <!-- Row 1: KPI 5 模块 -->
           <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
             <!-- 总 AC 题数 -->
-            <div class="ui-card p-5 flex flex-col justify-between">
+            <div class="ui-card kpi-lift p-5 flex flex-col justify-between">
               <div class="flex items-center justify-between text-xs font-sans text-[var(--text-secondary)]">
                 <span class="flex items-center space-x-1.5 font-medium">
                   <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -593,8 +584,10 @@
                     </span>
                     <div class="flex items-center space-x-1 text-[var(--text-muted)] group-hover:text-blue-500 transition-colors">
                       <span v-if="c.rule_type" class="text-[10px] truncate max-w-[100px]">{{ c.rule_type }}</span>
-                      <svg class="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                      <svg class="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
                       </svg>
                     </div>
                   </div>
@@ -741,7 +734,7 @@
         </div>
 
         <!-- ================= TAB: 比赛日历 (CONTESTS) ================= -->
-        <div v-show="currentTab === 'contests'" class="space-y-6">
+        <div v-show="currentTab === 'contests'" class="space-y-6 tab-panel-anim">
           <!-- 顶部工具栏: 标题、平台过滤、状态过滤、搜索框与一键刷新 -->
           <div class="ui-card p-5 space-y-4 font-sans">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
@@ -900,7 +893,7 @@
         </div>
 
         <!-- ================= TAB 2: 全量提交记录流 (SUBMISSIONS STREAM) ================= -->
-        <div v-show="currentTab === 'submissions'" class="ui-card p-6 space-y-4 font-sans">
+        <div v-show="currentTab === 'submissions'" class="ui-card p-6 space-y-4 font-sans tab-panel-anim">
           <!-- 顶部标题与快速重置 -->
           <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
             <div class="flex items-center space-x-2">
@@ -1106,7 +1099,7 @@
         </div>
 
         <!-- ================= TAB 3: 专属错题集 (MISTAKES WORKBENCH) ================= -->
-        <div v-show="currentTab === 'mistakes'" class="space-y-6 font-sans">
+        <div v-show="currentTab === 'mistakes'" class="space-y-6 font-sans tab-panel-anim">
           
           <!-- 1. 复习总览 KPI 卡片组 (Bento Grid) -->
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
@@ -1410,7 +1403,7 @@
         </div>
 
         <!-- ================= TAB 4: 平台设置与配置 (SETTINGS) ================= -->
-        <div v-show="currentTab === 'settings'" class="ui-card p-6 space-y-6 font-sans">
+        <div v-show="currentTab === 'settings'" class="ui-card p-6 space-y-6 font-sans tab-panel-anim">
           <div class="space-y-5">
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
               <div>
@@ -1466,8 +1459,8 @@
               </div>
             </div>
 
-            <!-- 多账号平台配置看板 (4列 Apple 风格卡片，支持多账号绑定与自动去重) -->
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-stretch">
+            <!-- 多账号平台配置看板 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
               <div v-for="p in platformMetaList" :key="p.id" 
                    class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex flex-col justify-between h-full space-y-4 shadow-sm transition-all hover:border-[var(--border-bold)]">
                 <!-- 卡片头部 -->
@@ -1631,19 +1624,13 @@
                            class="ui-input font-mono flex-1 text-xs">
                     <span class="text-[var(--text-secondary)] text-xs font-sans">分钟</span>
                   </div>
-                  <div class="mt-2 space-y-1">
-                    <p class="text-[10px] text-[var(--text-muted)] font-mono">基准间隔：每 {{ settingsForm.poll_interval_minutes || 30 }} 分钟自动同步</p>
-                    <p class="text-[10px] text-[var(--text-secondary)] flex items-center gap-1.5 leading-tight">
-                      <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500/80 shrink-0"></span>
-                      <span>反反爬防护已生效：真实调度在此基础上引入 ±15%~25% 动态随机扰动，破坏周期性特征以规避 WAF 拦截</span>
-                    </p>
-                  </div>
+                  <p class="text-[10px] text-[var(--text-muted)] mt-2 font-mono">每 {{ settingsForm.poll_interval_minutes || 30 }} 分钟自动同步</p>
                 </div>
                 <div>
-                  <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">出站代理 (支持 HTTP / SOCKS5，可选)</label>
+                  <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">出站代理（可选）</label>
                   <input v-model="settingsForm.http_proxy" type="text" placeholder="http://ip:port 或 socks5://ip:port" 
                          class="ui-input font-mono text-xs">
-                  <p class="text-[10px] text-[var(--text-muted)] mt-2">海外 VPS 访问限制境外机房 IP 的国内平台（如 AcWing）时使用，国内服务器可留空</p>
+                  <p class="text-[10px] text-[var(--text-muted)] mt-2">支持 HTTP / SOCKS5，留空直连</p>
                 </div>
               </div>
             </div>
@@ -1699,12 +1686,9 @@
                           :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
                                    uiScalePref === '150' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
                     <span class="font-semibold">150%</span>
-                    <span class="text-[9px] opacity-75">4K UHD 推荐</span>
+                    <span class="text-[9px] opacity-75">4K</span>
                   </button>
                 </div>
-                <p class="text-[10px] text-[var(--text-muted)] mt-2.5 leading-relaxed">
-                  看板基于原生矢量 REM 动态栅格架构。选择「自动」模式时，系统会在 1080P、2K、4K 分辨率下平滑自动匹配最佳缩放比与热力图宽度，字体与边框保持绝对清晰无锯齿。
-                </p>
               </div>
             </div>
 
@@ -1736,8 +1720,8 @@
                       <span>{{ isTokenCopied ? '已复制' : '复制 Token' }}</span>
                     </button>
                   </div>
-                  <p class="text-[10px] text-[var(--text-muted)] mt-1.5 leading-relaxed">
-                    在 <b>油猴插件设置</b>（配置弹窗内的 Token 字段）或 Mac 本地服务页（默认 <code class="font-mono text-cyan-600 dark:text-cyan-400">http://127.0.0.1:2054</code>）填入此 Token，即可秒级自动同步打卡。
+                  <p class="text-[10px] text-[var(--text-muted)] mt-1.5">
+                    用于油猴插件与本地 Agent (<code class="font-mono text-cyan-600 dark:text-cyan-400">127.0.0.1:2054</code>) 同步认证
                   </p>
                 </div>
 
@@ -1807,9 +1791,9 @@
 
     </template>
 
-    <!-- 账号添加 / 编辑浮层弹窗 (Apple 极简模态窗) -->
-    <div v-if="accountModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm transition-opacity">
-      <div class="w-full max-w-md bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-6 space-y-5 transform transition-all font-sans">
+    <!-- 账号添加 / 编辑浮层弹窗 -->
+    <div v-if="accountModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 transition-opacity">
+      <div class="w-full max-w-md bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-6 space-y-5 font-sans modal-dialog-anim">
         <!-- 弹窗标题 -->
         <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
           <div class="flex items-center space-x-2">
@@ -1831,7 +1815,7 @@
           <!-- 平台选择 (添加时可选) -->
           <div>
             <label class="block text-[var(--text-secondary)] font-medium mb-1.5">目标平台</label>
-            <div class="grid grid-cols-4 gap-2">
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
               <button v-for="p in platformMetaList" :key="p.id" type="button"
                       :disabled="accountModalMode === 'edit'"
                       @click="accountForm.platform = p.id"
@@ -1907,9 +1891,9 @@
       </div>
     </div>
 
-    <!-- 错题添加 / 编辑弹窗 (Add / Edit Mistake Modal) -->
-    <div v-if="mistakeModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/45 backdrop-blur-sm overflow-y-auto">
-      <div class="w-full max-w-2xl bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 font-sans my-8">
+    <!-- 错题添加 / 编辑弹窗 -->
+    <div v-if="mistakeModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 overflow-y-auto">
+      <div class="w-full max-w-2xl bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 font-sans my-8 modal-dialog-anim">
         <!-- 弹窗标题 -->
         <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
           <h3 class="text-sm font-semibold text-[var(--text-primary)]">
@@ -1931,6 +1915,7 @@
                 <option value="codeforces">Codeforces</option>
                 <option value="atcoder">AtCoder</option>
                 <option value="acwing">AcWing</option>
+                <option value="leetcode">力扣 (LeetCode)</option>
               </select>
             </div>
             <div>
@@ -2011,14 +1996,14 @@
       </div>
     </div>
 
-    <!-- 查看错题代码与思路笔记弹窗 (View Mistake Code & Notes Modal) -->
+    <!-- 查看错题代码与思路笔记弹窗 -->
     <div v-if="viewNoteModalOpen && activeMistake" 
          @mousedown.self="noteBackdropPress = true"
          @mouseup.self="noteBackdropPress && !isResizingNoteModal && (viewNoteModalOpen = false); noteBackdropPress = false"
-         class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+         class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 overflow-y-auto">
       <div id="view-note-modal-dialog"
            :class="[
-             'bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-4 sm:p-6 font-sans relative flex flex-col transition-[width,height,max-width] duration-150',
+             'bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-4 sm:p-6 font-sans relative flex flex-col modal-dialog-anim transition-[width,height,max-width] duration-150',
              noteModalSize === 'full' ? 'w-[96vw] max-w-[96vw] h-[92vh] max-h-[92vh] my-auto' :
              noteModalSize === 'wide' ? 'w-full max-w-5xl lg:max-w-6xl my-4 sm:my-8' :
              noteModalSize === 'custom' ? 'my-auto max-w-[98vw] max-h-[94vh]' :
@@ -2185,11 +2170,16 @@
       </div>
     </div>
 
-    <!-- 全局浮动提示 (Toast - Apple Pill) -->
-    <div v-if="toast.show" class="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-xl text-xs font-semibold border flex items-center space-x-2.5 bg-[var(--bg-card)] transition-all font-sans"
-         :class="toast.type === 'success' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'">
+    <!-- 全局浮动提示 (Toast) -->
+    <div v-if="toast.show" class="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-xl shadow-xl text-xs font-semibold border flex items-center space-x-2 bg-[var(--bg-card)] modal-dialog-anim font-sans"
+         :class="toast.type === 'success' ? 'text-emerald-600 dark:text-emerald-300 border-emerald-500/35' : toast.type === 'info' ? 'text-blue-600 dark:text-blue-300 border-blue-500/35' : 'text-rose-600 dark:text-rose-300 border-rose-500/35'">
       <svg v-if="toast.type === 'success'" class="w-4 h-4 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      <svg v-else-if="toast.type === 'info'" class="w-4 h-4 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
       </svg>
       <svg v-else class="w-4 h-4 text-rose-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <line x1="18" y1="6" x2="6" y2="18"></line>

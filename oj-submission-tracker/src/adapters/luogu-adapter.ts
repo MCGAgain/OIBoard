@@ -15,6 +15,7 @@ interface LuoguPendingSubmission {
 
 export class LuoguAdapter extends BaseAdapter {
   public readonly platform: PlatformType = 'luogu';
+  public readonly requiredHooks = { fetch: true, xhr: true, ws: true, router: true };
   private pendingMap: Map<string, LuoguPendingSubmission> = new Map();
   private activePollers: Set<string> = new Set();
 

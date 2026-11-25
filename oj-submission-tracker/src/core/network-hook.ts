@@ -12,6 +12,12 @@ export interface InterceptedHttpEvent {
 export type HttpListener = (event: InterceptedHttpEvent) => void;
 export type WsMessageListener = (url: string, data: string) => void;
 
+export interface NetworkHookOptions {
+  fetch?: boolean;
+  xhr?: boolean;
+  ws?: boolean;
+}
+
 export class NetworkHookBus {
   private static httpListeners: HttpListener[] = [];
   private static wsListeners: WsMessageListener[] = [];
@@ -19,16 +25,23 @@ export class NetworkHookBus {
   private static initialized = false;
   public static rawFetch: typeof fetch;
 
-  public static init(targetWindow: Window & typeof globalThis): void {
+  public static init(
+    targetWindow: Window & typeof globalThis,
+    options: NetworkHookOptions = { fetch: true, xhr: true, ws: true }
+  ): void {
     if (this.initialized) return;
     this.initialized = true;
+
+    const hookFetch = options.fetch !== false;
+    const hookXhr = options.xhr !== false;
+    const hookWs = options.ws !== false;
 
     // 1. 保存原生 fetch 供内部主动轮询使用，避免死循环拦截
     const originalFetch = targetWindow.fetch ? targetWindow.fetch.bind(targetWindow) : fetch.bind(window);
     this.rawFetch = originalFetch;
 
-    // 2. 劫持 Fetch
-    if (targetWindow.fetch) {
+    // 2. 劫持 Fetch（仅在当前平台需要时启用）
+    if (hookFetch && targetWindow.fetch) {
       targetWindow.fetch = async function (...args: Parameters<typeof fetch>): Promise<Response> {
         let url = '';
         let method = 'GET';
@@ -89,9 +102,9 @@ export class NetworkHookBus {
       };
     }
 
-    // 3. 劫持 XMLHttpRequest
+    // 3. 劫持 XMLHttpRequest（仅在当前平台需要时启用）
     const OriginalXHR = targetWindow.XMLHttpRequest;
-    if (OriginalXHR && OriginalXHR.prototype) {
+    if (hookXhr && OriginalXHR && OriginalXHR.prototype) {
       const originalOpen = OriginalXHR.prototype.open;
       const originalSend = OriginalXHR.prototype.send;
 
@@ -151,9 +164,9 @@ export class NetworkHookBus {
       };
     }
 
-    // 4. 劫持 WebSocket（针对 AcWing 和洛谷实时推送）
+    // 4. 劫持 WebSocket（仅在 AcWing/洛谷等需要实时推送的平台启用）
     const OriginalWS = targetWindow.WebSocket;
-    if (OriginalWS) {
+    if (hookWs && OriginalWS) {
       const PatchedWS = function (this: any, url: string | URL, protocols?: string | string[]) {
         const wsInstance = protocols
           ? new OriginalWS(url, protocols)
