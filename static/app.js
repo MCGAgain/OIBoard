@@ -35,18 +35,46 @@ createApp({
       local_code: { total_lines: 0, today_lines: 0, total_files: 0, today_files: 0, c_lines: 0, cpp_lines: 0, java_lines: 0, has_data: false }
     });
 
-    const currentTab = ref("overview"); // 'overview', 'submissions', 'mistakes', 'settings'
+    const TAB_ORDER = ["overview", "contests", "submissions", "mistakes", "settings"];
+    const currentTab = ref("overview"); // 'overview', 'contests', 'submissions', 'mistakes', 'settings'
+    const activeTabIndex = computed(() => Math.max(0, TAB_ORDER.indexOf(currentTab.value)));
     const routeProgress = ref(""); // '' | 'active' | 'done'
-    const activeTabAnim = ref(true);
     let routeProgressTimer = null;
 
-    const triggerRouteTransition = () => {
+    const animateHydroTabEnter = (tab, direction = 1) => {
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      nextTick(() => {
+        const panel = document.getElementById(`tab-panel-${tab}`);
+        if (!panel || typeof panel.animate !== "function") return;
+        const offset = direction >= 0 ? 18 : -16;
+        try {
+          panel.getAnimations().forEach(a => a.cancel());
+          panel.animate(
+            [
+              { opacity: 0, transform: `translateY(${offset}px) scale(0.994)` },
+              { opacity: 1, transform: "translateY(0) scale(1)" }
+            ],
+            { duration: 280, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "both" }
+          );
+          const children = Array.from(panel.children).slice(0, 4);
+          children.forEach((child, idx) => {
+            if (typeof child.animate !== "function") return;
+            child.animate(
+              [
+                { opacity: 0.35, transform: `translateY(${direction >= 0 ? 10 : -8}px)` },
+                { opacity: 1, transform: "translateY(0)" }
+              ],
+              { duration: 260, delay: idx * 35, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "both" }
+            );
+          });
+        } catch (e) {}
+      });
+    };
+
+    const triggerRouteTransition = (tab, direction = 1) => {
       if (routeProgressTimer) clearTimeout(routeProgressTimer);
       routeProgress.value = "active";
-      activeTabAnim.value = false;
-      requestAnimationFrame(() => {
-        activeTabAnim.value = true;
-      });
+      animateHydroTabEnter(tab, direction);
     };
 
     const finishRouteTransition = () => {
@@ -56,6 +84,15 @@ createApp({
         routeProgress.value = "";
         routeProgressTimer = null;
       }, 320);
+    };
+
+    const getLocalDateStr = (offsetDays = 0) => {
+      const d = new Date();
+      if (offsetDays) d.setDate(d.getDate() + offsetDays);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
     };
     const searchKeyword = ref("");
     const debouncedSearchKeyword = ref("");
@@ -81,6 +118,7 @@ createApp({
     const availableHeatmapYears = ref([new Date().getFullYear()]);
     const tagStats = ref([]);
     const mistakes = ref([]);
+    const dueMistakesList = ref([]);
     const mistakesCounts = ref({ total: 0, due: 0, in_progress: 0, mastered: 0 });
     const mistakeKeySet = ref(new Set());
     const mistakeStatusFilter = ref("all");
@@ -390,6 +428,7 @@ createApp({
       rawHeatmap.value = [];
       submissions.value = [];
       mistakes.value = [];
+      dueMistakesList.value = [];
       mistakeTotal.value = 0;
       mistakesCounts.value = { total: 0, due: 0, in_progress: 0, mastered: 0 };
       mistakeKeySet.value = new Set();
@@ -685,6 +724,7 @@ createApp({
           showToast(`欢迎回来，${data.user.username}！`, "success");
           authForm.value = { username: "", password: "", confirmPassword: "", captcha_code: "" };
           await reloadAllData();
+          triggerStartupNotification();
           scheduleNextPoll(BASE_POLL_INTERVAL);
         } else {
           authError.value = data.detail || data.message || "登录失败，请检查账号密码";
@@ -751,6 +791,7 @@ createApp({
           showToast("账户注册成功！", "success");
           authForm.value = { username: "", password: "", confirmPassword: "", captcha_code: "" };
           await reloadAllData();
+          triggerStartupNotification();
           scheduleNextPoll(BASE_POLL_INTERVAL);
         } else {
           authError.value = data.detail || data.message || "注册失败";
@@ -872,10 +913,9 @@ createApp({
         list = list.filter(s => (s.tags || []).includes(selectedTag.value));
       }
 
-      // 4. 日期范围过滤
+      // 4. 日期范围过滤（使用本地日期，修复凌晨 0-8 点 UTC 跨天偏差）
       if (dateFilter.value !== "all") {
-        const today = new Date();
-        const todayStr = today.toISOString().split("T")[0];
+        const todayStr = getLocalDateStr(0);
 
         if (dateFilter.value === "today") {
           list = list.filter(s => {
@@ -883,23 +923,19 @@ createApp({
             return d === todayStr;
           });
         } else if (dateFilter.value === "7d") {
-          const d7 = new Date();
-          d7.setDate(today.getDate() - 7);
-          const d7Str = d7.toISOString().split("T")[0];
+          const d7Str = getLocalDateStr(-7);
           list = list.filter(s => {
             const d = s.date || (s.submitted_at || "").split(" ")[0];
             return d && d >= d7Str;
           });
         } else if (dateFilter.value === "30d") {
-          const d30 = new Date();
-          d30.setDate(today.getDate() - 30);
-          const d30Str = d30.toISOString().split("T")[0];
+          const d30Str = getLocalDateStr(-30);
           list = list.filter(s => {
             const d = s.date || (s.submitted_at || "").split(" ")[0];
             return d && d >= d30Str;
           });
         } else if (dateFilter.value === "year") {
-          const yStr = `${today.getFullYear()}-01-01`;
+          const yStr = `${new Date().getFullYear()}-01-01`;
           list = list.filter(s => {
             const d = s.date || (s.submitted_at || "").split(" ")[0];
             return d && d >= yStr;
@@ -1220,6 +1256,19 @@ createApp({
       }
     };
 
+    const loadDueMistakes = async () => {
+      try {
+        const res = await apiFetch("/api/mistakes?status=due&page=1&page_size=50");
+        const data = await res.json();
+        dueMistakesList.value = data.items || [];
+        if (data.counts) {
+          mistakesCounts.value = data.counts;
+        }
+      } catch (e) {
+        console.error("加载待复习错题失败:", e);
+      }
+    };
+
     const loadMistakes = async ({ throwOnError = false } = {}) => {
       isMistakesLoading.value = true;
       try {
@@ -1310,6 +1359,7 @@ createApp({
             showToast("已更新错题笔记", "success");
             mistakeModalOpen.value = false;
             await loadMistakes();
+            await loadDueMistakes();
             await loadMistakeKeys();
           } else {
             const err = await res.json().catch(() => ({}));
@@ -1337,6 +1387,7 @@ createApp({
             showToast("已加入错题集", "success");
             mistakeModalOpen.value = false;
             await loadMistakes();
+            await loadDueMistakes();
             await loadMistakeKeys();
           } else {
             const err = await res.json().catch(() => ({}));
@@ -1361,6 +1412,7 @@ createApp({
         if (res.ok) {
           showToast("已从错题集移除", "success");
           await loadMistakes();
+          await loadDueMistakes();
           await loadMistakeKeys();
         } else {
           showToast("移除失败", "error");
@@ -1383,6 +1435,7 @@ createApp({
             showToast(`已记录复习，下次复习: ${data.mistake.next_review_at}`, "success");
           }
           await loadMistakes();
+          await loadDueMistakes();
           if (activeMistake.value && activeMistake.value.id === item.id) {
             activeMistake.value = data.mistake;
           }
@@ -1406,6 +1459,7 @@ createApp({
             showToast("已恢复为训练状态", "success");
           }
           await loadMistakes();
+          await loadDueMistakes();
           if (activeMistake.value && activeMistake.value.id === item.id) {
             activeMistake.value = data.mistake;
           }
@@ -1557,7 +1611,7 @@ createApp({
 
     const reloadAllData = async () => {
       if (!isLoggedIn.value) return;
-      await Promise.allSettled([loadOverview(), loadHeatmap(), loadTags(), loadMistakes(), loadMistakeKeys(), loadSubmissions(), loadSettings(), loadContests()]);
+      await Promise.allSettled([loadOverview(), loadHeatmap(), loadTags(), loadMistakes(), loadDueMistakes(), loadMistakeKeys(), loadSubmissions(), loadSettings(), loadContests()]);
       await nextTick();
       syncSegmentedThumbs();
       if (currentTab.value === "overview") {
@@ -1754,7 +1808,7 @@ createApp({
           startDt.setDate(startDt.getDate() + 1);
         }
       } else {
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayStr = getLocalDateStr(0);
         dates = [todayStr];
         values = [overview.value.stats?.total_ac || 0];
         newAcs = [0];
@@ -1935,7 +1989,7 @@ createApp({
         nonAcList = list.map(item => Math.max(0, (item.total_subs || 0) - (item.unique_ac || 0)));
         totalList = list.map(item => item.total_subs || 0);
       } else {
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayStr = getLocalDateStr(0);
         dates = [todayStr.slice(2)];
         fullDates = [todayStr];
         acList = [overview.value.stats?.today_ac || 0];
@@ -2509,7 +2563,7 @@ createApp({
         }
         const count = data.count !== undefined ? data.count : (data.new_submissions !== undefined ? data.new_submissions : 0);
         showToast(`[${account.alias || account.handle}] 同步完成: 成功获取 ${count} 条提交记录`, "success");
-        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadMistakeKeys()]);
+        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadDueMistakes(), loadMistakeKeys()]);
         if (currentTab.value === "overview") {
           renderHeatmap();
           renderActiveChart();
@@ -2552,9 +2606,9 @@ createApp({
 
     const syncPlatformManual = async (platform) => {
       if (platform === 'leetcode') {
-        showToast("力扣主要通过油猴脚本实时秒级同步提交与源码，支持云端自动免登核实", "info");
+        showToast("已刷新力扣最新记录", "info");
         try {
-          await Promise.allSettled([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadMistakeKeys()]);
+          await Promise.allSettled([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadDueMistakes(), loadMistakeKeys()]);
         } catch (e) {
           // ignore
         }
@@ -2575,7 +2629,7 @@ createApp({
         } else {
           showToast(`${getPlatformName(platform)} 同步完成: ${data.message || "已获取最新数据"}`, "success");
         }
-        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadMistakeKeys()]);
+        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadDueMistakes(), loadMistakeKeys()]);
         if (currentTab.value === "overview") {
           renderHeatmap();
           renderActiveChart();
@@ -2638,6 +2692,309 @@ createApp({
       return `status-${s}`;
     };
 
+    const getPlatformShortStatus = (platform) => {
+      const info = platformStatusMap.value[platform];
+      const s = info?.status || "unconfigured";
+      const msg = (info?.message || "").trim();
+      if (s === "ok") {
+        if (!msg || /油猴|秒级|同步成功|成功同步|已连接/.test(msg)) {
+          return "已连接";
+        }
+        return msg.length <= 10 ? msg : "已连接";
+      }
+      if (s === "warning") return "需检查";
+      if (s === "error") return "连接异常";
+      return "未配置";
+    };
+
+    // --- Draggable Phone-Style Notification Center (Local DB Only) ---
+    const upcoming3dContests = computed(() => {
+      const now = nowTimestamp.value || Math.floor(Date.now() / 1000);
+      const threeDaysLater = now + 3 * 86400;
+      return (contests.value || [])
+        .filter(c => {
+          const st = c.start_timestamp || 0;
+          const et = st + (c.duration_seconds || 7200);
+          return et > now && (now >= st || st <= threeDaysLater);
+        })
+        .slice()
+        .sort((a, b) => (a.start_timestamp || 0) - (b.start_timestamp || 0));
+    });
+
+    const notifyTotalCount = computed(() => {
+      return dueMistakesList.value.length + upcoming3dContests.value.length;
+    });
+
+    const formatContestShortTime = (startTimeStr) => {
+      if (!startTimeStr) return "";
+      const parts = String(startTimeStr).trim().split(/[\s]+/);
+      const datePart = parts[0] || "";
+      const timePart = (parts[1] || "").slice(0, 5);
+      const todayStr = getLocalDateStr(0);
+      const tomorrowStr = getLocalDateStr(1);
+      const afterTomorrowStr = getLocalDateStr(2);
+      if (datePart === todayStr) return `今天 ${timePart}`;
+      if (datePart === tomorrowStr) return `明天 ${timePart}`;
+      if (datePart === afterTomorrowStr) return `后天 ${timePart}`;
+      return `${datePart.slice(5)} ${timePart}`;
+    };
+
+    const getContestShortPlatform = (plat) => {
+      const map = {
+        codeforces: "CF",
+        atcoder: "AT",
+        luogu: "洛谷",
+        acwing: "AcWing",
+        leetcode: "力扣",
+        nowcoder: "牛客"
+      };
+      return map[plat] || (plat ? String(plat).toUpperCase() : "比赛");
+    };
+
+    const notifyBarHeadline = computed(() => {
+      const dueLen = dueMistakesList.value.length;
+      const cLen = upcoming3dContests.value.length;
+      if (dueLen > 0) {
+        return `${dueLen} 道错题待完成`;
+      }
+      if (cLen > 0) {
+        return `近 3 天有 ${cLen} 场比赛`;
+      }
+      return "近期日程与错题";
+    });
+
+    const notifyBarSubline = computed(() => {
+      const dueLen = dueMistakesList.value.length;
+      const list = upcoming3dContests.value;
+      if (list.length > 0) {
+        const nearest = list[0];
+        const plat = getContestShortPlatform(nearest.platform);
+        const t = formatContestShortTime(nearest.start_time);
+        if (dueLen > 0) {
+          return `近3天 ${list.length} 场比赛 · 最近 ${plat} ${t}`;
+        }
+        return `最近 ${plat} · ${t} · ${nearest.name}`;
+      }
+      if (dueLen > 0) {
+        const first = dueMistakesList.value[0];
+        return `置顶: [${first.problem_id}] ${first.problem_title}`;
+      }
+      return "近 3 天暂无比赛 · 错题已清零";
+    });
+
+    const notifyState = ref("orb"); // 'orb' | 'bar' | 'detail'
+    let savedNotifyPos = null;
+    try {
+      const rawPos = localStorage.getItem("oiboard_notify_pos");
+      if (rawPos) {
+        const parsed = JSON.parse(rawPos);
+        if (typeof parsed?.left === "number" && typeof parsed?.top === "number") {
+          savedNotifyPos = { left: parsed.left, top: parsed.top };
+        }
+      }
+    } catch (e) {
+      savedNotifyPos = null;
+    }
+    const notifyPos = ref(savedNotifyPos);
+    const viewportSize = ref({ w: window.innerWidth, h: window.innerHeight });
+
+    let notifyAutoHideTimer = null;
+    let notifyHovered = false;
+    let notifyWasDragged = false;
+    let notifyDragState = null;
+
+    const clearNotifyAutoHide = () => {
+      if (notifyAutoHideTimer) {
+        clearTimeout(notifyAutoHideTimer);
+        notifyAutoHideTimer = null;
+      }
+    };
+
+    const scheduleNotifyAutoHide = (delayMs = 6500) => {
+      clearNotifyAutoHide();
+      if (dueMistakesList.value.length > 0 || notifyState.value !== "bar" || notifyHovered) {
+        return;
+      }
+      notifyAutoHideTimer = setTimeout(() => {
+        if (notifyState.value === "bar" && dueMistakesList.value.length === 0 && !notifyHovered) {
+          notifyState.value = "orb";
+        }
+        notifyAutoHideTimer = null;
+      }, delayMs);
+    };
+
+    const triggerStartupNotification = () => {
+      if (!isLoggedIn.value) return;
+      clearNotifyAutoHide();
+      // 刷新/进入页面：先以手机通知长条展开，有错题时常驻置顶，无错题时播报近3天比赛聚合后自动收起为悬浮球
+      notifyState.value = "bar";
+      if (dueMistakesList.value.length === 0) {
+        scheduleNotifyAutoHide(6500);
+      }
+    };
+
+    const collapseNotifyToOrb = () => {
+      clearNotifyAutoHide();
+      notifyState.value = "orb";
+    };
+
+    const onNotifyMouseEnter = () => {
+      notifyHovered = true;
+      clearNotifyAutoHide();
+    };
+
+    const onNotifyMouseLeave = () => {
+      notifyHovered = false;
+      if (notifyState.value === "bar" && dueMistakesList.value.length === 0) {
+        scheduleNotifyAutoHide(3200);
+      }
+    };
+
+    const completeDueMistakeFromNotify = async (item) => {
+      await recordMistakeReview(item);
+    };
+
+    const getNotifyShellDimensions = () => {
+      const vw = viewportSize.value.w || window.innerWidth;
+      const isOrb = notifyState.value === "orb";
+      return {
+        w: isOrb ? 44 : Math.min(348, vw - 24),
+        h: isOrb ? 44 : 54
+      };
+    };
+
+    const clampNotifyCoords = (left, top) => {
+      const vw = viewportSize.value.w || window.innerWidth;
+      const vh = viewportSize.value.h || window.innerHeight;
+      const { w, h } = getNotifyShellDimensions();
+      const margin = 12;
+      const clampedLeft = Math.max(margin, Math.min(left, vw - w - margin));
+      const clampedTop = Math.max(margin, Math.min(top, vh - h - margin));
+      return { left: Math.round(clampedLeft), top: Math.round(clampedTop) };
+    };
+
+    const notifyHostStyle = computed(() => {
+      if (!notifyPos.value) {
+        return { right: "20px", bottom: "20px" };
+      }
+      const c = clampNotifyCoords(notifyPos.value.left, notifyPos.value.top);
+      return { left: `${c.left}px`, top: `${c.top}px` };
+    });
+
+    const notifyPopoverStyle = computed(() => {
+      const vw = viewportSize.value.w || window.innerWidth;
+      const vh = viewportSize.value.h || window.innerHeight;
+      if (!notifyPos.value) {
+        return { right: "0px", bottom: "calc(100% + 10px)" };
+      }
+      const c = clampNotifyCoords(notifyPos.value.left, notifyPos.value.top);
+      const { w, h } = getNotifyShellDimensions();
+      const centerX = c.left + w / 2;
+      const centerY = c.top + h / 2;
+      const style = {};
+      if (centerY >= vh / 2) {
+        style.bottom = "calc(100% + 10px)";
+      } else {
+        style.top = "calc(100% + 10px)";
+      }
+      if (centerX >= vw / 2) {
+        style.right = "0px";
+      } else {
+        style.left = "0px";
+      }
+      return style;
+    });
+
+    const startNotifyDrag = (clientX, clientY, isTouch) => {
+      const host = document.getElementById("notify-widget-host");
+      if (!host) return;
+      const rect = host.getBoundingClientRect();
+      notifyWasDragged = false;
+      notifyDragState = {
+        startX: clientX,
+        startY: clientY,
+        originLeft: rect.left,
+        originTop: rect.top
+      };
+
+      const onMove = (ev) => {
+        if (!notifyDragState) return;
+        const pt = isTouch ? (ev.touches && ev.touches[0]) : ev;
+        if (!pt) return;
+        const dx = pt.clientX - notifyDragState.startX;
+        const dy = pt.clientY - notifyDragState.startY;
+        if (!notifyWasDragged && Math.hypot(dx, dy) > 5) {
+          notifyWasDragged = true;
+          clearNotifyAutoHide();
+        }
+        if (notifyWasDragged) {
+          if (ev.cancelable) ev.preventDefault();
+          notifyPos.value = clampNotifyCoords(notifyDragState.originLeft + dx, notifyDragState.originTop + dy);
+        }
+      };
+
+      const onEnd = () => {
+        if (isTouch) {
+          window.removeEventListener("touchmove", onMove);
+          window.removeEventListener("touchend", onEnd);
+          window.removeEventListener("touchcancel", onEnd);
+        } else {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onEnd);
+        }
+        if (notifyWasDragged && notifyPos.value) {
+          try {
+            localStorage.setItem("oiboard_notify_pos", JSON.stringify(notifyPos.value));
+          } catch (e) {}
+          setTimeout(() => { notifyWasDragged = false; }, 60);
+        }
+        notifyDragState = null;
+      };
+
+      if (isTouch) {
+        window.addEventListener("touchmove", onMove, { passive: false });
+        window.addEventListener("touchend", onEnd);
+        window.addEventListener("touchcancel", onEnd);
+      } else {
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onEnd);
+      }
+    };
+
+    const onNotifyPointerDown = (e) => {
+      if (e.button !== 0) return;
+      if (e.target && e.target.closest("button, a")) return;
+      startNotifyDrag(e.clientX, e.clientY, false);
+    };
+
+    const onNotifyTouchStart = (e) => {
+      if (!e.touches || e.touches.length !== 1) return;
+      if (e.target && e.target.closest("button, a")) return;
+      startNotifyDrag(e.touches[0].clientX, e.touches[0].clientY, true);
+    };
+
+    const onNotifyShellClick = (e) => {
+      if (notifyWasDragged) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      clearNotifyAutoHide();
+      if (notifyState.value === "detail") {
+        notifyState.value = dueMistakesList.value.length > 0 ? "bar" : "orb";
+      } else {
+        notifyState.value = "detail";
+      }
+    };
+
+    const onDocumentMouseDown = (e) => {
+      if (notifyState.value !== "detail") return;
+      const host = document.getElementById("notify-widget-host");
+      if (host && !host.contains(e.target)) {
+        notifyState.value = dueMistakesList.value.length > 0 ? "bar" : "orb";
+      }
+    };
+
     // --- Unified Polling Engine (A1/A2/A8: in-flight guard, failure backoff, tab dispatch) ---
     const refreshCurrentUser = async (force = false) => {
       const now = Date.now();
@@ -2681,7 +3038,8 @@ createApp({
             loadOverview({ throwOnError: true }),
             loadHeatmap({ throwOnError: true }),
             loadTags({ throwOnError: true }),
-            loadContests({ throwOnError: true })
+            loadContests({ throwOnError: true }),
+            loadDueMistakes()
           ];
           lastContestSyncTime = Date.now();
         } else if (tab === "submissions") {
@@ -2690,7 +3048,7 @@ createApp({
             loadMistakeKeys({ throwOnError: true })
           ];
         } else if (tab === "mistakes") {
-          tasks = [loadMistakes({ throwOnError: true })];
+          tasks = [loadMistakes({ throwOnError: true }), loadDueMistakes()];
         } else if (tab === "contests") {
           tasks = [loadContests({ throwOnError: true })];
           lastContestSyncTime = Date.now();
@@ -2759,6 +3117,7 @@ createApp({
     let lastForegroundWakeupTime = 0;
 
     const onWindowResize = () => {
+      viewportSize.value = { w: window.innerWidth, h: window.innerHeight };
       if (resizeDebounceTimer) {
         clearTimeout(resizeDebounceTimer);
       }
@@ -2772,8 +3131,12 @@ createApp({
     };
 
     const onKeydown = (e) => {
-      if (e.key === "Escape" && viewNoteModalOpen.value) {
-        viewNoteModalOpen.value = false;
+      if (e.key === "Escape") {
+        if (viewNoteModalOpen.value) {
+          viewNoteModalOpen.value = false;
+        } else if (notifyState.value === "detail") {
+          notifyState.value = dueMistakesList.value.length > 0 ? "bar" : "orb";
+        }
       }
     };
 
@@ -2827,6 +3190,7 @@ createApp({
           currentUser.value = data.user;
           localStorage.setItem("oiboard_user", JSON.stringify(data.user));
           await reloadAllData();
+          triggerStartupNotification();
         } catch (e) {
           if (e.message === "UNAUTHORIZED") {
             resetAllUserStates();
@@ -2842,6 +3206,7 @@ createApp({
 
       window.addEventListener("resize", onWindowResize);
       window.addEventListener("keydown", onKeydown);
+      document.addEventListener("mousedown", onDocumentMouseDown);
       document.addEventListener("visibilitychange", onForegroundWakeup);
       window.addEventListener("focus", onForegroundWakeup);
 
@@ -2860,9 +3225,11 @@ createApp({
       if (pollTimeoutId) clearTimeout(pollTimeoutId);
       if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
       if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      clearNotifyAutoHide();
 
       window.removeEventListener("resize", onWindowResize);
       window.removeEventListener("keydown", onKeydown);
+      document.removeEventListener("mousedown", onDocumentMouseDown);
       document.removeEventListener("visibilitychange", onForegroundWakeup);
       window.removeEventListener("focus", onForegroundWakeup);
     });
@@ -2894,12 +3261,15 @@ createApp({
       nextTick(syncSegmentedThumbs);
     });
 
-    // 标签页切换自动静默拉取最新数据 + Hydro 顶部细进度条与平滑入场动效
-    watch(currentTab, async (tab) => {
-      triggerRouteTransition();
+    // 标签页切换自动静默拉取最新数据 + Hydro 顶部细进度条与定向平滑入场动效
+    watch(currentTab, async (tab, oldTab) => {
+      const oldIdx = TAB_ORDER.indexOf(oldTab);
+      const newIdx = TAB_ORDER.indexOf(tab);
+      const direction = (oldIdx === -1 || newIdx >= oldIdx) ? 1 : -1;
+      triggerRouteTransition(tab, direction);
       try {
         if (tab === "overview") {
-          await Promise.allSettled([loadOverview(), loadHeatmap(), loadTags(), loadContests()]);
+          await Promise.allSettled([loadOverview(), loadHeatmap(), loadTags(), loadContests(), loadDueMistakes()]);
           nextTick(() => {
             renderHeatmap(true);
             renderActiveChart(true);
@@ -2907,7 +3277,7 @@ createApp({
         } else if (tab === "submissions") {
           await Promise.allSettled([loadSubmissions(), loadMistakeKeys()]);
         } else if (tab === "mistakes") {
-          await Promise.allSettled([loadMistakes()]);
+          await Promise.allSettled([loadMistakes(), loadDueMistakes()]);
         } else if (tab === "contests") {
           await Promise.allSettled([loadContests()]);
         } else if (tab === "settings") {
@@ -2944,8 +3314,8 @@ createApp({
       handleLogout,
       handleChangePassword,
       currentTab,
+      activeTabIndex,
       routeProgress,
-      activeTabAnim,
       searchKeyword,
       dateFilter,
       startDate,
@@ -3008,6 +3378,24 @@ createApp({
       formatTimeAgo,
       getStatusClass,
       getPlatformPillClass,
+      getPlatformShortStatus,
+      // Draggable Notification Center exports
+      dueMistakesList,
+      upcoming3dContests,
+      notifyTotalCount,
+      notifyState,
+      notifyHostStyle,
+      notifyPopoverStyle,
+      notifyBarHeadline,
+      notifyBarSubline,
+      formatContestShortTime,
+      onNotifyMouseEnter,
+      onNotifyMouseLeave,
+      collapseNotifyToOrb,
+      completeDueMistakeFromNotify,
+      onNotifyPointerDown,
+      onNotifyTouchStart,
+      onNotifyShellClick,
       // Theme Engine exports
       themePref,
       isDark,

@@ -462,9 +462,8 @@ async def update_settings(payload: SettingsPayload, current_user: Dict[str, Any]
 
 @app.get("/api/contests")
 async def get_contests(platform: str = "all", limit: int = 60, current_user: Dict[str, Any] = Depends(get_current_user)):
+    # 严格从本地数据库读取比赛日程，刷新页面不触发外部爬取
     contests = db.get_upcoming_contests(platform=platform, limit=limit)
-    if not contests:
-        asyncio.create_task(scheduler_instance.sync_contests())
     return {"contests": contests}
 
 @app.post("/api/contests/sync")
@@ -562,7 +561,7 @@ async def verify_account_direct(payload: VerifyAccountDirectPayload, current_use
         valid, msg, extra = await at.verify(payload.handle, proxy=proxy)
         return {"valid": valid, "message": msg, "extra": extra}
     elif p in ("leetcode", "leetcode_cn"):
-        return {"valid": True, "message": "力扣账号有效 (主要由油猴实时秒级推送并自动核实)", "extra": {}}
+        return {"valid": True, "message": "已连接", "extra": {}}
     else:
         raise HTTPException(status_code=400, detail="不支持的平台")
 
@@ -619,8 +618,8 @@ async def verify_credentials(payload: VerifyPayload, current_user: Dict[str, Any
             db.update_platform_status(uid, "atcoder", "error", msg)
         return {"valid": valid, "message": msg, "extra": extra}
     elif p in ("leetcode", "leetcode_cn"):
-        db.update_platform_status(uid, "leetcode", "ok", "力扣实时/已连接")
-        return {"valid": True, "message": "力扣账号有效 (主要由油猴实时秒级推送并自动核实)", "extra": {}}
+        db.update_platform_status(uid, "leetcode", "ok", "已连接")
+        return {"valid": True, "message": "已连接", "extra": {}}
     else:
         raise HTTPException(status_code=400, detail="未知平台")
 

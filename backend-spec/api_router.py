@@ -493,7 +493,7 @@ async def push_submission(
             user_id=resolved_user_id,
             platform=unified_platform,
             status="ok",
-            message="油猴实时秒级同步",
+            message="已连接",
             rating="",
         )
 

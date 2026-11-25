@@ -1,4 +1,4 @@
-/* OIBoard - Hydro OJ Inspired Minimalist Algorithmic Design System (Light & Dark, Low CPU/GPU) */
+/* OIBoard - Hydro OJ Inspired Minimalist Algorithmic Design System (Light & Dark, 4K Ready, Low CPU/GPU) */
 
 [v-cloak] {
   display: none !important;
@@ -11,8 +11,8 @@
   --bg-card: #ffffff;
   --card-bg: #ffffff;
   --bg-card-hover: #ffffff;
-  --bg-subtle: #f7f8fa;
-  --bg-hover: rgba(15, 23, 42, 0.035);
+  --bg-subtle: #f5f6f8;
+  --bg-hover: rgba(15, 23, 42, 0.04);
   --bg-nav: #ffffff;
   --bg-sidebar: #ffffff;
 
@@ -27,7 +27,7 @@
   --text-tertiary: #6b7280;
   --text-muted: #9ca3af;
 
-  /* Hydro Restrained Semantic Colors (No loud neon red) */
+  /* Hydro Restrained Semantic Colors */
   --primary: #2979ff;
   --apple-blue: #2979ff;
   --apple-blue-hover: #1d64e0;
@@ -44,10 +44,12 @@
   --apple-indigo: #4f46e5;
 
   --shadow-ambient: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-hover: 0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-hover: 0 4px 14px rgba(15, 23, 42, 0.07);
+  --shadow-float: 0 12px 32px rgba(15, 23, 42, 0.14);
   --shadow-pill: 0 1px 2px rgba(15, 23, 42, 0.05);
 
   --ease-hydro: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
   --transition-fast: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, opacity 0.16s ease, transform 0.18s var(--ease-hydro);
 }
 
@@ -59,7 +61,7 @@ html.dark, body.dark, .dark {
   --card-bg: #1b1d22;
   --bg-card-hover: #21242b;
   --bg-subtle: #23262e;
-  --bg-hover: rgba(255, 255, 255, 0.045);
+  --bg-hover: rgba(255, 255, 255, 0.05);
   --bg-nav: #1b1d22;
   --bg-sidebar: #16181d;
 
@@ -90,6 +92,7 @@ html.dark, body.dark, .dark {
 
   --shadow-ambient: 0 1px 2px rgba(0, 0, 0, 0.28);
   --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.36);
+  --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.56);
   --shadow-pill: 0 1px 2px rgba(0, 0, 0, 0.28);
 }
 
@@ -119,7 +122,7 @@ html {
   html:not([data-ui-scale]), html[data-ui-scale="auto"] { font-size: 22.5px; }
 }
 @media (min-width: 3840px) {
-  html:not([data-ui-scale]), html[data-ui-scale="auto"] { font-size: 24.5px; }
+  html:not([data-ui-scale]), html[data-ui-scale="auto"] { font-size: 24px; }
 }
 
 /* Manual UI Scale */
@@ -130,18 +133,26 @@ html[data-ui-scale="140"] { font-size: 22.4px !important; }
 html[data-ui-scale="150"] { font-size: 24px !important; }
 html[data-ui-scale="175"] { font-size: 28px !important; }
 
+/* Fluid 4K-Ready Workspace Shell (Fix: outer wrapper handles sidebar offset so main centers cleanly with zero right void) */
+.workspace-shell {
+  flex: 1 1 0%;
+  min-width: 0;
+  padding-left: 64px;
+  width: 100%;
+}
+
 .main-content-container {
   width: 100%;
+  max-width: 100%;
   margin-left: auto;
   margin-right: auto;
-  max-width: 1380px;
 }
-@media (min-width: 1600px) { .main-content-container { max-width: 1520px; } }
-@media (min-width: 1920px) { .main-content-container { max-width: 1760px; } }
-@media (min-width: 2200px) { .main-content-container { max-width: 2020px; } }
-@media (min-width: 2560px) { .main-content-container { max-width: 2320px; } }
-@media (min-width: 3200px) { .main-content-container { max-width: 2820px; } }
-@media (min-width: 3840px) { .main-content-container { max-width: 3400px; } }
+@media (min-width: 2200px) {
+  .main-content-container { max-width: 96%; }
+}
+@media (min-width: 3200px) {
+  .main-content-container { max-width: 3200px; }
+}
 
 .analytics-chart-responsive {
   width: 100%;
@@ -150,7 +161,7 @@ html[data-ui-scale="175"] { font-size: 28px !important; }
 }
 @media (min-width: 1920px) { .analytics-chart-responsive { height: 420px; } }
 @media (min-width: 2560px) { .analytics-chart-responsive { height: 480px; } }
-@media (min-width: 3400px) { .analytics-chart-responsive { height: 560px; } }
+@media (min-width: 3400px) { .analytics-chart-responsive { height: 540px; } }
 
 .text-\[9px\]  { font-size: max(9px, 0.58rem) !important; }
 .text-\[10px\] { font-size: max(10px, 0.65rem) !important; }
@@ -177,32 +188,32 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ================= Hydro Top Route Progress Bar (Compositor-Only) ================= */
+/* ================= Hydro Top 2px Route Progress Bar ================= */
 .hydro-progress-bar {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 2px;
-  background: var(--primary);
+  height: 2.5px;
+  background: linear-gradient(90deg, var(--primary), #60a5fa);
   transform-origin: left center;
   transform: scaleX(0);
   opacity: 0;
   z-index: 9999;
   pointer-events: none;
-  transition: transform 0.26s var(--ease-hydro), opacity 0.2s ease;
+  transition: transform 0.28s var(--ease-hydro), opacity 0.2s ease;
 }
 .hydro-progress-bar.active {
   opacity: 1;
-  transform: scaleX(0.72);
+  transform: scaleX(0.75);
 }
 .hydro-progress-bar.done {
   opacity: 0;
   transform: scaleX(1);
-  transition: transform 0.16s ease-out, opacity 0.22s ease 0.1s;
+  transition: transform 0.16s ease-out, opacity 0.24s ease 0.12s;
 }
 
-/* ================= Hydro Section Cards (Crisp 10px Radius) ================= */
+/* ================= Hydro Section Cards ================= */
 .ui-card, .apple-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
@@ -223,14 +234,46 @@ body {
   border-color: var(--border-accent);
 }
 
-/* ================= Hydro Sidebar Nav Item ================= */
+/* ================= Hydro Pixel-Perfect Sidebar & Sliding Indicator ================= */
+.hydro-sidebar {
+  width: 64px;
+  transition: width 0.22s var(--ease-hydro);
+}
+.hydro-sidebar:hover {
+  width: 220px;
+}
+
+.hydro-nav-list {
+  position: relative;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Single floating Hydro indicator bar that smoothly glides between tabs */
+.hydro-nav-indicator {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 3px;
+  height: 24px;
+  margin-top: 8px;
+  border-radius: 0 3px 3px 0;
+  background: var(--primary);
+  pointer-events: none;
+  z-index: 5;
+  transition: transform 0.26s var(--ease-spring);
+}
+
+/* Exact horizontal centering math: 64px sidebar - 16px nav padding = 48px button; (48 - 20) / 2 = 14px left padding */
 .hydro-nav-item {
   position: relative;
   display: flex;
   align-items: center;
   width: 100%;
   height: 40px;
-  padding: 0 12px;
+  padding: 0 14px;
   border-radius: 8px;
   font-size: 0.78rem;
   font-weight: 500;
@@ -248,25 +291,67 @@ body {
   background: var(--apple-blue-subtle);
   font-weight: 600;
 }
-.hydro-nav-item::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--primary);
-  transform: scaleY(0);
-  opacity: 0;
-  transition: transform 0.22s var(--ease-hydro), opacity 0.16s ease;
-}
-.hydro-nav-item.active::before {
-  transform: scaleY(1);
-  opacity: 1;
+
+/* ================= Unified Topbar Controls (Strict 32px height, 7px radius) ================= */
+.topbar-chip {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
 }
 
-/* ================= Hydro Quiet Notice Banner (Zero Screaming Red) ================= */
+.topbar-btn {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 11px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  white-space: nowrap;
+}
+.topbar-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+  background: var(--bg-surface);
+}
+.topbar-btn:active:not(:disabled) { transform: scale(0.98); }
+
+.topbar-btn-primary {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 13px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  background: var(--primary);
+  color: #ffffff;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  white-space: nowrap;
+}
+.topbar-btn-primary:hover:not(:disabled) { background: var(--apple-blue-hover); }
+.topbar-btn-primary:active:not(:disabled) { transform: scale(0.98); }
+.topbar-btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ================= Hydro Quiet Notice Banner ================= */
 .hydro-notice {
   display: flex;
   align-items: center;
@@ -295,13 +380,14 @@ body {
   font-size: 12px;
 }
 
-/* ================= Segmented Control (Hydro Crisp Pill) ================= */
+/* ================= Segmented Control (Matched 32px Height, 7px Radius) ================= */
 .segmented-control {
   display: inline-flex;
   align-items: center;
+  height: 32px;
   padding: 2px;
   background: var(--bg-subtle);
-  border-radius: 8px;
+  border-radius: 7px;
   border: 1px solid var(--border-subtle);
   position: relative;
   user-select: none;
@@ -315,16 +401,16 @@ body {
   top: 2px;
   left: 0;
   bottom: 2px;
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--bg-surface);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
-  transition: transform 0.24s var(--ease-hydro), width 0.22s var(--ease-hydro), opacity 0.15s ease;
+  transition: transform 0.26s var(--ease-spring), width 0.24s var(--ease-spring), opacity 0.15s ease;
   pointer-events: none;
   z-index: 1;
 }
 
 .dark .segmented-thumb {
-  background: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.11);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
@@ -334,9 +420,10 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.3rem 0.72rem;
-  border-radius: 6px;
-  font-size: 0.75rem;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
   background: transparent !important;
@@ -347,20 +434,11 @@ body {
   white-space: nowrap;
 }
 
-.segmented-item:hover {
-  color: var(--text-primary);
-}
+.segmented-item:hover { color: var(--text-primary); }
+.segmented-item.active { color: var(--text-primary); font-weight: 600; }
+.dark .segmented-item.active { color: #f3f4f6; }
 
-.segmented-item.active {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.dark .segmented-item.active {
-  color: #f3f4f6;
-}
-
-/* ================= Status Dots & Pills ================= */
+/* ================= Status Dots & Pills (Clean Truncate Support) ================= */
 .pulse-dot {
   width: 6px;
   height: 6px;
@@ -378,34 +456,20 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.32rem;
-  padding: 0.16rem 0.5rem;
+  padding: 0.16rem 0.55rem;
   border-radius: 6px;
-  font-size: 0.68rem;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.01em;
+  line-height: 1.35;
 }
 
-.status-ok {
-  background-color: var(--apple-green-subtle);
-  color: var(--apple-green);
-}
+.status-ok { background-color: var(--apple-green-subtle); color: var(--apple-green); }
+.status-warning { background-color: var(--apple-orange-subtle); color: var(--apple-orange); }
+.status-error { background-color: var(--apple-red-subtle); color: var(--apple-red); }
+.status-unconfigured { background-color: var(--bg-subtle); color: var(--text-tertiary); }
 
-.status-warning {
-  background-color: var(--apple-orange-subtle);
-  color: var(--apple-orange);
-}
-
-.status-error {
-  background-color: var(--apple-red-subtle);
-  color: var(--apple-red);
-}
-
-.status-unconfigured {
-  background-color: var(--bg-subtle);
-  color: var(--text-tertiary);
-}
-
-/* ================= Form Inputs ================= */
+/* ================= Form Inputs & Buttons ================= */
 .ui-input {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
@@ -427,12 +491,8 @@ body {
   border-color: var(--primary);
   box-shadow: 0 0 0 2px var(--apple-blue-subtle);
 }
+.ui-input::placeholder { color: var(--text-muted); }
 
-.ui-input::placeholder {
-  color: var(--text-muted);
-}
-
-/* ================= Buttons ================= */
 .btn-primary {
   background: var(--primary);
   color: #ffffff;
@@ -444,14 +504,8 @@ body {
   border: 1px solid transparent;
   cursor: pointer;
 }
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--apple-blue-hover);
-}
-
-.btn-primary:active:not(:disabled) {
-  transform: scale(0.98);
-}
+.btn-primary:hover:not(:disabled) { background: var(--apple-blue-hover); }
+.btn-primary:active:not(:disabled) { transform: scale(0.98); }
 
 .btn-secondary {
   background: var(--bg-subtle);
@@ -464,45 +518,96 @@ body {
   transition: var(--transition-fast);
   cursor: pointer;
 }
+.btn-secondary:hover:not(:disabled) { background: var(--bg-surface); border-color: var(--border-hover); }
+.btn-secondary:active:not(:disabled) { transform: scale(0.98); }
 
-.btn-secondary:hover:not(:disabled) {
+/* ================= Draggable Phone-Style Notification Center ================= */
+.notify-host {
+  position: fixed;
+  z-index: 60;
+  user-select: none;
+  touch-action: none;
+}
+
+.notify-shell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   background: var(--bg-surface);
-  border-color: var(--border-hover);
+  border: 1px solid var(--border-hover);
+  box-shadow: var(--shadow-float);
+  color: var(--text-primary);
+  cursor: grab;
+  overflow: hidden;
+  transition: width 0.34s var(--ease-spring), border-radius 0.3s var(--ease-spring), border-color 0.2s ease, transform 0.2s var(--ease-spring);
+}
+.notify-shell:active { cursor: grabbing; }
+.notify-shell.is-orb {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  justify-content: center;
+}
+.notify-shell.is-orb:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+.notify-shell.is-bar {
+  width: 348px;
+  max-width: calc(100vw - 24px);
+  min-height: 46px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  gap: 10px;
+}
+.notify-shell.is-pinned {
+  border-left: 3px solid var(--apple-orange);
 }
 
-.btn-secondary:active:not(:disabled) {
-  transform: scale(0.98);
+.notify-badge-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  pointer-events: none;
 }
 
-/* ================= Hydro Page & Modal Compositor Animations ================= */
-@keyframes hydroPageIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.notify-popover {
+  position: absolute;
+  width: 368px;
+  max-width: calc(100vw - 24px);
+  max-height: min(72vh, 520px);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-hover);
+  border-radius: 12px;
+  box-shadow: var(--shadow-float);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: notifyPopIn 0.24s var(--ease-spring) both;
+}
+
+@keyframes notifyPopIn {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 @keyframes modalEnter {
-  from {
-    opacity: 0;
-    transform: scale(0.97) translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-.hydro-page-enter {
-  animation: hydroPageIn 0.22s var(--ease-hydro) both;
+  from { opacity: 0; transform: scale(0.97) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .modal-dialog-anim {
-  animation: modalEnter 0.18s var(--ease-hydro) both;
+  animation: modalEnter 0.2s var(--ease-spring) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1361,13 +1361,15 @@ def get_user_mistakes(
         cursor.execute(count_query, params)
         filtered_total = cursor.fetchone()[0]
 
-        # 排序：默认严格按最新提交时间倒序
+        # 排序：未完成且已到期的错题自动置顶，其余按所选字段排序
+        due_pin_expr = "CASE WHEN status != 'mastered' AND next_review_at != '' AND next_review_at <= ? THEN 0 ELSE 1 END"
+        params.append(today_str)
         if sort_by == "next_review_at":
-            query_sql += " ORDER BY CASE WHEN next_review_at != '' THEN 0 ELSE 1 END, next_review_at ASC, id DESC"
+            query_sql += f" ORDER BY {due_pin_expr}, CASE WHEN next_review_at != '' THEN 0 ELSE 1 END, next_review_at ASC, id DESC"
         elif sort_by == "review_count":
-            query_sql += " ORDER BY review_count ASC, last_submitted_at DESC"
+            query_sql += f" ORDER BY {due_pin_expr}, review_count ASC, last_submitted_at DESC"
         else:
-            query_sql += " ORDER BY CASE WHEN last_submitted_at != '' AND last_submitted_at IS NOT NULL THEN 0 ELSE 1 END, last_submitted_at DESC, id DESC"
+            query_sql += f" ORDER BY {due_pin_expr}, CASE WHEN last_submitted_at != '' AND last_submitted_at IS NOT NULL THEN 0 ELSE 1 END, last_submitted_at DESC, id DESC"
 
         offset = max(0, (page - 1) * page_size)
         query_sql += " LIMIT ? OFFSET ?"
