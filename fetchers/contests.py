@@ -82,97 +82,48 @@ class ContestFetcher:
         return contests
 
     async def fetch_atcoder_contests(self, client: httpx.AsyncClient) -> List[Dict[str, Any]]:
-        """抓取 AtCoder 官方即将举行与进行中的比赛"""
+        """通过 Kenkoooo 公开 JSON API 拉取 AtCoder 即将举行与进行中的比赛（零 HTML 抓取）"""
         contests = []
         try:
-            url = "https://atcoder.jp/contests/"
+            url = "https://kenkoooo.com/atcoder/resources/contests.json"
             res = await client.get(url, timeout=15.0)
             if res.status_code == 200:
-                from bs4 import BeautifulSoup
-                soup = BeautifulSoup(res.text, "html.parser")
+                raw_list = res.json()
                 now_ts = int(datetime.now(timezone.utc).timestamp())
+                updated_str = get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
 
-                # 提取正在进行 (#contest-table-action) 与 即将开始 (#contest-table-upcoming)
-                for tbl_id in ("#contest-table-action", "#contest-table-upcoming"):
-                    table = soup.select_one(tbl_id)
-                    if not table:
+                for item in raw_list:
+                    start_ts = int(item.get("start_epoch_second") or 0)
+                    dur_sec = int(item.get("duration_second") or 0)
+                    if start_ts <= 0 or dur_sec <= 0:
                         continue
-                    
-                    for tr in table.select("tbody tr"):
-                        tds = tr.select("td")
-                        if len(tds) < 2:
-                            continue
+                    end_ts = start_ts + dur_sec
+                    if end_ts <= now_ts:
+                        continue
 
-                        # 1. 解析时间 (如 "2026-09-05 21:00:00+0900")
-                        time_elem = tds[0].select_one("a, time")
-                        raw_time_str = time_elem.get_text().strip() if time_elem else tds[0].get_text().strip()
-                        
-                        start_ts = 0
-                        start_time_str = ""
-                        try:
-                            # 替换 "+0900" 为标准 timezone
-                            clean_time = raw_time_str.replace("+0900", "+09:00").replace("+09", "+09:00")
-                            dt = datetime.fromisoformat(clean_time)
-                            dt_beijing = dt.astimezone(BEIJING_TZ)
-                            start_time_str = dt_beijing.strftime("%Y-%m-%d %H:%M:%S")
-                            start_ts = int(dt.timestamp())
-                        except Exception:
-                            # 尝试正则
-                            m = re.search(r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})', raw_time_str)
-                            if m:
-                                try:
-                                    dt_jst = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M").replace(tzinfo=timezone(timedelta(hours=9)))
-                                    dt_beijing = dt_jst.astimezone(BEIJING_TZ)
-                                    start_time_str = dt_beijing.strftime("%Y-%m-%d %H:%M:%S")
-                                    start_ts = int(dt_jst.timestamp())
-                                except Exception:
-                                    pass
+                    cid = str(item.get("id") or "").strip()
+                    name = str(item.get("title") or cid).strip()
+                    rate_change = str(item.get("rate_change") or "").strip()
+                    phase = "BEFORE" if now_ts < start_ts else "CODING"
+                    start_time_str, _ = format_beijing_time_and_date(start_ts)
+                    rule_type = f"Rated ({rate_change})" if rate_change and rate_change != "-" else "Unrated"
 
-                        # 2. 比赛名称与链接
-                        name_elem = tds[1].select_one("a[href*='/contests/']")
-                        if not name_elem:
-                            continue
-                        name = name_elem.get_text().strip()
-                        href = name_elem.get("href", "")
-                        cid = href.split("/")[-1] if href else name
-
-                        # 3. 比赛时长 (如 "02:00", "01:40")
-                        dur_str_raw = tds[2].get_text().strip() if len(tds) >= 3 else "02:00"
-                        dur_sec = 7200
-                        if ":" in dur_str_raw:
-                            try:
-                                h, m = dur_str_raw.split(":")[:2]
-                                dur_sec = int(h) * 3600 + int(m) * 60
-                            except Exception:
-                                pass
-
-                        # 4. Rated 规则
-                        rated_str = tds[3].get_text().strip() if len(tds) >= 4 else "Rated"
-
-                        end_ts = start_ts + dur_sec
-                        if now_ts < start_ts:
-                            phase = "BEFORE"
-                        elif now_ts < end_ts:
-                            phase = "CODING"
-                        else:
-                            phase = "FINISHED"
-
-                        contests.append({
-                            "id": f"atcoder_{cid}",
-                            "platform": "atcoder",
-                            "raw_id": cid,
-                            "name": name,
-                            "start_time": start_time_str,
-                            "start_timestamp": start_ts,
-                            "duration_seconds": dur_sec,
-                            "duration_str": format_duration_seconds(dur_sec),
-                            "url": f"https://atcoder.jp{href}" if href.startswith("/") else href,
-                            "phase": phase,
-                            "rule_type": f"Rated ({rated_str})" if rated_str and rated_str != "-" else "Unrated",
-                            "updated_at": get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
+                    contests.append({
+                        "id": f"atcoder_{cid}",
+                        "platform": "atcoder",
+                        "raw_id": cid,
+                        "name": name,
+                        "start_time": start_time_str,
+                        "start_timestamp": start_ts,
+                        "duration_seconds": dur_sec,
+                        "duration_str": format_duration_seconds(dur_sec),
+                        "url": f"https://atcoder.jp/contests/{cid}",
+                        "phase": phase,
+                        "rule_type": rule_type,
+                        "updated_at": updated_str
+                    })
         except Exception as e:
-            logger.warning(f"抓取 AtCoder 比赛列表异常: {e}")
+            logger.warning(f"拉取 AtCoder 比赛 API 异常: {e}")
         return contests
 
     async def fetch_luogu_contests(self, client: httpx.AsyncClient) -> List[Dict[str, Any]]:

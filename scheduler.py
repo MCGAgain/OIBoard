@@ -114,10 +114,6 @@ class TaskScheduler:
             elif platform == "atcoder":
                 if not handle:
                     return False, "未填写 Handle", 0, ""
-                valid, v_msg, extra = await self.atcoder_fetcher.verify(handle, proxy=proxy)
-                if valid and "rating" in extra:
-                    rating_val = str(extra["rating"])
-
                 sub_list, msg = await self.atcoder_fetcher.fetch_submissions(handle, proxy=proxy)
                 subs = sub_list
 
@@ -255,8 +251,11 @@ class TaskScheduler:
                 self._staggered_task(self.sync_platform("luogu", user_id=user_id), random.uniform(1.2, 2.5)),
                 self._staggered_task(self.sync_platform("acwing", user_id=user_id), random.uniform(3.0, 4.8)),
                 self._staggered_task(self.sync_platform("atcoder", user_id=user_id), random.uniform(5.5, 7.5)),
-                self._staggered_task(self.sync_contests(), random.uniform(8.0, 10.5)),
             ]
+            # 比赛日历 6 小时节流，避免高频重复拉取
+            now_ts = int(datetime.now().timestamp())
+            if now_ts - self._last_contest_sync >= 21600:
+                p_tasks.append(self._staggered_task(self.sync_contests(), random.uniform(8.0, 10.5)))
             
             p_results = await asyncio.gather(*p_tasks, return_exceptions=True)
             
@@ -290,7 +289,7 @@ class TaskScheduler:
                 for uid in user_ids:
                     configs = get_all_configs(uid)
                     sprint = configs.get("sprint_mode", "false") == "true"
-                    interval = 5 if sprint else int(configs.get("poll_interval_minutes", "30"))
+                    interval = 5 if sprint else int(configs.get("poll_interval_minutes", "1440"))
                     
                     last_sync = configs.get("last_sync_time", "")
                     should_sync = False

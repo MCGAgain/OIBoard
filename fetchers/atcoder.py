@@ -89,69 +89,33 @@ class AtCoderFetcher(BaseFetcher):
             logger.warning(f"加载 AtCoder 难度元数据失败: {e}")
 
     async def verify(self, handle: str, proxy: str = "") -> Tuple[bool, str, Dict[str, Any]]:
+        """使用 Kenkoooo 公开 API 校验 AtCoder Handle，不直连 atcoder.jp 页面避免触发 CloudFront WAF"""
         if not handle:
             return False, "AtCoder Handle 未填写", {}
-        
+
         handle_clean = handle.strip()
-        url = f"{self.BASE_URL}/users/{handle_clean}"
         proxy_url = proxy.strip() if proxy else None
         headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         }
 
         try:
             async with httpx.AsyncClient(timeout=15.0, proxy=proxy_url, follow_redirects=True, headers=headers) as client:
-                res = await client.get(url)
-                if res.status_code == 404:
+                r_info = await client.get(f"{self.KENKOOOO_API_URL}/user/info?user={handle_clean}")
+                if r_info.status_code == 404:
                     return False, f"用户不存在: {handle_clean}", {}
-                if res.status_code != 200:
-                    return False, f"AtCoder 请求失败: HTTP {res.status_code}", {}
+                if r_info.status_code != 200:
+                    return False, f"AtCoder API 请求失败: HTTP {r_info.status_code}", {}
 
-                from bs4 import BeautifulSoup
-                soup = BeautifulSoup(res.text, "html.parser")
-                
-                # 提取用户 Rating、Rank、国家
-                rating = "Unrated"
-                rank = ""
-                country = ""
-                avatar = ""
-
-                # 头像
-                avatar_img = soup.select_one("img.avatar")
-                if avatar_img and avatar_img.get("src"):
-                    avatar = avatar_img.get("src")
-                    if avatar.startswith("//"):
-                        avatar = "https:" + avatar
-
-                # 表格信息
-                for tr in soup.select("table.dl-table tr"):
-                    th = tr.select_one("th")
-                    td = tr.select_one("td")
-                    if th and td:
-                        k = th.get_text().strip()
-                        v = td.get_text().strip()
-                        if "Rating" in k:
-                            rating = v
-                        elif "Rank" in k:
-                            rank = v
-                        elif "Country" in k:
-                            country = v
-
-                # 备选：从 Kenkoooo 获取聚合信息
-                try:
-                    r_info = await client.get(f"{self.KENKOOOO_API_URL}/user/info?user={handle_clean}")
-                    if r_info.status_code == 200:
-                        info_data = r_info.json()
-                        if info_data.get("rating") is not None:
-                            rating = str(info_data["rating"])
-                except Exception:
-                    pass
-
-                return True, f"验证成功 (Rating: {rating})", {
+                info_data = r_info.json()
+                ac_count = info_data.get("accepted_count")
+                rating = str(info_data["rating"]) if info_data.get("rating") is not None else "API"
+                msg = f"验证成功 (AC: {ac_count})" if ac_count is not None else "验证成功 (Kenkoooo API)"
+                return True, msg, {
                     "rating": rating,
-                    "rank": rank,
-                    "country": country,
-                    "avatar": avatar
+                    "rank": str(info_data.get("accepted_count_rank", "")),
+                    "country": "",
+                    "avatar": ""
                 }
         except Exception as e:
             return False, f"网络错误: {str(e)}", {}

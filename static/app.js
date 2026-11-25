@@ -254,7 +254,7 @@ createApp({
     const nowTimestamp = ref(Math.floor(Date.now() / 1000));
 
     const configs = ref({
-      poll_interval_minutes: "30",
+      poll_interval_minutes: "1440",
       sprint_mode: "false",
       last_sync_time: "",
       http_proxy: ""
@@ -299,7 +299,7 @@ createApp({
     };
 
     const settingsForm = ref({
-      poll_interval_minutes: "30",
+      poll_interval_minutes: "1440",
       http_proxy: ""
     });
 
@@ -327,7 +327,7 @@ createApp({
     let lastPieKey = "";
     let lastTagsHash = "";
     let settingsBaseline = {
-      poll_interval_minutes: "30",
+      poll_interval_minutes: "1440",
       http_proxy: "",
       sprint_mode: "false"
     };
@@ -390,7 +390,7 @@ createApp({
       lastPieKey = "";
       lastTagsHash = "";
       settingsBaseline = {
-        poll_interval_minutes: "30",
+        poll_interval_minutes: "1440",
         http_proxy: "",
         sprint_mode: "false"
       };
@@ -1469,7 +1469,7 @@ createApp({
         platformStatusMap.value = data.status || {};
 
         const snapshot = {
-          poll_interval_minutes: configs.value.poll_interval_minutes || "30",
+          poll_interval_minutes: configs.value.poll_interval_minutes || "1440",
           http_proxy: configs.value.http_proxy || "",
           sprint_mode: configs.value.sprint_mode || "false"
         };
@@ -1486,7 +1486,7 @@ createApp({
       const b = settingsBaseline || {};
       const s = settingsForm.value || {};
       const isProxyChanged = (s.http_proxy || "").trim() !== (b.http_proxy || "").trim();
-      const isIntervalChanged = String(s.poll_interval_minutes || "30") !== String(b.poll_interval_minutes || "30");
+      const isIntervalChanged = String(s.poll_interval_minutes || "1440") !== String(b.poll_interval_minutes || "1440");
       const isSprintChanged = String(s.sprint_mode || "false") !== String(b.sprint_mode || "false");
 
       const activeEl = document.activeElement;
@@ -1508,7 +1508,7 @@ createApp({
           configs.value = data.configs;
           if (!isSettingsFormDirty()) {
             const incoming = {
-              poll_interval_minutes: data.configs.poll_interval_minutes || "30",
+              poll_interval_minutes: data.configs.poll_interval_minutes || "1440",
               http_proxy: data.configs.http_proxy || "",
               sprint_mode: data.configs.sprint_mode || "false"
             };
@@ -2245,8 +2245,8 @@ createApp({
         configs.value.sprint_mode = next;
         settingsForm.value.sprint_mode = next;
         settingsBaseline.sprint_mode = next;
-        const regularMins = configs.value.poll_interval_minutes || "30";
-        showToast(next === "true" ? "已开启刷题冲刺模式 (5分钟轮询)" : `已切换为日常模式 (${regularMins}分钟轮询)`, "success");
+        const regularMins = configs.value.poll_interval_minutes || "1440";
+        showToast(next === "true" ? "已开启刷题冲刺模式 (5分钟)" : `已切换为日常校正 (${formatPollInterval(regularMins)})`, "success");
       } catch (e) {
         showToast("切换模式失败", "error");
       }
@@ -2260,7 +2260,7 @@ createApp({
       }
       isSavingSystem.value = true;
       try {
-        const minsStr = String(settingsForm.value.poll_interval_minutes || "30");
+        const minsStr = String(settingsForm.value.poll_interval_minutes || "1440");
         const payload = {
           poll_interval_minutes: minsStr,
           http_proxy: proxy
@@ -2276,7 +2276,7 @@ createApp({
           configs.value.http_proxy = payload.http_proxy;
           settingsBaseline.poll_interval_minutes = minsStr;
           settingsBaseline.http_proxy = proxy;
-          showToast(`系统参数保存成功！日常同步间隔已更新为 ${minsStr} 分钟`, "success");
+          showToast(`参数已保存（${formatPollInterval(minsStr)}校正一次）`, "success");
         } else {
           showToast(data.detail || data.message || "保存失败", "error");
         }
@@ -2295,7 +2295,7 @@ createApp({
       }
       isSaving.value = true;
       try {
-        const minsStr = String(settingsForm.value.poll_interval_minutes || "30");
+        const minsStr = String(settingsForm.value.poll_interval_minutes || "1440");
         const payload = {
           ...settingsForm.value,
           poll_interval_minutes: minsStr,
@@ -2561,6 +2561,14 @@ createApp({
     };
 
     // --- Helpers ---
+    const formatPollInterval = (mins) => {
+      const m = parseInt(mins, 10) || 1440;
+      if (m === 1440) return "每天";
+      if (m > 1440 && m % 1440 === 0) return `每${m / 1440}天`;
+      if (m >= 60 && m % 60 === 0) return `${m / 60}小时`;
+      return `${m}分钟`;
+    };
+
     const formatTimeAgo = (timeStr) => {
       if (!timeStr) return "";
       try {
@@ -2964,6 +2972,7 @@ createApp({
       handleSyncSingleAccount,
       handleVerifySingleAccount,
       syncPlatformManual,
+      formatPollInterval,
       formatTimeAgo,
       getStatusClass,
       getPlatformPillClass,

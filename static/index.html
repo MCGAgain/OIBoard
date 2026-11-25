@@ -378,11 +378,11 @@
             <button @click="toggleSprintMode" 
                     :class="['h-8 px-3 rounded-full text-xs font-sans font-medium flex items-center justify-center space-x-1.5 transition-all border shrink-0', 
                              configs.sprint_mode === 'true' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/40 shadow-sm' : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']"
-                    :title="configs.sprint_mode === 'true' ? ('当前 5 分钟冲刺模式，点击切换为日常 ' + (configs.poll_interval_minutes || 30) + ' 分钟') : ('当前日常 ' + (configs.poll_interval_minutes || 30) + ' 分钟轮询，点击切换为 5 分钟冲刺')">
+                    :title="configs.sprint_mode === 'true' ? ('当前 5 分钟冲刺，点击切回 ' + formatPollInterval(configs.poll_interval_minutes || 1440)) : ('当前校正间隔 ' + formatPollInterval(configs.poll_interval_minutes || 1440) + '，点击切换 5 分钟冲刺')">
               <svg class="w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
               </svg>
-              <span>{{ configs.sprint_mode === 'true' ? '5分钟 (冲刺)' : ((configs.poll_interval_minutes || 30) + '分钟') }}</span>
+              <span>{{ configs.sprint_mode === 'true' ? '5分钟 (冲刺)' : formatPollInterval(configs.poll_interval_minutes || 1440) }}</span>
             </button>
 
             <!-- 一键同步按钮 -->
@@ -1609,25 +1609,25 @@
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 text-xs">
                 <div>
-                  <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">日常自动轮询同步间隔</label>
+                  <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">后台校正同步间隔</label>
                   <!-- 快捷预设按钮 -->
                   <div class="flex flex-wrap items-center gap-1.5 mb-2.5">
-                    <button v-for="m in [5, 10, 15, 30, 60]" :key="m"
+                    <button v-for="m in [1440, 720, 360, 60, 30]" :key="m"
                             type="button"
                             @click="settingsForm.poll_interval_minutes = m"
                             :class="['px-3 py-1 rounded-xl text-[11px] font-mono font-semibold transition-all border',
                                      String(settingsForm.poll_interval_minutes) === String(m) 
                                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
                                      : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
-                      {{ m }}分钟
+                      {{ formatPollInterval(m) }}
                     </button>
                   </div>
                   <div class="flex items-center space-x-2">
-                    <input v-model.number="settingsForm.poll_interval_minutes" type="number" min="1" max="1440" placeholder="输入自定义分钟数 (1-1440)"
+                    <input v-model.number="settingsForm.poll_interval_minutes" type="number" min="1" max="10080" placeholder="自定义分钟数 (1-10080)"
                            class="ui-input font-mono flex-1 text-xs">
                     <span class="text-[var(--text-secondary)] text-xs font-sans">分钟</span>
                   </div>
-                  <p class="text-[10px] text-[var(--text-muted)] mt-2 font-mono">每 {{ settingsForm.poll_interval_minutes || 30 }} 分钟自动同步</p>
+                  <p class="text-[10px] text-[var(--text-muted)] mt-2 font-mono">当前：{{ formatPollInterval(settingsForm.poll_interval_minutes || 1440) }}自动校正一次</p>
                 </div>
                 <div>
                   <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">出站代理（可选）</label>

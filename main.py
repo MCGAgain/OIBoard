@@ -447,10 +447,10 @@ async def update_settings(payload: SettingsPayload, current_user: Dict[str, Any]
             val_str = str(v).strip()
             if k == "poll_interval_minutes":
                 try:
-                    m = max(1, min(1440, int(val_str)))
+                    m = max(1, min(10080, int(val_str)))
                     val_str = str(m)
                 except Exception:
-                    val_str = "30"
+                    val_str = "1440"
             elif k == "http_proxy":
                 if val_str and not sanitize_proxy(val_str):
                     raise HTTPException(
