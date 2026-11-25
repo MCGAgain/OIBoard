@@ -1670,10 +1670,27 @@ createApp({
       const startDateStr = `${targetYear}-01-01`;
       const endDateStr = `${targetYear}-12-31`;
 
-      // heatMapData: [date, count (total subs), unique_ac (passed problems)]
-      const heatMapData = (rawHeatmap.value || [])
-        .filter(item => item.date && item.date.startsWith(`${targetYear}`))
-        .map(item => [item.date, item.count, item.unique_ac || 0]);
+      // 补齐全年 365/366 天数据，确保空日期与有提交日期全部统一渲染为圆角方格（规避 ECharts calendar.itemStyle 忽略 borderRadius 的问题）
+      const dayStatMap = new Map();
+      (rawHeatmap.value || []).forEach(item => {
+        if (item.date && item.date.startsWith(`${targetYear}`)) {
+          dayStatMap.set(item.date, {
+            count: item.count || 0,
+            unique_ac: item.unique_ac || 0
+          });
+        }
+      });
+
+      const heatMapData = [];
+      const cursor = new Date(targetYear, 0, 1);
+      while (cursor.getFullYear() === targetYear) {
+        const mm = String(cursor.getMonth() + 1).padStart(2, "0");
+        const dd = String(cursor.getDate()).padStart(2, "0");
+        const dStr = `${targetYear}-${mm}-${dd}`;
+        const st = dayStatMap.get(dStr);
+        heatMapData.push([dStr, st ? st.count : 0, st ? st.unique_ac : 0]);
+        cursor.setDate(cursor.getDate() + 1);
+      }
 
       // GitHub 风格分位数自适应 4 阶色深（确保不同刷题强度下 4 个绿色阶梯都清晰可辨）
       const nonZeroCounts = heatMapData
@@ -1702,7 +1719,7 @@ createApp({
       const ghPalette = dark
         ? {
             empty: "#1b2028",
-            gap: "#13161c",
+            emptyBorder: "rgba(255, 255, 255, 0.04)",
             l1: "#0e4429",
             l2: "#006d32",
             l3: "#26a641",
@@ -1710,12 +1727,16 @@ createApp({
           }
         : {
             empty: "#ebedf0",
-            gap: "#ffffff",
+            emptyBorder: "rgba(27, 31, 35, 0.05)",
             l1: "#9be9a8",
             l2: "#40c463",
             l3: "#30a14e",
             l4: "#216e39"
           };
+
+      const cellGap = cellSize >= 24 ? 4 : 3;
+      const boxSize = Math.max(6, cellSize - cellGap);
+      const boxRadius = Math.max(3, Math.round(boxSize * 0.26));
 
       const option = {
         tooltip: {
@@ -1737,9 +1758,13 @@ createApp({
             const subs = p.value[1] || 0;
             const ac = p.value[2] || 0;
             let html = `<div class="font-mono text-xs font-semibold" style="color: ${dark ? '#9ca3af' : '#656d76'}">${date}</div>`;
-            html += `<div class="text-xs font-bold mt-1 font-sans" style="color: ${dark ? '#39d353' : '#1a7f37'};">提交: ${subs} 次</div>`;
-            if (ac > 0) {
-              html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color: ${dark ? '#9ca3af' : '#57606a'};">通过: ${ac} 题</div>`;
+            if (subs <= 0) {
+              html += `<div class="text-xs mt-1 font-sans" style="color: ${dark ? '#7d8590' : '#8c959f'};">暂无提交</div>`;
+            } else {
+              html += `<div class="text-xs font-bold mt-1 font-sans" style="color: ${dark ? '#39d353' : '#1a7f37'};">提交: ${subs} 次</div>`;
+              if (ac > 0) {
+                html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color: ${dark ? '#9ca3af' : '#57606a'};">通过: ${ac} 题</div>`;
+              }
             }
             return html;
           }
@@ -1762,10 +1787,8 @@ createApp({
           cellSize: [cellSize, cellSize], /* 动态正方形单元格 [cellSize, cellSize] 严格 1:1 */
           range: [startDateStr, endDateStr],
           itemStyle: {
-            color: ghPalette.empty,
-            borderColor: ghPalette.gap,
-            borderWidth: cellSize >= 26 ? 3.5 : 2.5,
-            borderRadius: Math.max(2, Math.round(cellSize * 0.2))
+            color: "transparent",
+            borderWidth: 0
           },
           splitLine: { show: false },
           yearLabel: { show: false },
@@ -1783,15 +1806,44 @@ createApp({
           }
         },
         series: [{
-          type: "heatmap",
+          type: "custom",
           coordinateSystem: "calendar",
-          data: heatMapData,
-          emphasis: {
-            itemStyle: {
-              borderColor: dark ? "#8b949e" : "#1f2328",
-              borderWidth: 1.5
-            }
-          }
+          renderItem: function (params, api) {
+            const center = api.coord([api.value(0)]);
+            if (!center) return null;
+            const count = Number(api.value(1) || 0);
+            const fillColor = count <= 0
+              ? ghPalette.empty
+              : count <= t1
+                ? ghPalette.l1
+                : count <= t2
+                  ? ghPalette.l2
+                  : count <= t3
+                    ? ghPalette.l3
+                    : ghPalette.l4;
+            return {
+              type: "rect",
+              shape: {
+                x: center[0] - boxSize / 2,
+                y: center[1] - boxSize / 2,
+                width: boxSize,
+                height: boxSize,
+                r: boxRadius
+              },
+              style: {
+                fill: fillColor,
+                stroke: count === 0 ? ghPalette.emptyBorder : "transparent",
+                lineWidth: count === 0 ? 1 : 0
+              },
+              emphasis: {
+                style: {
+                  stroke: dark ? "#8b949e" : "#1f2328",
+                  lineWidth: 1.25
+                }
+              }
+            };
+          },
+          data: heatMapData
         }]
       };
 
