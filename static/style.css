@@ -404,29 +404,81 @@ html[data-glass="on"].dark .glass-modal {
 
 /* 控件、输入框、表格头、提示条在玻璃模式下的通透适配（全子页面自动生效） */
 html[data-glass="on"] .segmented-control,
-html[data-glass="on"] .topbar-chip,
-html[data-glass="on"] .topbar-btn,
-html[data-glass="on"] .btn-secondary {
-  background: rgba(240, 244, 251, 0.56);
+html[data-glass="on"] .topbar-chip {
+  background: rgba(242, 245, 251, 0.62);
   border-color: rgba(15, 23, 42, 0.09);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.80);
+}
+html[data-glass="on"] .topbar-btn,
+html[data-glass="on"] .btn-secondary,
+html[data-glass="on"] .btn-tinted-blue,
+html[data-glass="on"] .btn-tinted-green,
+html[data-glass="on"] .btn-tinted-amber,
+html[data-glass="on"] .btn-danger-ghost {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(15, 23, 42, 0.10);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 html[data-glass="on"] .topbar-btn:hover:not(:disabled),
-html[data-glass="on"] .btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.78);
+html[data-glass="on"] .btn-secondary:hover:not(:disabled),
+html[data-glass="on"] .btn-tinted-blue:hover:not(:disabled),
+html[data-glass="on"] .btn-tinted-green:hover:not(:disabled),
+html[data-glass="on"] .btn-tinted-amber:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(15, 23, 42, 0.16);
+}
+html[data-glass="on"] .btn-danger-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(220, 38, 38, 0.30);
+}
+html[data-glass="on"] .status-pill,
+html[data-glass="on"] .platform-badge,
+html[data-glass="on"] .verdict-badge,
+html[data-glass="on"] .ui-badge,
+html[data-glass="on"] .ui-tag,
+html[data-glass="on"] .ui-icon-box {
+  background: rgba(255, 255, 255, 0.74);
+  border-color: rgba(15, 23, 42, 0.085);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.90);
 }
 
 html[data-glass="on"].dark .segmented-control,
-html[data-glass="on"].dark .topbar-chip,
-html[data-glass="on"].dark .topbar-btn,
-html[data-glass="on"].dark .btn-secondary {
-  background: rgba(255, 255, 255, 0.06);
+html[data-glass="on"].dark .topbar-chip {
+  background: rgba(255, 255, 255, 0.055);
   border-color: rgba(255, 255, 255, 0.10);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+html[data-glass="on"].dark .topbar-btn,
+html[data-glass="on"].dark .btn-secondary,
+html[data-glass="on"].dark .btn-tinted-blue,
+html[data-glass="on"].dark .btn-tinted-green,
+html[data-glass="on"].dark .btn-tinted-amber,
+html[data-glass="on"].dark .btn-danger-ghost {
+  background: rgba(255, 255, 255, 0.075);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 html[data-glass="on"].dark .topbar-btn:hover:not(:disabled),
-html[data-glass="on"].dark .btn-secondary:hover:not(:disabled) {
+html[data-glass="on"].dark .btn-secondary:hover:not(:disabled),
+html[data-glass="on"].dark .btn-tinted-blue:hover:not(:disabled),
+html[data-glass="on"].dark .btn-tinted-green:hover:not(:disabled),
+html[data-glass="on"].dark .btn-tinted-amber:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.19);
+}
+html[data-glass="on"].dark .btn-danger-ghost:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(248, 113, 113, 0.35);
+}
+html[data-glass="on"].dark .status-pill,
+html[data-glass="on"].dark .platform-badge,
+html[data-glass="on"].dark .verdict-badge,
+html[data-glass="on"].dark .ui-badge,
+html[data-glass="on"].dark .ui-tag,
+html[data-glass="on"].dark .ui-icon-box {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 html[data-glass="on"] .ui-input {
@@ -623,7 +675,7 @@ html[data-glass="on"].dark table thead {
 }
 .hydro-nav-item.active {
   color: var(--primary);
-  background: var(--apple-blue-subtle);
+  background: var(--bg-hover);
   font-weight: 600;
 }
 
@@ -673,19 +725,33 @@ html[data-glass="on"].dark table thead {
   border-radius: 8px;
   font-size: 12px;
   font-weight: 500;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-subtle);
-  color: var(--text-secondary);
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.045), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   cursor: pointer;
   transition: var(--transition-fast);
   white-space: nowrap;
 }
+.dark .topbar-btn {
+  border-color: rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.065);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
 .topbar-btn:hover:not(:disabled) {
   color: var(--text-primary);
   border-color: var(--border-hover);
-  background: var(--bg-surface);
+  background: var(--bg-subtle);
+}
+.dark .topbar-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.11);
 }
 .topbar-btn:active:not(:disabled) { transform: scale(0.98); }
+.topbar-btn.is-sprint-active {
+  font-weight: 600;
+  color: var(--text-primary);
+  border-color: rgba(217, 119, 6, 0.36);
+}
 
 .topbar-btn-primary {
   height: 32px;
@@ -697,9 +763,10 @@ html[data-glass="on"].dark table thead {
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
-  border: 1px solid transparent;
+  border: 1px solid rgba(0, 0, 0, 0.06);
   background: var(--primary);
   color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 113, 227, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.22);
   cursor: pointer;
   transition: var(--transition-fast);
   white-space: nowrap;
@@ -730,11 +797,12 @@ html[data-glass="on"].dark table thead {
   gap: 8px;
   padding: 9px 12px;
   border-radius: 10px;
-  background: var(--apple-red-subtle);
-  border: 1px solid rgba(185, 74, 72, 0.22);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-left: 3px solid var(--apple-red);
   color: var(--apple-red);
   font-size: 12px;
+  box-shadow: var(--shadow-ambient);
 }
 
 /* ================= Segmented Control (Matched 32px Height, 8px Radius, Mobile Scrollable) ================= */
@@ -816,28 +884,160 @@ html[data-glass="on"].dark table thead {
 .pulse-dot.error { background-color: var(--apple-orange); }
 .pulse-dot.unconfigured { background-color: var(--text-muted); }
 
+/* ================= Unified Neutral Badges, Status Pills, Platform Badges & Icon Tiles ================= */
 .status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.32rem;
-  padding: 0.16rem 0.55rem;
+  gap: 5px;
+  padding: 2px 8px;
   border-radius: 6px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.01em;
-  line-height: 1.35;
+  line-height: 1.4;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.status-pill::before {
+  content: "";
+  width: 5.5px;
+  height: 5.5px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--text-muted);
 }
 
-.status-ok { background-color: var(--apple-green-subtle); color: var(--apple-green); }
-.status-warning { background-color: var(--apple-orange-subtle); color: var(--apple-orange); }
-.status-error { background-color: var(--apple-red-subtle); color: var(--apple-red); }
-.status-unconfigured { background-color: var(--bg-subtle); color: var(--text-tertiary); }
+.status-ok::before { background: var(--apple-green); }
+.status-warning::before { background: var(--apple-orange); }
+.status-error::before { background: var(--apple-red); }
+.status-unconfigured::before { background: var(--text-muted); }
 
-/* ================= Form Inputs & Buttons ================= */
+/* 统一平台徽标（中性底 + 6px 极简圆角 + 品牌色点，杜绝脏绿/紫/橙半透明彩框） */
+.platform-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.platform-badge::before {
+  content: "";
+  width: 5.5px;
+  height: 5.5px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--text-muted);
+}
+.platform-badge.plat-codeforces::before { background: var(--apple-blue); }
+.platform-badge.plat-atcoder::before { background: var(--apple-purple); }
+.platform-badge.plat-luogu::before { background: var(--apple-green); }
+.platform-badge.plat-acwing::before { background: var(--apple-indigo); }
+.platform-badge.plat-leetcode::before,
+.platform-badge.plat-leetcode_cn::before { background: var(--apple-orange); }
+.dark .platform-badge.plat-acwing::before { background: #818cf8; }
+
+/* 统一判题结果徽标（AC / 非AC：中性底 + 语义点与清晰文字） */
+.verdict-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  line-height: 1.35;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+.verdict-badge::before {
+  content: "";
+  width: 5.5px;
+  height: 5.5px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.verdict-badge.is-ac { color: var(--apple-green); }
+.verdict-badge.is-ac::before { background: var(--apple-green); }
+.verdict-badge.is-wa { color: var(--apple-red); }
+.verdict-badge.is-wa::before { background: var(--apple-red); }
+
+/* 通用极简中性徽章与算法标签 */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4.5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.ui-badge-dot::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.ui-badge-dot.dot-blue::before { background: var(--primary); }
+.ui-badge-dot.dot-green::before { background: var(--apple-green); }
+.ui-badge-dot.dot-amber::before { background: var(--apple-orange); }
+.ui-badge-dot.dot-muted::before { background: var(--text-muted); }
+
+.ui-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1.5px 6.5px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* 统一极简中性图标底块（取代蓝/绿/橙半透明色块） */
+.ui-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  flex-shrink: 0;
+}
+.dark .ui-icon-box {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ================= Form Inputs & Buttons (Unified macOS 15 Push-Button System) ================= */
 .ui-input {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 7px;
+  border-radius: 8px;
   color: var(--text-primary);
   font-size: 0.8125rem;
   padding: 0.5rem 0.8rem;
@@ -871,7 +1071,8 @@ html[data-glass="on"].dark table thead {
   font-size: 12px;
   line-height: 1;
   transition: var(--transition-fast);
-  border: 1px solid transparent;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 2px rgba(0, 113, 227, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.22);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -885,19 +1086,26 @@ html[data-glass="on"].dark table thead {
   justify-content: center;
   gap: 6px;
   min-height: 32px;
-  background: var(--bg-subtle);
+  background: var(--bg-surface);
   color: var(--text-primary);
   font-weight: 500;
   border-radius: 8px;
   padding: 0 12px;
   font-size: 12px;
   line-height: 1;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid rgba(15, 23, 42, 0.11);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.045), inset 0 1px 0 rgba(255, 255, 255, 0.92);
   transition: var(--transition-fast);
   cursor: pointer;
   white-space: nowrap;
 }
-.btn-secondary:hover:not(:disabled) { background: var(--bg-surface); border-color: var(--border-hover); }
+.dark .btn-secondary {
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(255, 255, 255, 0.11);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--bg-subtle); border-color: var(--border-hover); }
+.dark .btn-secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.11); border-color: var(--border-hover); }
 .btn-secondary:active:not(:disabled) { transform: scale(0.98); }
 .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -905,49 +1113,12 @@ html[data-glass="on"].dark table thead {
   min-height: 28px;
   padding: 0 10px;
   font-size: 11.5px;
-  gap: 4px;
-}
-
-.btn-tinted-blue {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   gap: 5px;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 8px;
-  font-size: 11.5px;
-  font-weight: 500;
-  background: var(--apple-blue-subtle);
-  color: var(--primary);
-  border: 1px solid var(--border-accent);
-  transition: var(--transition-fast);
-  cursor: pointer;
-  white-space: nowrap;
 }
-.btn-tinted-blue:hover:not(:disabled) { opacity: 0.88; }
-.btn-tinted-blue:active:not(:disabled) { transform: scale(0.98); }
 
-.btn-tinted-green {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 8px;
-  font-size: 11.5px;
-  font-weight: 500;
-  background: var(--apple-green-subtle);
-  color: var(--apple-green);
-  border: 1px solid rgba(37, 173, 64, 0.25);
-  transition: var(--transition-fast);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.btn-tinted-green:hover:not(:disabled) { opacity: 0.88; }
-.btn-tinted-green:active:not(:disabled) { transform: scale(0.98); }
-
+/* 语义次按钮：严格与 .btn-secondary 共享同一套 macOS 中性按钮质感，仅以克制图标色表达语义，彻底消除半透明彩框 */
+.btn-tinted-blue,
+.btn-tinted-green,
 .btn-tinted-amber {
   display: inline-flex;
   align-items: center;
@@ -958,15 +1129,41 @@ html[data-glass="on"].dark table thead {
   border-radius: 8px;
   font-size: 11.5px;
   font-weight: 500;
-  background: var(--apple-orange-subtle);
-  color: var(--apple-orange);
-  border: 1px solid rgba(217, 119, 6, 0.28);
+  line-height: 1;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid rgba(15, 23, 42, 0.11);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.045), inset 0 1px 0 rgba(255, 255, 255, 0.92);
   transition: var(--transition-fast);
   cursor: pointer;
   white-space: nowrap;
 }
-.btn-tinted-amber:hover:not(:disabled) { opacity: 0.88; }
+.dark .btn-tinted-blue,
+.dark .btn-tinted-green,
+.dark .btn-tinted-amber {
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(255, 255, 255, 0.11);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.btn-tinted-blue:hover:not(:disabled),
+.btn-tinted-green:hover:not(:disabled),
+.btn-tinted-amber:hover:not(:disabled) {
+  background: var(--bg-subtle);
+  border-color: var(--border-hover);
+}
+.dark .btn-tinted-blue:hover:not(:disabled),
+.dark .btn-tinted-green:hover:not(:disabled),
+.dark .btn-tinted-amber:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: var(--border-hover);
+}
+.btn-tinted-blue:active:not(:disabled),
+.btn-tinted-green:active:not(:disabled),
 .btn-tinted-amber:active:not(:disabled) { transform: scale(0.98); }
+
+.btn-tinted-blue svg { color: var(--primary); }
+.btn-tinted-green svg { color: var(--apple-green); }
+.btn-tinted-amber svg { color: var(--apple-orange); }
 
 .btn-danger-ghost {
   display: inline-flex;
@@ -978,16 +1175,27 @@ html[data-glass="on"].dark table thead {
   border-radius: 8px;
   font-size: 11.5px;
   font-weight: 500;
-  background: var(--bg-subtle);
+  background: var(--bg-surface);
   color: var(--text-tertiary);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid rgba(15, 23, 42, 0.11);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.045), inset 0 1px 0 rgba(255, 255, 255, 0.92);
   transition: var(--transition-fast);
   cursor: pointer;
 }
+.dark .btn-danger-ghost {
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(255, 255, 255, 0.11);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
 .btn-danger-ghost:hover:not(:disabled) {
-  background: var(--apple-red-subtle);
+  background: var(--bg-subtle);
   color: var(--apple-red);
-  border-color: rgba(185, 74, 72, 0.25);
+  border-color: rgba(220, 38, 38, 0.30);
+}
+.dark .btn-danger-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--apple-red);
+  border-color: rgba(248, 113, 113, 0.35);
 }
 
 .btn-chip {
@@ -1104,7 +1312,7 @@ html[data-glass="on"].dark .btn-chip:not(.active) {
   }
   .mobile-nav-btn.active {
     color: var(--primary);
-    background: var(--apple-blue-subtle);
+    background: var(--bg-hover);
     font-weight: 600;
   }
   .mobile-nav-dot {
@@ -1365,7 +1573,7 @@ html[data-glass="on"].dark .btn-chip:not(.active) {
   border-left: 3px solid var(--primary);
   padding: 0.35rem 0.75rem;
   color: var(--text-secondary);
-  background: var(--apple-blue-subtle);
+  background: var(--bg-subtle);
   border-radius: 0 6px 6px 0;
   margin: 0.75rem 0;
 }
