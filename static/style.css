@@ -187,8 +187,11 @@ body {
   z-index: 1;
 }
 
-/* ================= macOS 15 Sequoia Frosted Glass & Layered Depth (Zero-Idle CPU/GPU) ================= */
-/* 仅当 html[data-glass="on"] 启用；全程使用静态渐变光场与静态微粒底纹，静止时 0% CPU/GPU 额外开销 */
+/* ================= macOS 15 Sequoia Frosted Glass & Architectural Studio Backdrop (Zero-Idle CPU/GPU) ================= */
+/* 借鉴 Apple Pro 钛金属光场、Xiaomi MiMo 暖纸排版极简与 Antigravity 建筑经纬微网格：
+   全程纯静态 CSS 渐变与遮罩网格，无动画、无 WebGL、无大半径实时滤镜球，静止时 CPU/GPU 额外占用为 0% */
+
+/* 亮色模式背景：冷暖双色工作室漫射光场（冷雾蓝 + MiMo 暖瓷沙 + 远景淡钴灰），让白色磨砂玻璃产生真实通透对比 */
 html[data-glass="on"] body::before {
   content: "";
   position: fixed;
@@ -196,60 +199,73 @@ html[data-glass="on"] body::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(62% 52% at 12% 4%, rgba(0, 113, 227, 0.11) 0%, rgba(0, 113, 227, 0) 70%),
-    radial-gradient(50% 46% at 88% 8%, rgba(16, 185, 129, 0.075) 0%, rgba(16, 185, 129, 0) 68%),
-    radial-gradient(56% 52% at 52% 96%, rgba(99, 102, 241, 0.065) 0%, rgba(99, 102, 241, 0) 72%),
-    linear-gradient(180deg, #f2f5fa 0%, #eef1f6 52%, #f4f5f8 100%);
+    radial-gradient(58% 52% at 14% 8%, rgba(86, 146, 245, 0.24) 0%, rgba(86, 146, 245, 0.06) 46%, transparent 74%),
+    radial-gradient(52% 48% at 88% 12%, rgba(226, 200, 174, 0.30) 0%, rgba(226, 200, 174, 0.08) 48%, transparent 74%),
+    radial-gradient(48% 46% at 54% 92%, rgba(124, 152, 224, 0.20) 0%, rgba(124, 152, 224, 0.04) 50%, transparent 75%),
+    radial-gradient(36% 32% at 78% 68%, rgba(72, 187, 150, 0.14) 0%, transparent 70%),
+    linear-gradient(155deg, #eaedf4 0%, #eff1f5 48%, #e8ecf4 100%);
 }
 
+/* 深色模式背景：Apple 钛曜石 + Antigravity 深空克制双色光晕（深钴蓝 + 哑光青松 + 暮色靛灰），无刺眼霓虹 */
 html[data-glass="on"].dark body::before {
   background:
-    radial-gradient(60% 50% at 14% 2%, rgba(59, 130, 246, 0.16) 0%, rgba(59, 130, 246, 0) 68%),
-    radial-gradient(48% 44% at 86% 6%, rgba(16, 185, 129, 0.095) 0%, rgba(16, 185, 129, 0) 65%),
-    radial-gradient(54% 48% at 50% 100%, rgba(109, 92, 231, 0.10) 0%, rgba(109, 92, 231, 0) 70%),
-    linear-gradient(180deg, #090b10 0%, #0b0e14 55%, #080a0f 100%);
+    radial-gradient(56% 48% at 16% 6%, rgba(56, 122, 238, 0.26) 0%, rgba(56, 122, 238, 0.07) 48%, transparent 74%),
+    radial-gradient(48% 44% at 86% 14%, rgba(34, 168, 146, 0.17) 0%, rgba(34, 168, 146, 0.04) 48%, transparent 72%),
+    radial-gradient(52% 48% at 24% 94%, rgba(114, 96, 224, 0.18) 0%, rgba(114, 96, 224, 0.04) 50%, transparent 75%),
+    radial-gradient(42% 38% at 82% 82%, rgba(182, 146, 114, 0.11) 0%, transparent 70%),
+    linear-gradient(160deg, #07090f 0%, #0b0f18 52%, #070a11 100%);
 }
 
-/* 静态微粒底纹：纯 CSS 平铺点阵，零图片内存与零动画重绘，提供真实物理层次 */
+/* 建筑感微网格 + 顶部漫射光带：仅在玻璃模式下呈现，边缘径向羽化消隐，为磨砂玻璃提供可感知的细腻折射层次 */
 html[data-glass="on"] body::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-image: radial-gradient(circle, rgba(17, 24, 39, 0.055) 0.75px, transparent 0.75px);
-  background-size: 20px 20px;
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.042) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.042) 1px, transparent 1px),
+    radial-gradient(90% 42% at 50% -6%, rgba(255, 255, 255, 0.55) 0%, transparent 65%);
+  background-size: 64px 64px, 64px 64px, 100% 100%;
+  -webkit-mask-image: radial-gradient(ellipse 88% 82% at 50% 38%, #000 35%, rgba(0, 0, 0, 0.18) 100%);
+  mask-image: radial-gradient(ellipse 88% 82% at 50% 38%, #000 35%, rgba(0, 0, 0, 0.18) 100%);
 }
 
 html[data-glass="on"].dark body::after {
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.048) 0.75px, transparent 0.75px);
-  background-size: 20px 20px;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.042) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.042) 1px, transparent 1px),
+    radial-gradient(85% 40% at 50% -8%, rgba(120, 172, 255, 0.12) 0%, transparent 64%);
+  background-size: 64px 64px, 64px 64px, 100% 100%;
+  -webkit-mask-image: radial-gradient(ellipse 88% 82% at 50% 38%, #000 35%, rgba(0, 0, 0, 0.16) 100%);
+  mask-image: radial-gradient(ellipse 88% 82% at 50% 38%, #000 35%, rgba(0, 0, 0, 0.16) 100%);
 }
 
-/* Tier 1: 主卡片磨砂玻璃 + 顶光折射渐变 + 上沿高光/下沿微刻立体倒角 */
+/* Tier 1: 主卡片 — macOS 15 真实通透磨砂玻璃 + 顶光微折射 + 双层物理倒角 */
 html[data-glass="on"] .ui-card,
 html[data-glass="on"] .apple-card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84) 0%, rgba(248, 250, 253, 0.72) 100%);
-  border-color: rgba(255, 255, 255, 0.82);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.66) 0%, rgba(252, 253, 255, 0.54) 100%);
+  border-color: rgba(255, 255, 255, 0.78);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.05),
-    0 0 0 1px rgba(15, 23, 42, 0.055),
-    0 10px 28px -14px rgba(15, 23, 42, 0.14);
-  -webkit-backdrop-filter: blur(12px) saturate(145%);
-  backdrop-filter: blur(12px) saturate(145%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.055),
+    0 0 0 1px rgba(15, 23, 42, 0.06),
+    0 12px 30px -14px rgba(15, 23, 42, 0.16);
+  -webkit-backdrop-filter: blur(16px) saturate(175%);
+  backdrop-filter: blur(16px) saturate(175%);
 }
 
 html[data-glass="on"].dark .ui-card,
 html[data-glass="on"].dark .apple-card {
-  background: linear-gradient(180deg, rgba(28, 33, 45, 0.74) 0%, rgba(17, 20, 28, 0.68) 100%);
-  border-color: rgba(255, 255, 255, 0.105);
+  background: linear-gradient(180deg, rgba(26, 32, 46, 0.60) 0%, rgba(16, 20, 30, 0.52) 100%);
+  border-color: rgba(255, 255, 255, 0.12);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-    0 12px 32px -14px rgba(0, 0, 0, 0.68);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-  backdrop-filter: blur(12px) saturate(140%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.50),
+    0 14px 36px -14px rgba(0, 0, 0, 0.72);
+  -webkit-backdrop-filter: blur(16px) saturate(170%);
+  backdrop-filter: blur(16px) saturate(170%);
 }
 
 html[data-glass="on"] .ui-card:hover,
@@ -259,10 +275,10 @@ html[data-glass="on"] .apple-card:hover {
 
 html[data-glass="on"].dark .ui-card:hover,
 html[data-glass="on"].dark .apple-card:hover {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.19);
 }
 
-/* Tier 2: 卡片内部嵌套子区块（不叠加第二层 backdrop-filter，使用半透明内凹倒角，保持低 GPU 占用且层次分明） */
+/* Tier 2: 卡片内部嵌套子区块（不叠加第二层 backdrop-filter，用通透内凹/浮雕玻璃色阶塑造真实层次且零额外 GPU 开销） */
 .glass-subcard {
   background: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
@@ -270,110 +286,199 @@ html[data-glass="on"].dark .apple-card:hover {
 }
 
 html[data-glass="on"] .glass-subcard {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(242, 245, 250, 0.50) 100%);
-  border-color: rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.52) 0%, rgba(242, 246, 252, 0.42) 100%);
+  border-color: rgba(15, 23, 42, 0.085);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.85),
-    0 1px 2px rgba(15, 23, 42, 0.03);
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.03),
+    0 2px 6px -2px rgba(15, 23, 42, 0.05);
 }
 
 html[data-glass="on"].dark .glass-subcard {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(10, 13, 20, 0.42) 100%);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055) 0%, rgba(10, 14, 22, 0.40) 100%);
+  border-color: rgba(255, 255, 255, 0.09);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.085),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.42);
+}
+
+/* Tier 2.5: 子卡片内部小块（设置页账号项 / 统计盒 / 开关条），玻璃态下通透融入而非死白实色贴片 */
+.glass-inner-tile {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+}
+
+html[data-glass="on"] .glass-inner-tile {
+  background: rgba(255, 255, 255, 0.56);
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+html[data-glass="on"].dark .glass-inner-tile {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.085);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 html[data-glass="on"] .heatmap-container-outer {
-  background: rgba(241, 245, 250, 0.54);
-  border-color: rgba(15, 23, 42, 0.08);
-  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.045), inset 0 -1px 0 rgba(255, 255, 255, 0.75);
+  background: rgba(242, 246, 252, 0.44);
+  border-color: rgba(15, 23, 42, 0.085);
+  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.055), inset 0 -1px 0 rgba(255, 255, 255, 0.8);
 }
 
 html[data-glass="on"].dark .heatmap-container-outer {
-  background: rgba(8, 11, 17, 0.52);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.48), inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  background: rgba(7, 10, 17, 0.46);
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.52), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 }
 
-/* Tier 3: 悬浮系统层（侧边栏 / 弹窗 / 通知中心 / Toast）— macOS 15 Sequoia 高通透毛玻璃 */
+/* Tier 3: 悬浮系统层（侧边栏 / 弹窗 / 通知中心 / Toast）— macOS 15 Sequoia 高通透 Vibrancy 毛玻璃 */
 html[data-glass="on"] .hydro-sidebar {
-  background: rgba(250, 252, 255, 0.74) !important;
+  background: rgba(248, 250, 255, 0.62) !important;
   border-right-color: rgba(15, 23, 42, 0.09) !important;
-  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.65), 4px 0 24px -12px rgba(15, 23, 42, 0.10);
-  -webkit-backdrop-filter: blur(18px) saturate(165%);
-  backdrop-filter: blur(18px) saturate(165%);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.72), 6px 0 28px -12px rgba(15, 23, 42, 0.12);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
 }
 
 html[data-glass="on"].dark .hydro-sidebar {
-  background: rgba(14, 17, 24, 0.74) !important;
-  border-right-color: rgba(255, 255, 255, 0.09) !important;
-  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04), 6px 0 28px -10px rgba(0, 0, 0, 0.62);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  backdrop-filter: blur(18px) saturate(160%);
+  background: rgba(13, 17, 26, 0.64) !important;
+  border-right-color: rgba(255, 255, 255, 0.10) !important;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.05), 8px 0 32px -10px rgba(0, 0, 0, 0.68);
+  -webkit-backdrop-filter: blur(20px) saturate(175%);
+  backdrop-filter: blur(20px) saturate(175%);
 }
 
 html[data-glass="on"] .notify-shell,
 html[data-glass="on"] .notify-popover,
 html[data-glass="on"] .glass-toast {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, rgba(246, 249, 254, 0.78) 100%) !important;
-  border-color: rgba(255, 255, 255, 0.85) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.76) 0%, rgba(245, 248, 254, 0.66) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.84) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 0 0 1px rgba(15, 23, 42, 0.08),
-    0 18px 42px -10px rgba(15, 23, 42, 0.22);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  backdrop-filter: blur(18px) saturate(170%);
+    0 0 0 1px rgba(15, 23, 42, 0.085),
+    0 18px 44px -10px rgba(15, 23, 42, 0.24);
+  -webkit-backdrop-filter: blur(20px) saturate(185%);
+  backdrop-filter: blur(20px) saturate(185%);
 }
 
 html[data-glass="on"].dark .notify-shell,
 html[data-glass="on"].dark .notify-popover,
 html[data-glass="on"].dark .glass-toast {
-  background: linear-gradient(180deg, rgba(31, 36, 49, 0.82) 0%, rgba(19, 23, 32, 0.78) 100%) !important;
-  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: linear-gradient(180deg, rgba(30, 36, 51, 0.72) 0%, rgba(17, 21, 31, 0.66) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 20px 48px -10px rgba(0, 0, 0, 0.72);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  backdrop-filter: blur(18px) saturate(160%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 22px 50px -10px rgba(0, 0, 0, 0.76);
+  -webkit-backdrop-filter: blur(20px) saturate(175%);
+  backdrop-filter: blur(20px) saturate(175%);
+}
+
+/* 弹窗磨砂遮罩与窗口本体 */
+.glass-backdrop {
+  background: rgba(0, 0, 0, 0.48);
+}
+html[data-glass="on"] .glass-backdrop {
+  background: rgba(15, 23, 42, 0.28);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+html[data-glass="on"].dark .glass-backdrop {
+  background: rgba(4, 6, 12, 0.52);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
 
 html[data-glass="on"] .glass-modal {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.90) 0%, rgba(247, 249, 253, 0.84) 100%) !important;
-  border-color: rgba(255, 255, 255, 0.85) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.80) 0%, rgba(246, 249, 254, 0.72) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.86) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.98),
-    0 0 0 1px rgba(15, 23, 42, 0.08),
-    0 24px 60px -12px rgba(15, 23, 42, 0.26);
-  -webkit-backdrop-filter: blur(18px) saturate(165%);
-  backdrop-filter: blur(18px) saturate(165%);
+    0 0 0 1px rgba(15, 23, 42, 0.09),
+    0 28px 68px -12px rgba(15, 23, 42, 0.28);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
 }
 
 html[data-glass="on"].dark .glass-modal {
-  background: linear-gradient(180deg, rgba(30, 35, 47, 0.86) 0%, rgba(18, 21, 30, 0.84) 100%) !important;
-  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: linear-gradient(180deg, rgba(28, 34, 48, 0.76) 0%, rgba(16, 20, 30, 0.72) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 26px 64px -12px rgba(0, 0, 0, 0.78);
-  -webkit-backdrop-filter: blur(18px) saturate(155%);
-  backdrop-filter: blur(18px) saturate(155%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 30px 72px -12px rgba(0, 0, 0, 0.82);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: blur(22px) saturate(170%);
 }
 
+/* 控件、输入框、表格头、提示条在玻璃模式下的通透适配（全子页面自动生效） */
 html[data-glass="on"] .segmented-control,
 html[data-glass="on"] .topbar-chip,
-html[data-glass="on"] .topbar-btn {
-  background: rgba(240, 244, 249, 0.68);
-  border-color: rgba(15, 23, 42, 0.085);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+html[data-glass="on"] .topbar-btn,
+html[data-glass="on"] .btn-secondary {
+  background: rgba(240, 244, 251, 0.56);
+  border-color: rgba(15, 23, 42, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+}
+html[data-glass="on"] .topbar-btn:hover:not(:disabled),
+html[data-glass="on"] .btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.78);
 }
 
 html[data-glass="on"].dark .segmented-control,
 html[data-glass="on"].dark .topbar-chip,
-html[data-glass="on"].dark .topbar-btn {
-  background: rgba(255, 255, 255, 0.055);
-  border-color: rgba(255, 255, 255, 0.09);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+html[data-glass="on"].dark .topbar-btn,
+html[data-glass="on"].dark .btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+html[data-glass="on"].dark .topbar-btn:hover:not(:disabled),
+html[data-glass="on"].dark .btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.11);
+}
+
+html[data-glass="on"] .ui-input {
+  background: rgba(255, 255, 255, 0.62);
+  border-color: rgba(15, 23, 42, 0.10);
+}
+html[data-glass="on"].dark .ui-input {
+  background: rgba(10, 14, 22, 0.52);
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
+html[data-glass="on"] .hydro-notice {
+  background: rgba(255, 255, 255, 0.66);
+  border-color: rgba(255, 255, 255, 0.8);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+}
+html[data-glass="on"].dark .hydro-notice {
+  background: rgba(24, 30, 44, 0.62);
+  border-color: rgba(255, 255, 255, 0.11);
+  -webkit-backdrop-filter: blur(14px) saturate(155%);
+  backdrop-filter: blur(14px) saturate(155%);
+}
+
+html[data-glass="on"] table thead {
+  background: rgba(240, 244, 251, 0.54) !important;
+}
+html[data-glass="on"].dark table thead {
+  background: rgba(255, 255, 255, 0.045) !important;
+}
+
+/* 系统级“降低透明度”无障碍偏好自动降级 */
+@media (prefers-reduced-transparency: reduce) {
+  html[data-glass="on"] .ui-card,
+  html[data-glass="on"] .apple-card,
+  html[data-glass="on"] .hydro-sidebar,
+  html[data-glass="on"] .notify-shell,
+  html[data-glass="on"] .notify-popover,
+  html[data-glass="on"] .glass-modal,
+  html[data-glass="on"] .glass-toast,
+  html[data-glass="on"] .glass-backdrop {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
 }
 
 /* macOS Switch 控件样式 */

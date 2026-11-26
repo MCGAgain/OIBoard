@@ -577,6 +577,12 @@ createApp({
       glassMode.value = !glassMode.value;
       localStorage.setItem("oiboard_glass_mode", glassMode.value ? "on" : "off");
       applyGlassMode();
+      if (currentTab.value === "overview") {
+        nextTick(() => {
+          renderHeatmap(true);
+          renderActiveChart(true);
+        });
+      }
       showToast(glassMode.value ? "已开启磨砂玻璃与立体层次" : "已切换为纯净实色模式", "info");
     };
 
@@ -1822,15 +1828,17 @@ createApp({
           appendToBody: true,
           confine: false,
           padding: [9, 14],
-          backgroundColor: dark ? "rgba(22, 27, 34, 0.96)" : "rgba(255, 255, 255, 0.96)",
-          borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
+          backgroundColor: dark ? (glassMode.value ? "rgba(22, 27, 38, 0.80)" : "rgba(22, 27, 34, 0.96)") : (glassMode.value ? "rgba(255, 255, 255, 0.82)" : "rgba(255, 255, 255, 0.96)"),
+          borderColor: dark ? "rgba(255, 255, 255, 0.14)" : "rgba(15, 23, 42, 0.09)",
           borderWidth: 1,
           textStyle: {
             color: dark ? "#e6edf3" : "#1f2328",
             fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", sans-serif',
             fontSize: getChartFontSize(12)
           },
-          extraCssText: "border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
+          extraCssText: glassMode.value
+            ? "border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); z-index: 99999;"
+            : "border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
           formatter: function (p) {
             const date = p.value[0];
             const subs = p.value[1] || 0;
@@ -2053,14 +2061,16 @@ createApp({
             }
           },
           padding: [8, 14],
-          backgroundColor: dark ? "rgba(20, 20, 22, 0.95)" : "rgba(255, 255, 255, 0.95)",
-          borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
+          backgroundColor: dark ? (glassMode.value ? "rgba(22, 27, 38, 0.80)" : "rgba(20, 20, 22, 0.95)") : (glassMode.value ? "rgba(255, 255, 255, 0.82)" : "rgba(255, 255, 255, 0.95)"),
+          borderColor: dark ? "rgba(255, 255, 255, 0.14)" : "rgba(15, 23, 42, 0.09)",
           textStyle: {
             color: dark ? "#f5f5f7" : "#1d1d1f",
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
             fontSize: getChartFontSize(12)
           },
-          extraCssText: "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
+          extraCssText: glassMode.value
+            ? "border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); z-index: 99999;"
+            : "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
           formatter: function (params) {
             const p = params[0];
             const idx = p.dataIndex;
@@ -2180,14 +2190,16 @@ createApp({
           trigger: "axis",
           axisPointer: { type: "shadow" },
           padding: [8, 14],
-          backgroundColor: dark ? "rgba(20, 20, 22, 0.95)" : "rgba(255, 255, 255, 0.95)",
-          borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
+          backgroundColor: dark ? (glassMode.value ? "rgba(22, 27, 38, 0.80)" : "rgba(20, 20, 22, 0.95)") : (glassMode.value ? "rgba(255, 255, 255, 0.82)" : "rgba(255, 255, 255, 0.95)"),
+          borderColor: dark ? "rgba(255, 255, 255, 0.14)" : "rgba(15, 23, 42, 0.09)",
           textStyle: {
             color: dark ? "#f5f5f7" : "#1d1d1f",
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
             fontSize: getChartFontSize(12)
           },
-          extraCssText: "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
+          extraCssText: glassMode.value
+            ? "border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); z-index: 99999;"
+            : "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
           formatter: function (params) {
             const idx = params[0]?.dataIndex ?? 0;
             const date = fullDates[idx] || "";
@@ -2292,14 +2304,16 @@ createApp({
           trigger: "axis",
           axisPointer: { type: "shadow" },
           padding: [8, 14],
-          backgroundColor: dark ? "rgba(20, 20, 22, 0.95)" : "rgba(255, 255, 255, 0.95)",
-          borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
+          backgroundColor: dark ? (glassMode.value ? "rgba(22, 27, 38, 0.80)" : "rgba(20, 20, 22, 0.95)") : (glassMode.value ? "rgba(255, 255, 255, 0.82)" : "rgba(255, 255, 255, 0.95)"),
+          borderColor: dark ? "rgba(255, 255, 255, 0.14)" : "rgba(15, 23, 42, 0.09)",
           textStyle: {
             color: dark ? "#f5f5f7" : "#1d1d1f",
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
             fontSize: getChartFontSize(12)
           },
-          extraCssText: "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
+          extraCssText: glassMode.value
+            ? "border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); z-index: 99999;"
+            : "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
           formatter: function (params) {
             const p = params[0];
             const col = dark ? '#2997ff' : '#0071e3';
