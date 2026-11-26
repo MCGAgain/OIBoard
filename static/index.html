@@ -928,7 +928,7 @@
                 </svg>
                 <span>提交记录</span>
               </h2>
-              <span class="text-[10px] text-[var(--text-muted)] font-mono">({{ filteredSubmissions.length }})</span>
+              <span class="text-[10px] text-[var(--text-muted)] font-mono">({{ submissionsTotal }})</span>
             </div>
             
             <button @click="resetFilters" class="btn-secondary btn-sm">
@@ -1138,7 +1138,7 @@
 
           <!-- 分页器 -->
           <div class="flex items-center justify-between pt-3 border-t border-[var(--border-subtle)] text-xs font-sans">
-            <span class="text-[var(--text-secondary)] font-mono">{{ currentPage }} / {{ totalPages }} ({{ filteredSubmissions.length }})</span>
+            <span class="text-[var(--text-secondary)] font-mono">{{ currentPage }} / {{ totalPages }} ({{ submissionsTotal }})</span>
             <div class="flex items-center space-x-2 font-sans">
               <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage <= 1"
                       class="btn-secondary btn-sm">
@@ -2393,6 +2393,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=3.8.9"></script>
+  <script src="/static/app.js?v=3.9.0"></script>
 </body>
 </html>

@@ -22,6 +22,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 import db
+from event_bus import event_bus
 
 from .verification_worker import (
     verification_worker_instance,
@@ -503,6 +504,13 @@ async def push_submission(
         except Exception as me:
             logger.warning(f"Error syncing mistakes for user {resolved_user_id}: {me}")
 
+        # --- 5. 事件驱动广播实时推送前端 ---
+        event_bus.publish(resolved_user_id, "submissions_updated", {
+            "source": "push",
+            "platform": unified_platform,
+            "verdict": payload.verdict,
+        })
+
     except Exception as e:
         logger.error(f"[Push API] Database write error: {e}")
         raise HTTPException(status_code=500, detail=f"Database write failure: {str(e)}")
@@ -629,5 +637,7 @@ async def run_async_verification(
                         except Exception:
                             pass
                 conn.commit()
+                if new_status == VerificationStatus.REJECTED:
+                    event_bus.publish(user_id, "submissions_updated", {"source": "verify_rejected", "platform": unified_platform})
     except Exception as e:
         logger.error(f"[Async Verification] Failed to update DB status for record {record_id}: {e}")

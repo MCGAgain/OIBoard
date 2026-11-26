@@ -21,6 +21,7 @@ from db import (
     sync_mistakes_with_submissions
 )
 from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher, AtCoderFetcher, ContestFetcher
+from event_bus import event_bus
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("OIBoardScheduler")
@@ -209,6 +210,7 @@ class TaskScheduler:
             res.update({"success": False, "message": overall_msg, "count": 0})
 
         update_platform_status(user_id, platform, status, overall_msg, item_count=total_synced, rating=best_rating)
+        event_bus.publish(user_id, "submissions_updated", {"platform": platform, "count": total_synced})
         return res
 
     async def sync_single_account(self, account_id: int, user_id: int) -> Dict[str, Any]:
@@ -224,6 +226,7 @@ class TaskScheduler:
         accounts = get_platform_accounts(user_id, acc["platform"])
         has_ok = any(a["status"] == "ok" for a in accounts)
         update_platform_status(user_id, acc["platform"], "ok" if has_ok else "error", msg, rating=r)
+        event_bus.publish(user_id, "submissions_updated", {"platform": acc["platform"], "account_id": account_id, "count": cnt})
         return {"success": ok, "message": msg, "count": cnt, "new_submissions": cnt}
 
     async def sync_contests(self) -> Dict[str, Any]:
@@ -235,6 +238,7 @@ class TaskScheduler:
             inserted = save_contests(contests)
             self._last_contest_sync = int(datetime.now().timestamp())
             logger.info(f"比赛列表同步完成: 共更新 {len(contests)} 场比赛")
+            event_bus.publish_all("contests_updated", {"count": len(contests)})
             return {"success": True, "count": len(contests), "message": f"成功更新 {len(contests)} 场比赛"}
         except Exception as e:
             logger.exception("同步比赛列表异常")
@@ -276,6 +280,7 @@ class TaskScheduler:
             now_str = get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
             set_config(user_id, "last_sync_time", now_str)
             logger.info(f"Staggered full sync finished for user {user_id} at {now_str}")
+            event_bus.publish(user_id, "submissions_updated", {"source": "sync_all", "synced_at": now_str})
             return {"results": results, "synced_at": now_str}
 
     async def run_loop(self):

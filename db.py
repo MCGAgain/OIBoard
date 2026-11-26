@@ -207,6 +207,7 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_date ON submissions(user_id, date);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_platform ON submissions(user_id, platform);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_verdict ON submissions(user_id, verdict);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_subat ON submissions(user_id, submitted_at DESC, id DESC);")
 
         # 5. 用户配置表 (User Configs - 多租户隔离)
         cursor.execute("""
@@ -1691,6 +1692,91 @@ def get_recent_submissions(user_id: int = 1, limit: int = 2000, platform: str = 
             item["tags"] = json.loads(item["tags"]) if item["tags"] else []
             rows.append(item)
         return rows
+
+def get_submissions_page(
+    user_id: int = 1,
+    offset: int = 0,
+    limit: int = 150,
+    platform: str = "all",
+    verdict: str = "all",
+    tag: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    search: str = ""
+) -> Dict[str, Any]:
+    """服务端分块按需分页查询提交记录（支持多维筛选与全量历史检索，避免一次性拉取数千条）"""
+    safe_offset = max(0, int(offset or 0))
+    safe_limit = max(1, min(500, int(limit or 150)))
+
+    conditions = ["user_id = ?"]
+    params: List[Any] = [user_id]
+
+    if platform and platform != "all":
+        if platform in ("leetcode", "leetcode_cn"):
+            conditions.append("(platform = 'leetcode' OR platform = 'leetcode_cn')")
+        else:
+            conditions.append("platform = ?")
+            params.append(platform)
+
+    if verdict and verdict != "all":
+        if verdict == "AC":
+            conditions.append("verdict = 'AC'")
+        else:
+            conditions.append("(verdict != 'AC' OR verdict IS NULL)")
+
+    if start_date:
+        conditions.append("date >= ?")
+        params.append(start_date.strip())
+
+    if end_date:
+        conditions.append("date <= ?")
+        params.append(end_date.strip())
+
+    if tag and tag.strip():
+        clean_tag = tag.strip()
+        conditions.append("tags LIKE ?")
+        params.append(f'%"{clean_tag}"%')
+
+    if search and search.strip():
+        kw = f"%{search.strip().lower()}%"
+        conditions.append(
+            "(LOWER(COALESCE(problem_id, '')) LIKE ? OR LOWER(COALESCE(problem_title, '')) LIKE ? "
+            "OR LOWER(COALESCE(code_language, '')) LIKE ? OR COALESCE(date, '') LIKE ? "
+            "OR COALESCE(submitted_at, '') LIKE ? OR LOWER(COALESCE(tags, '')) LIKE ?)"
+        )
+        params.extend([kw, kw, kw, kw, kw, kw])
+
+    where_clause = " AND ".join(conditions)
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT COUNT(*) FROM submissions WHERE {where_clause};", tuple(params))
+        total = cursor.fetchone()[0] or 0
+
+        cursor.execute(f"""
+            SELECT * FROM submissions
+            WHERE {where_clause}
+            ORDER BY CASE WHEN submitted_at != '' AND submitted_at IS NOT NULL THEN 0 ELSE 1 END,
+                     submitted_at DESC, id DESC
+            LIMIT ? OFFSET ?;
+        """, tuple(params) + (safe_limit, safe_offset))
+
+        rows = []
+        for r in cursor.fetchall():
+            item = dict(r)
+            try:
+                item["tags"] = json.loads(item["tags"]) if item["tags"] else []
+            except Exception:
+                item["tags"] = []
+            rows.append(item)
+
+    return {
+        "submissions": rows,
+        "total": total,
+        "offset": safe_offset,
+        "limit": safe_limit,
+        "has_more": (safe_offset + len(rows)) < total
+    }
 
 def save_contests(contests: List[Dict[str, Any]]) -> int:
     """保存或更新比赛列表"""

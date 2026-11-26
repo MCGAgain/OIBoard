@@ -4,11 +4,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List, Union
 
 import db
+from event_bus import event_bus
 from captcha import captcha_store
 from scheduler import scheduler_instance, sanitize_proxy
 from fetchers import CodeforcesFetcher, LuoguFetcher, AcWingFetcher, AtCoderFetcher
@@ -48,6 +49,8 @@ app.include_router(oj_submissions_router)
 @app.middleware("http")
 async def add_no_cache_headers(request: Request, call_next):
     response = await call_next(request)
+    if request.url.path == "/api/events":
+        return response
     if request.url.path.startswith("/api/") or request.url.path == "/":
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
@@ -279,6 +282,54 @@ async def change_password(payload: ChangePasswordPayload, current_user: Dict[str
 
 # --- Protected Data & Stats Endpoints (绑定当前登录用户隔离) ---
 
+@app.get("/api/events")
+async def sse_events(
+    request: Request,
+    token: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
+):
+    """事件驱动实时推送流 (SSE)：静止零 SQL 与零轮询请求，数据发生真实写入时毫秒级推送前端"""
+    raw_tok = (token or "").strip()
+    if not raw_tok and authorization:
+        raw_tok = authorization[7:].strip() if authorization.startswith("Bearer ") else authorization.strip()
+    if not raw_tok:
+        raise HTTPException(status_code=401, detail="未授权，请先登录")
+
+    user = db.get_user_by_token(raw_tok)
+    if not user:
+        raise HTTPException(status_code=401, detail="登录会话已过期，请重新登录")
+
+    uid = user["id"]
+    queue = event_bus.subscribe(uid)
+
+    async def event_generator():
+        try:
+            yield ": connected\n\n"
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    msg = await asyncio.wait_for(queue.get(), timeout=35.0)
+                    yield f"data: {msg}\n\n"
+                except asyncio.TimeoutError:
+                    if await request.is_disconnected():
+                        break
+                    yield ": ping\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            event_bus.unsubscribe(uid, queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
 @app.get("/api/stats/overview")
 async def get_overview(current_user: Dict[str, Any] = Depends(get_current_user)):
     uid = current_user["id"]
@@ -301,6 +352,7 @@ async def get_overview(current_user: Dict[str, Any] = Depends(get_current_user))
 async def sync_local_code_stats(payload: LocalCodeSyncPayload, current_user: Dict[str, Any] = Depends(get_current_user)):
     uid = current_user["id"]
     res = db.save_local_code_stats(uid, payload.model_dump())
+    event_bus.publish(uid, "local_code_updated")
     return {"success": True, "message": "本地代码行数统计同步成功", "data": res}
 
 @app.get("/api/stats/local-code")
@@ -374,6 +426,7 @@ async def add_mistake(payload: MistakeCreatePayload, current_user: Dict[str, Any
         last_submitted_at=str(payload.last_submitted_at or "").strip(),
         last_submission_id=str(payload.last_submission_id).strip() if payload.last_submission_id is not None else ""
     )
+    event_bus.publish(uid, "mistakes_updated", {"action": "add", "id": item.get("id")})
     return {"success": True, "mistake": item}
 
 @app.put("/api/mistakes/{mistake_id}")
@@ -392,6 +445,7 @@ async def update_mistake(mistake_id: int, payload: MistakeUpdatePayload, current
     )
     if not ok:
         raise HTTPException(status_code=404, detail="错题未找到或未做任何更改")
+    event_bus.publish(uid, "mistakes_updated", {"action": "update", "id": mistake_id})
     return {"success": True}
 
 @app.delete("/api/mistakes/{mistake_id}")
@@ -400,6 +454,7 @@ async def delete_mistake(mistake_id: int, current_user: Dict[str, Any] = Depends
     ok = db.delete_mistake(user_id=uid, mistake_id=mistake_id)
     if not ok:
         raise HTTPException(status_code=404, detail="错题不存在")
+    event_bus.publish(uid, "mistakes_updated", {"action": "delete", "id": mistake_id})
     return {"success": True}
 
 @app.post("/api/mistakes/{mistake_id}/review")
@@ -409,6 +464,7 @@ async def review_mistake(mistake_id: int, payload: Optional[MistakeReviewPayload
     res = db.manual_record_review(user_id=uid, mistake_id=mistake_id, review_time=r_time)
     if not res:
         raise HTTPException(status_code=404, detail="错题未找到")
+    event_bus.publish(uid, "mistakes_updated", {"action": "review", "id": mistake_id})
     return {"success": True, "mistake": res}
 
 @app.post("/api/mistakes/{mistake_id}/toggle-master")
@@ -418,6 +474,7 @@ async def toggle_master_mistake(mistake_id: int, payload: Optional[MistakeMaster
     res = db.toggle_mistake_mastered(user_id=uid, mistake_id=mistake_id, mastered=mastered)
     if not res:
         raise HTTPException(status_code=404, detail="错题未找到")
+    event_bus.publish(uid, "mistakes_updated", {"action": "toggle_master", "id": mistake_id})
     return {"success": True, "mistake": res}
 
 @app.get("/api/stats/mistakes")
@@ -427,8 +484,31 @@ async def get_mistakes(limit: int = 50, current_user: Dict[str, Any] = Depends(g
     return {"mistakes": res.get("items", []), "counts": res.get("counts", {})}
 
 @app.get("/api/stats/submissions")
-async def get_submissions(limit: int = 2000, platform: str = "all", current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_submissions(
+    limit: int = 2000,
+    offset: int = 0,
+    paged: bool = False,
+    platform: str = "all",
+    verdict: str = "all",
+    tag: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    search: str = "",
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     uid = current_user["id"]
+    if paged:
+        return db.get_submissions_page(
+            user_id=uid,
+            offset=offset,
+            limit=limit,
+            platform=platform,
+            verdict=verdict,
+            tag=tag,
+            start_date=start_date,
+            end_date=end_date,
+            search=search
+        )
     subs = db.get_recent_submissions(user_id=uid, limit=limit, platform=platform)
     return {"submissions": subs}
 
@@ -462,6 +542,7 @@ async def update_settings(payload: SettingsPayload, current_user: Dict[str, Any]
                         detail="出站代理格式不正确，必须以 http:// 或 socks5:// 开头（例如 http://127.0.0.1:7890）"
                     )
             db.set_config(uid, k, val_str)
+    event_bus.publish(uid, "settings_updated")
     return {"success": True, "message": "配置更新成功"}
 
 @app.get("/api/contests")
@@ -498,6 +579,7 @@ async def add_account(payload: AddAccountPayload, current_user: Dict[str, Any] =
     )
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
+    event_bus.publish(uid, "settings_updated", {"action": "add_account"})
     return {"success": True, "message": msg, "account": acc}
 
 @app.put("/api/accounts/{account_id}")
@@ -514,6 +596,7 @@ async def update_account(account_id: int, payload: UpdateAccountPayload, current
     )
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
+    event_bus.publish(uid, "settings_updated", {"action": "update_account"})
     return {"success": True, "message": msg}
 
 @app.delete("/api/accounts/{account_id}")
@@ -523,6 +606,7 @@ async def delete_account(account_id: int, current_user: Dict[str, Any] = Depends
     ok, msg = db.delete_platform_account(account_id, uid)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
+    event_bus.publish(uid, "settings_updated", {"action": "delete_account"})
     return {"success": True, "message": msg}
 
 @app.post("/api/accounts/{account_id}/primary")
@@ -532,6 +616,7 @@ async def set_primary_account_endpoint(account_id: int, current_user: Dict[str, 
     ok, msg = db.set_primary_account(account_id, uid)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
+    event_bus.publish(uid, "settings_updated", {"action": "set_primary"})
     return {"success": True, "message": msg}
 
 @app.post("/api/accounts/{account_id}/sync")

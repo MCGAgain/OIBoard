@@ -111,6 +111,8 @@ createApp({
     const selectedTag = ref("");
     const currentPage = ref(1);
     const pageSize = ref(30);
+    const submissionsTotal = ref(0);
+    const isSubmissionsLoading = ref(false);
 
     const rawHeatmap = ref([]);
     const heatmapFilter = ref("all");
@@ -550,24 +552,49 @@ createApp({
       }, 650);
     };
 
-    // 统一轮询调度器全局状态
-    let pollTimeoutId = null;
-    let isPollingInProgress = false;
-    let consecutivePollFailures = 0;
-    const BASE_POLL_INTERVAL = 15000;
-    let currentPollInterval = BASE_POLL_INTERVAL;
+    // --- 提交记录 5 页窗口分块懒加载缓存 (每块 5 页 = 150 条，滑动预取下一块，全量历史零截断) ---
+    const SUBS_CHUNK_PAGES = 5;
+    const SUBS_MAX_CACHED_CHUNKS = 12;
+    const submissionsChunkCache = new Map(); // key: `${filterKey}::${chunkIdx}` -> { items, total, ts }
+    let submissionsReqSeq = 0;
+    let isResettingSubmissionFilters = false;
+
+    const invalidateSubmissionsCache = () => {
+      submissionsChunkCache.clear();
+      submissionsReqSeq++;
+    };
+
+    // --- 纯事件驱动 SSE 实时推送连接状态（彻底取代 15 秒盲轮询，静止零 HTTP 轮询与零 SQL 负载） ---
+    let eventSource = null;
+    let sseReconnectTimer = null;
+    let sseReconnectDelay = 3000;
     let lastUserRefreshTime = 0;
-    let lastContestSyncTime = 0;
+    let lastHiddenTimestamp = 0;
+    const sseDomainTimers = new Map();
+
+    const clearSseDomainTimers = () => {
+      sseDomainTimers.forEach((t) => clearTimeout(t));
+      sseDomainTimers.clear();
+    };
+
+    const disconnectEventStream = () => {
+      if (sseReconnectTimer) {
+        clearTimeout(sseReconnectTimer);
+        sseReconnectTimer = null;
+      }
+      clearSseDomainTimers();
+      if (eventSource) {
+        try { eventSource.close(); } catch (e) {}
+        eventSource = null;
+      }
+      sseReconnectDelay = 3000;
+    };
 
     const resetAllUserStates = () => {
-      // 1. 停止一切轮询与退避计时器
-      if (pollTimeoutId) {
-        clearTimeout(pollTimeoutId);
-        pollTimeoutId = null;
-      }
-      isPollingInProgress = false;
-      consecutivePollFailures = 0;
-      currentPollInterval = BASE_POLL_INTERVAL;
+      // 1. 断开 SSE 事件流并清理定时器
+      disconnectEventStream();
+      invalidateSubmissionsCache();
+      submissionsTotal.value = 0;
 
       // 2. 清理用户凭证与登录态
       token.value = "";
@@ -909,7 +936,7 @@ createApp({
           authForm.value = { username: "", password: "", confirmPassword: "", captcha_code: "" };
           await reloadAllData();
           triggerStartupNotification();
-          scheduleNextPoll(BASE_POLL_INTERVAL);
+          connectEventStream();
         } else {
           authError.value = data.detail || data.message || "登录失败，请检查账号密码";
           authForm.value.captcha_code = "";
@@ -976,7 +1003,7 @@ createApp({
           authForm.value = { username: "", password: "", confirmPassword: "", captcha_code: "" };
           await reloadAllData();
           triggerStartupNotification();
-          scheduleNextPoll(BASE_POLL_INTERVAL);
+          connectEventStream();
         } else {
           authError.value = data.detail || data.message || "注册失败";
           authForm.value.captcha_code = "";
@@ -1068,105 +1095,45 @@ createApp({
       });
     };
 
-    // --- Submissions Filter & Pagination ---
+    // --- Submissions Filter & 5-Page Windowed Chunk Pagination ---
     const availableTags = computed(() => {
-      const set = new Set();
-      (submissions.value || []).forEach(s => {
-        (s.tags || []).forEach(t => set.add(t));
-      });
-      return Array.from(set).sort();
+      return (tagStats.value || []).map(t => t.tag).filter(Boolean).sort();
     });
 
-    const filteredSubmissions = computed(() => {
-      let list = submissions.value || [];
-
-      // 1. 平台过滤（兼容 leetcode / leetcode_cn）
-      if (subFilter.value !== "all") {
-        if (subFilter.value === "leetcode") {
-          list = list.filter(s => s.platform === "leetcode" || s.platform === "leetcode_cn");
-        } else {
-          list = list.filter(s => s.platform === subFilter.value);
-        }
-      }
-
-      // 2. 状态过滤
-      if (verdictFilter.value === "AC") {
-        list = list.filter(s => s.verdict === "AC");
-      } else if (verdictFilter.value === "WA") {
-        list = list.filter(s => s.verdict !== "AC");
-      }
-
-      // 3. 算法标签过滤
-      if (selectedTag.value) {
-        list = list.filter(s => (s.tags || []).includes(selectedTag.value));
-      }
-
-      // 4. 日期范围过滤（使用本地日期，修复凌晨 0-8 点 UTC 跨天偏差）
+    const getSubmissionFilterParams = () => {
+      let sDate = "";
+      let eDate = "";
       if (dateFilter.value !== "all") {
         const todayStr = getLocalDateStr(0);
-
         if (dateFilter.value === "today") {
-          list = list.filter(s => {
-            const d = s.date || (s.submitted_at || "").split(" ")[0];
-            return d === todayStr;
-          });
+          sDate = todayStr;
+          eDate = todayStr;
         } else if (dateFilter.value === "7d") {
-          const d7Str = getLocalDateStr(-7);
-          list = list.filter(s => {
-            const d = s.date || (s.submitted_at || "").split(" ")[0];
-            return d && d >= d7Str;
-          });
+          sDate = getLocalDateStr(-7);
         } else if (dateFilter.value === "30d") {
-          const d30Str = getLocalDateStr(-30);
-          list = list.filter(s => {
-            const d = s.date || (s.submitted_at || "").split(" ")[0];
-            return d && d >= d30Str;
-          });
+          sDate = getLocalDateStr(-30);
         } else if (dateFilter.value === "year") {
-          const yStr = `${new Date().getFullYear()}-01-01`;
-          list = list.filter(s => {
-            const d = s.date || (s.submitted_at || "").split(" ")[0];
-            return d && d >= yStr;
-          });
+          sDate = `${new Date().getFullYear()}-01-01`;
         } else if (dateFilter.value === "custom") {
-          if (startDate.value) {
-            list = list.filter(s => {
-              const d = s.date || (s.submitted_at || "").split(" ")[0];
-              return !d || d >= startDate.value;
-            });
-          }
-          if (endDate.value) {
-            list = list.filter(s => {
-              const d = s.date || (s.submitted_at || "").split(" ")[0];
-              return !d || d <= endDate.value;
-            });
-          }
+          sDate = startDate.value || "";
+          eDate = endDate.value || "";
         }
       }
-
-      // 5. 关键词即时搜索 (支持 150ms 防抖并复用 _searchStr 预构索引)
-      const kw = (debouncedSearchKeyword.value || searchKeyword.value).trim().toLowerCase();
-      if (kw) {
-        list = list.filter(s => s._searchStr ? s._searchStr.includes(kw) : (
-          (s.problem_id && String(s.problem_id).toLowerCase().includes(kw)) ||
-          (s.problem_title && s.problem_title.toLowerCase().includes(kw)) ||
-          (s.code_language && s.code_language.toLowerCase().includes(kw)) ||
-          (s.date && s.date.includes(kw)) ||
-          (s.submitted_at && s.submitted_at.includes(kw)) ||
-          (s.tags && s.tags.some(t => String(t).toLowerCase().includes(kw)))
-        ));
-      }
-      return list;
-    });
+      return {
+        platform: subFilter.value || "all",
+        verdict: verdictFilter.value || "all",
+        tag: selectedTag.value || "",
+        start_date: sDate,
+        end_date: eDate,
+        search: (debouncedSearchKeyword.value || "").trim()
+      };
+    };
 
     const totalPages = computed(() => {
-      return Math.ceil(filteredSubmissions.value.length / pageSize.value) || 1;
+      return Math.max(1, Math.ceil((submissionsTotal.value || 0) / pageSize.value));
     });
 
-    const paginatedSubmissions = computed(() => {
-      const start = (currentPage.value - 1) * pageSize.value;
-      return filteredSubmissions.value.slice(start, start + pageSize.value);
-    });
+    const paginatedSubmissions = computed(() => submissions.value || []);
 
     const setDateFilter = (preset) => {
       dateFilter.value = preset;
@@ -1174,7 +1141,8 @@ createApp({
       nextTick(syncSegmentedThumbs);
     };
 
-    const resetFilters = () => {
+    const resetFilters = async () => {
+      isResettingSubmissionFilters = true;
       dateFilter.value = "all";
       startDate.value = "";
       endDate.value = "";
@@ -1184,12 +1152,29 @@ createApp({
       searchKeyword.value = "";
       debouncedSearchKeyword.value = "";
       currentPage.value = 1;
-      nextTick(syncSegmentedThumbs);
+      await nextTick();
+      isResettingSubmissionFilters = false;
+      syncSegmentedThumbs();
+      if (currentTab.value === "submissions") {
+        loadSubmissions({ page: 1 });
+      }
     };
 
-    // 切换提交记录筛选条件时自动回到第 1 页，防止停留在空页
-    watch([subFilter, verdictFilter, selectedTag, startDate, endDate], () => {
+    // 筛选条件变化时回到第 1 页并按 5 页分块按需拉取
+    watch([subFilter, verdictFilter, selectedTag, dateFilter, startDate, endDate, debouncedSearchKeyword], () => {
+      if (isResettingSubmissionFilters) return;
+      const needResetPage = currentPage.value !== 1;
       currentPage.value = 1;
+      if (currentTab.value === "submissions" && !needResetPage) {
+        loadSubmissions({ page: 1 });
+      }
+    });
+
+    watch(currentPage, (p) => {
+      if (isResettingSubmissionFilters) return;
+      if (currentTab.value === "submissions") {
+        loadSubmissions({ page: p });
+      }
     });
 
     // --- Contest Computed & Helpers (A5: 集中秒级计算并以 O(1) 字典缓存，消除模板中多卡片重复函数调用) ---
@@ -1363,6 +1348,7 @@ createApp({
 
           if (lastKnownTotalSubs !== -1 && newTotal !== lastKnownTotalSubs) {
             invalidateHeatmapCache(true);
+            invalidateSubmissionsCache();
           }
           lastKnownTotalSubs = newTotal;
           lastKnownSyncTime = newSync;
@@ -1771,21 +1757,109 @@ createApp({
       return `<pre class='p-3 bg-black/5 dark:bg-white/5 rounded-xl font-mono text-xs overflow-x-auto'>${content}</pre>`;
     };
 
-    const loadSubmissions = async ({ throwOnError = false } = {}) => {
-      try {
-        const res = await apiFetch("/api/stats/submissions?limit=2000");
-        const data = await res.json();
-        const rawSubs = data.submissions || [];
-        // 预生成每条记录的小写检索缓存字符串，避免输入筛选时反复多次计算
-        for (let i = 0; i < rawSubs.length; i++) {
-          const s = rawSubs[i];
-          const tagsStr = Array.isArray(s.tags) ? s.tags.join(" ") : (s.tags || "");
-          s._searchStr = `${s.problem_id || ""} ${s.problem_title || ""} ${s.code_language || ""} ${s.date || ""} ${s.submitted_at || ""} ${tagsStr}`.toLowerCase();
+    const putSubmissionChunkCache = (cacheKey, entry) => {
+      if (submissionsChunkCache.has(cacheKey)) {
+        submissionsChunkCache.delete(cacheKey);
+      }
+      submissionsChunkCache.set(cacheKey, entry);
+      while (submissionsChunkCache.size > SUBS_MAX_CACHED_CHUNKS) {
+        const oldestKey = submissionsChunkCache.keys().next().value;
+        submissionsChunkCache.delete(oldestKey);
+      }
+    };
+
+    const fetchSubmissionChunk = async (filterParams, filterKey, chunkIdx) => {
+      const chunkSize = SUBS_CHUNK_PAGES * pageSize.value;
+      const offset = chunkIdx * chunkSize;
+      const qs = new URLSearchParams({
+        paged: "1",
+        offset: String(offset),
+        limit: String(chunkSize),
+        platform: filterParams.platform,
+        verdict: filterParams.verdict,
+        tag: filterParams.tag,
+        start_date: filterParams.start_date,
+        end_date: filterParams.end_date,
+        search: filterParams.search
+      });
+      const res = await apiFetch(`/api/stats/submissions?${qs.toString()}`);
+      const data = await res.json();
+      const entry = {
+        items: data.submissions || [],
+        total: typeof data.total === "number" ? data.total : (data.submissions || []).length,
+        ts: Date.now()
+      };
+      putSubmissionChunkCache(`${filterKey}::${chunkIdx}`, entry);
+      return entry;
+    };
+
+    const prefetchAdjacentSubmissionChunk = (filterParams, filterKey, page, total) => {
+      const pSize = pageSize.value;
+      const chunkSize = SUBS_CHUNK_PAGES * pSize;
+      const chunkIdx = Math.floor((page - 1) / SUBS_CHUNK_PAGES);
+      const posInChunk = (page - 1) % SUBS_CHUNK_PAGES;
+
+      // 翻到当前 5 页窗口的第 4/5 页时，静默预取下一窗口（后 5 页），保证跨块翻页零感知
+      if (posInChunk >= SUBS_CHUNK_PAGES - 2 && (chunkIdx + 1) * chunkSize < total) {
+        const nextKey = `${filterKey}::${chunkIdx + 1}`;
+        if (!submissionsChunkCache.has(nextKey)) {
+          fetchSubmissionChunk(filterParams, filterKey, chunkIdx + 1).catch(() => {});
         }
-        submissions.value = rawSubs;
+      }
+      // 翻回窗口第 1 页且前面还有窗口时，静默预取上一窗口
+      if (posInChunk === 0 && chunkIdx > 0) {
+        const prevKey = `${filterKey}::${chunkIdx - 1}`;
+        if (!submissionsChunkCache.has(prevKey)) {
+          fetchSubmissionChunk(filterParams, filterKey, chunkIdx - 1).catch(() => {});
+        }
+      }
+    };
+
+    const loadSubmissions = async ({ throwOnError = false, page = null, forceRefresh = false } = {}) => {
+      const targetPage = Math.max(1, page !== null ? page : currentPage.value);
+      const filterParams = getSubmissionFilterParams();
+      const filterKey = JSON.stringify(filterParams);
+      const chunkIdx = Math.floor((targetPage - 1) / SUBS_CHUNK_PAGES);
+      const posInChunk = (targetPage - 1) % SUBS_CHUNK_PAGES;
+      const cacheKey = `${filterKey}::${chunkIdx}`;
+
+      if (forceRefresh) {
+        invalidateSubmissionsCache();
+      }
+
+      const reqSeq = ++submissionsReqSeq;
+
+      // 1. 命中 5 页本地块缓存：0ms 立即切片渲染并按需滑动预取相邻 5 页
+      const cached = !forceRefresh ? submissionsChunkCache.get(cacheKey) : null;
+      if (cached) {
+        const start = posInChunk * pageSize.value;
+        submissionsTotal.value = cached.total;
+        submissions.value = cached.items.slice(start, start + pageSize.value);
+        prefetchAdjacentSubmissionChunk(filterParams, filterKey, targetPage, cached.total);
+        return;
+      }
+
+      // 2. 未命中则仅向服务端请求当前 5 页窗口（150 条）
+      isSubmissionsLoading.value = true;
+      try {
+        const entry = await fetchSubmissionChunk(filterParams, filterKey, chunkIdx);
+        if (reqSeq !== submissionsReqSeq) return;
+        const maxPage = Math.max(1, Math.ceil(entry.total / pageSize.value));
+        if (targetPage > maxPage && maxPage < targetPage) {
+          currentPage.value = maxPage;
+          return;
+        }
+        const start = posInChunk * pageSize.value;
+        submissionsTotal.value = entry.total;
+        submissions.value = entry.items.slice(start, start + pageSize.value);
+        prefetchAdjacentSubmissionChunk(filterParams, filterKey, targetPage, entry.total);
       } catch (e) {
-        console.error("加载提交记录流失败:", e);
+        console.error("加载提交记录分页块失败:", e);
         if (throwOnError) throw e;
+      } finally {
+        if (reqSeq === submissionsReqSeq) {
+          isSubmissionsLoading.value = false;
+        }
       }
     };
 
@@ -1819,7 +1893,7 @@ createApp({
       }
     };
 
-    const loadSettings = async () => {
+    const loadSettings = async ({ includeAccounts = true } = {}) => {
       try {
         const res = await apiFetch("/api/settings");
         const data = await res.json();
@@ -1833,7 +1907,9 @@ createApp({
         };
         settingsForm.value = { ...snapshot };
         settingsBaseline = { ...snapshot };
-        await loadAccounts();
+        if (includeAccounts) {
+          await loadAccounts();
+        }
       } catch (e) {
         console.error("加载设置失败:", e);
       }
@@ -1887,7 +1963,22 @@ createApp({
 
     const reloadAllData = async () => {
       if (!isLoggedIn.value) return;
-      await Promise.allSettled([loadOverview(), loadHeatmap(), loadTags(), loadMistakes(), loadDueMistakes(), loadMistakeKeys(), loadSubmissions(), loadSettings(), loadContests()]);
+      // 首屏严格按当前 Tab 惰性加载，避免在数据总览页白拉提交记录/完整错题/账号列表
+      const tab = currentTab.value;
+      const tasks = [
+        loadOverview(),
+        loadContests(),
+        loadDueMistakes(),
+        loadSettings({ includeAccounts: tab === "settings" })
+      ];
+      if (tab === "overview") {
+        tasks.push(loadHeatmap(), loadTags());
+      } else if (tab === "submissions") {
+        tasks.push(loadSubmissions({ forceRefresh: true }), loadMistakeKeys(), loadTags());
+      } else if (tab === "mistakes") {
+        tasks.push(loadMistakes());
+      }
+      await Promise.allSettled(tasks);
       await nextTick();
       syncSegmentedThumbs();
       if (currentTab.value === "overview") {
@@ -2692,6 +2783,7 @@ createApp({
           showToast("部分平台同步失败", "error");
         }
         invalidateHeatmapCache(true);
+        invalidateSubmissionsCache();
         await reloadAllData();
       } catch (e) {
         if (e.message !== "UNAUTHORIZED") {
@@ -2957,7 +3049,12 @@ createApp({
         const count = data.count !== undefined ? data.count : (data.new_submissions !== undefined ? data.new_submissions : 0);
         showToast(`[${account.alias || account.handle}] 同步完成: +${count} 发`, "success");
         invalidateHeatmapCache(true);
-        await Promise.all([loadAccounts(), loadOverview(), loadHeatmap({ forceNetwork: true }), loadSubmissions(), loadMistakes(), loadDueMistakes(), loadMistakeKeys()]);
+        invalidateSubmissionsCache();
+        const tasks = [loadAccounts(), loadOverview(), loadDueMistakes(), loadMistakeKeys()];
+        if (currentTab.value === "overview") tasks.push(loadHeatmap({ forceNetwork: true }), loadTags());
+        if (currentTab.value === "submissions") tasks.push(loadSubmissions({ forceRefresh: true }));
+        if (currentTab.value === "mistakes") tasks.push(loadMistakes());
+        await Promise.allSettled(tasks);
         if (currentTab.value === "overview") {
           renderHeatmap();
           renderActiveChart();
@@ -3001,8 +3098,14 @@ createApp({
     const syncPlatformManual = async (platform) => {
       if (platform === 'leetcode') {
         showToast("已刷新力扣最新记录", "info");
+        invalidateHeatmapCache(true);
+        invalidateSubmissionsCache();
         try {
-          await Promise.allSettled([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadDueMistakes(), loadMistakeKeys()]);
+          const tasks = [loadAccounts(), loadOverview(), loadDueMistakes(), loadMistakeKeys()];
+          if (currentTab.value === "overview") tasks.push(loadHeatmap({ forceNetwork: true }), loadTags());
+          if (currentTab.value === "submissions") tasks.push(loadSubmissions({ forceRefresh: true }));
+          if (currentTab.value === "mistakes") tasks.push(loadMistakes());
+          await Promise.allSettled(tasks);
         } catch (e) {
           // ignore
         }
@@ -3025,7 +3128,12 @@ createApp({
           showToast(`${getPlatformName(platform)} 同步完成: ${syncMsg || "已获取最新数据"}`, "success");
         }
         invalidateHeatmapCache(true);
-        await Promise.all([loadAccounts(), loadOverview(), loadHeatmap({ forceNetwork: true }), loadSubmissions(), loadMistakes(), loadDueMistakes(), loadMistakeKeys()]);
+        invalidateSubmissionsCache();
+        const tasks = [loadAccounts(), loadOverview(), loadDueMistakes(), loadMistakeKeys()];
+        if (currentTab.value === "overview") tasks.push(loadHeatmap({ forceNetwork: true }), loadTags());
+        if (currentTab.value === "submissions") tasks.push(loadSubmissions({ forceRefresh: true }));
+        if (currentTab.value === "mistakes") tasks.push(loadMistakes());
+        await Promise.allSettled(tasks);
         if (currentTab.value === "overview") {
           renderHeatmap();
           renderActiveChart();
@@ -3494,93 +3602,121 @@ createApp({
       }
     };
 
-    const executeTabPolling = async () => {
-      if (!isLoggedIn.value) {
-        return;
+    // --- Event-Driven SSE Engine (事件驱动实时推送，静止 0 轮询请求，变更毫秒级精准刷新) ---
+    const refreshCurrentTabSoft = async () => {
+      if (!isLoggedIn.value || document.hidden || isSyncing.value || isSaving.value) return;
+      const tab = currentTab.value;
+      const tasks = [];
+      if (tab === "overview") {
+        tasks.push(loadOverview(), loadHeatmap({ useCacheFirst: true }), loadTags(), loadContests(), loadDueMistakes());
+      } else if (tab === "submissions") {
+        tasks.push(loadSubmissions({ forceRefresh: true }), loadMistakeKeys());
+      } else if (tab === "mistakes") {
+        tasks.push(loadMistakes(), loadDueMistakes());
+      } else if (tab === "contests") {
+        tasks.push(loadContests());
+      } else if (tab === "settings") {
+        tasks.push(pollSettingsReadOnly());
       }
-      if (document.hidden || isSyncing.value || isSaving.value || isPollingInProgress) {
-        scheduleNextPoll();
-        return;
-      }
+      await Promise.allSettled(tasks);
+    };
 
-      isPollingInProgress = true;
-      try {
-        const tab = currentTab.value;
-        let tasks = [];
-        if (tab === "overview") {
-          tasks = [
-            loadOverview({ throwOnError: true }),
-            loadHeatmap({ throwOnError: true }),
-            loadTags({ throwOnError: true }),
-            loadContests({ throwOnError: true }),
-            loadDueMistakes()
-          ];
-          lastContestSyncTime = Date.now();
-        } else if (tab === "submissions") {
-          tasks = [
-            loadSubmissions({ throwOnError: true }),
-            loadMistakeKeys({ throwOnError: true })
-          ];
-        } else if (tab === "mistakes") {
-          tasks = [loadMistakes({ throwOnError: true }), loadDueMistakes()];
-        } else if (tab === "contests") {
-          tasks = [loadContests({ throwOnError: true })];
-          lastContestSyncTime = Date.now();
-        } else if (tab === "settings") {
-          tasks = [pollSettingsReadOnly({ throwOnError: true })];
-        }
+    const scheduleCoalescedEventRefresh = (domain, fn, delayMs = 260) => {
+      const prev = sseDomainTimers.get(domain);
+      if (prev) clearTimeout(prev);
+      sseDomainTimers.set(domain, setTimeout(() => {
+        sseDomainTimers.delete(domain);
+        if (!isLoggedIn.value) return;
+        fn().catch(() => {});
+      }, delayMs));
+    };
 
-        // A6-3: 在其他非比赛 Tab 下，每隔 60 秒低频同步一次比赛数据，确保侧边栏待开赛角标与状态不冻结
-        const now = Date.now();
-        if (tab !== "overview" && tab !== "contests" && (now - lastContestSyncTime >= 60000)) {
-          tasks.push(loadContests({ throwOnError: true }));
-          lastContestSyncTime = now;
-        }
-
-        // A6-1: 使用 Promise.allSettled 并发执行，单个请求超时或失败不阻塞其他数据域，且保证锁百分之百释放
-        const results = await Promise.allSettled(tasks);
-        const hasSuccess = results.some(r => r.status === "fulfilled");
-        const allRejected = results.length > 0 && results.every(r => r.status === "rejected");
-
-        // 低频刷新当前用户信息 (60 秒间隔)，401 时自动回到登录态
-        await refreshCurrentUser(false);
-
-        if (hasSuccess || results.length === 0) {
-          // 至少有成功项，重置退避
-          if (consecutivePollFailures > 0) {
-            console.log(`[PollEngine] 轮询恢复正常，恢复基础轮询周期: ${BASE_POLL_INTERVAL / 1000}s`);
+    const handleServerEvent = (evt) => {
+      if (!evt || !evt.type || !isLoggedIn.value) return;
+      const t = evt.type;
+      if (t === "submissions_updated") {
+        invalidateHeatmapCache(true);
+        invalidateSubmissionsCache();
+        scheduleCoalescedEventRefresh("submissions", async () => {
+          const tab = currentTab.value;
+          const tasks = [loadOverview(), loadDueMistakes()];
+          if (tab === "overview") {
+            tasks.push(loadHeatmap({ forceNetwork: true }), loadTags());
+          } else if (tab === "submissions") {
+            tasks.push(loadSubmissions({ forceRefresh: true }), loadMistakeKeys());
+          } else if (tab === "mistakes") {
+            tasks.push(loadMistakes());
           }
-          consecutivePollFailures = 0;
-          currentPollInterval = BASE_POLL_INTERVAL;
-        } else if (allRejected) {
-          consecutivePollFailures++;
-          currentPollInterval = Math.min(60000, BASE_POLL_INTERVAL * Math.pow(2, consecutivePollFailures));
-          console.warn(`[PollEngine] 全部任务失败 (第 ${consecutivePollFailures} 次)，退避下一次轮询等待: ${currentPollInterval / 1000}s`);
-        }
-      } catch (err) {
-        consecutivePollFailures++;
-        currentPollInterval = Math.min(60000, BASE_POLL_INTERVAL * Math.pow(2, consecutivePollFailures));
-        console.warn(`[PollEngine] 轮询执行异常 (第 ${consecutivePollFailures} 次)，退避等待: ${currentPollInterval / 1000}s`, err);
-      } finally {
-        isPollingInProgress = false;
-        scheduleNextPoll();
+          await Promise.allSettled(tasks);
+        });
+      } else if (t === "local_code_updated") {
+        scheduleCoalescedEventRefresh("local_code", async () => {
+          await loadOverview();
+        });
+      } else if (t === "mistakes_updated") {
+        scheduleCoalescedEventRefresh("mistakes", async () => {
+          const tasks = [loadDueMistakes(), loadMistakeKeys()];
+          if (currentTab.value === "mistakes") {
+            tasks.push(loadMistakes());
+          }
+          await Promise.allSettled(tasks);
+        });
+      } else if (t === "contests_updated") {
+        scheduleCoalescedEventRefresh("contests", async () => {
+          await loadContests();
+        });
+      } else if (t === "settings_updated") {
+        scheduleCoalescedEventRefresh("settings", async () => {
+          if (currentTab.value === "settings") {
+            await pollSettingsReadOnly();
+          } else {
+            await loadSettings({ includeAccounts: false });
+          }
+        });
       }
     };
 
-    const scheduleNextPoll = (customDelayMs) => {
-      if (pollTimeoutId) {
-        clearTimeout(pollTimeoutId);
-        pollTimeoutId = null;
+    const connectEventStream = () => {
+      if (!isLoggedIn.value || !token.value || typeof EventSource === "undefined") return;
+      if (eventSource && (eventSource.readyState === EventSource.OPEN || eventSource.readyState === EventSource.CONNECTING)) {
+        return;
       }
-      const delay = typeof customDelayMs === "number" ? customDelayMs : currentPollInterval;
-      pollTimeoutId = setTimeout(() => {
-        executeTabPolling();
-      }, delay);
-    };
+      if (sseReconnectTimer) {
+        clearTimeout(sseReconnectTimer);
+        sseReconnectTimer = null;
+      }
+      try {
+        const es = new EventSource(`/api/events?token=${encodeURIComponent(token.value)}`);
+        eventSource = es;
 
-    const triggerImmediatePoll = () => {
-      if (isLoggedIn.value && !isPollingInProgress) {
-        scheduleNextPoll(0);
+        es.onopen = () => {
+          sseReconnectDelay = 3000;
+        };
+
+        es.onmessage = (e) => {
+          if (!e.data) return;
+          try {
+            const parsed = JSON.parse(e.data);
+            handleServerEvent(parsed);
+          } catch (err) {}
+        };
+
+        es.onerror = () => {
+          if (eventSource !== es) return;
+          try { es.close(); } catch (err) {}
+          eventSource = null;
+          if (!isLoggedIn.value || !token.value) return;
+          const wait = sseReconnectDelay;
+          sseReconnectDelay = Math.min(30000, sseReconnectDelay * 2);
+          sseReconnectTimer = setTimeout(() => {
+            sseReconnectTimer = null;
+            if (!document.hidden && isLoggedIn.value) {
+              connectEventStream();
+            }
+          }, wait);
+        };
+      } catch (e) {
+        console.warn("[SSE] 初始化事件流失败:", e);
       }
     };
 
@@ -3615,14 +3751,24 @@ createApp({
     };
 
     const onForegroundWakeup = () => {
-      if (document.hidden || !isLoggedIn.value) return;
-      const now = Date.now();
-      if (now - lastForegroundWakeupTime < 2000) {
+      if (document.hidden) {
+        lastHiddenTimestamp = Date.now();
         return;
       }
-      lastForegroundWakeupTime = now;
-      refreshCurrentUser(true);
-      triggerImmediatePoll();
+      if (!isLoggedIn.value) return;
+      const now = Date.now();
+      const hiddenDuration = lastHiddenTimestamp ? (now - lastHiddenTimestamp) : 0;
+      lastHiddenTimestamp = 0;
+      const sseDisconnected = !eventSource || eventSource.readyState !== EventSource.OPEN;
+      if (sseDisconnected) {
+        connectEventStream();
+      }
+      // 仅在长时间离开（> 60 秒）或 SSE 曾断连时做一次前台补偿同步，避免切换窗口频繁刷请求
+      if ((hiddenDuration >= 60000 || sseDisconnected) && (now - lastForegroundWakeupTime >= 5000)) {
+        lastForegroundWakeupTime = now;
+        refreshCurrentUser(false);
+        refreshCurrentTabSoft();
+      }
     };
 
     // --- Lifecycle ---
@@ -3690,17 +3836,19 @@ createApp({
         updateContestMetas();
       });
 
-      // 启动统一静默轮询调度器 (15 秒基础周期，具备防重叠与失败退避)
-      scheduleNextPoll(BASE_POLL_INTERVAL);
+      // 启动 SSE 事件驱动长连接（替代原 15 秒轮询，静止时零 HTTP 请求）
+      if (isLoggedIn.value) {
+        connectEventStream();
+      }
     });
 
     onUnmounted(() => {
       if (themeTimer) clearInterval(themeTimer);
       if (countdownTimer) clearInterval(countdownTimer);
-      if (pollTimeoutId) clearTimeout(pollTimeoutId);
       if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
       if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
       if (mistakeSearchDebounceTimer) clearTimeout(mistakeSearchDebounceTimer);
+      disconnectEventStream();
       clearNotifyAutoHide();
 
       window.removeEventListener("resize", onWindowResize);
@@ -3762,13 +3910,15 @@ createApp({
             renderActiveChart(true);
           });
         } else if (tab === "submissions") {
-          await Promise.allSettled([loadSubmissions(), loadMistakeKeys()]);
+          const subTasks = [loadSubmissions({ page: currentPage.value }), loadMistakeKeys()];
+          if (!tagStats.value || tagStats.value.length === 0) subTasks.push(loadTags());
+          await Promise.allSettled(subTasks);
         } else if (tab === "mistakes") {
           await Promise.allSettled([loadMistakes(), loadDueMistakes()]);
         } else if (tab === "contests") {
           await Promise.allSettled([loadContests()]);
         } else if (tab === "settings") {
-          await Promise.allSettled([loadSettings()]);
+          await Promise.allSettled([loadSettings({ includeAccounts: true })]);
         }
       } catch (err) {
         console.warn("[TabSwitch] 切换标签页加载数据异常:", err);
@@ -3777,8 +3927,6 @@ createApp({
         nextTick(() => {
           syncSegmentedThumbs();
         });
-        // 切换标签后，重置并顺延后台轮询计时
-        scheduleNextPoll(BASE_POLL_INTERVAL);
       }
     });
 
@@ -3813,8 +3961,9 @@ createApp({
       currentPage,
       pageSize,
       totalPages,
+      submissionsTotal,
+      isSubmissionsLoading,
       paginatedSubmissions,
-      filteredSubmissions,
       setDateFilter,
       resetFilters,
       overview,
