@@ -2989,27 +2989,44 @@ createApp({
     } catch (e) {}
     const notifyAnchor = ref(savedNotifyAnchor);
     const notifyAnchorSide = computed(() => notifyAnchor.value.sideX);
+    const notifyAnchorY = computed(() => notifyAnchor.value.sideY);
     const viewportSize = ref({ w: window.innerWidth, h: window.innerHeight });
 
     let notifyAutoHideTimer = null;
+    let notifyHoverLeaveTimer = null;
+    let notifyCollapseSeqTimer = null;
     let notifyHovered = false;
+    let notifySuppressHoverUntilLeave = false;
     let notifyWasDragged = false;
     let notifyDragState = null;
+
+    const canHoverDevice = () => !window.matchMedia || window.matchMedia("(hover: hover)").matches;
 
     const clearNotifyAutoHide = () => {
       if (notifyAutoHideTimer) {
         clearTimeout(notifyAutoHideTimer);
         notifyAutoHideTimer = null;
       }
+      if (notifyHoverLeaveTimer) {
+        clearTimeout(notifyHoverLeaveTimer);
+        notifyHoverLeaveTimer = null;
+      }
+      if (notifyCollapseSeqTimer) {
+        clearTimeout(notifyCollapseSeqTimer);
+        notifyCollapseSeqTimer = null;
+      }
     };
 
-    const scheduleNotifyAutoHide = (delayMs = 15000) => {
-      clearNotifyAutoHide();
-      if (dueMistakesList.value.length > 0 || notifyState.value !== "bar" || notifyHovered) {
+    const scheduleNotifyAutoHide = (delayMs = 30000) => {
+      if (notifyAutoHideTimer) {
+        clearTimeout(notifyAutoHideTimer);
+        notifyAutoHideTimer = null;
+      }
+      if (notifyState.value !== "bar" || notifyHovered) {
         return;
       }
       notifyAutoHideTimer = setTimeout(() => {
-        if (notifyState.value === "bar" && dueMistakesList.value.length === 0 && !notifyHovered) {
+        if (notifyState.value === "bar" && !notifyHovered && !notifyDragState) {
           notifyState.value = "orb";
         }
         notifyAutoHideTimer = null;
@@ -3019,27 +3036,53 @@ createApp({
     const triggerStartupNotification = () => {
       if (!isLoggedIn.value) return;
       clearNotifyAutoHide();
-      // 刷新/进入页面：平滑展开为通知长条；有错题时常驻置顶，静默状态 15 秒后自动平滑收起为带角标的图标
+      notifySuppressHoverUntilLeave = false;
+      // 刷新或首次进入默认展开为通知长条，30 秒后自动收起为图标（鼠标交互优先级更高）
       notifyState.value = "bar";
-      if (dueMistakesList.value.length === 0) {
-        scheduleNotifyAutoHide(15000);
-      }
+      scheduleNotifyAutoHide(30000);
     };
 
     const collapseNotifyToOrb = () => {
       clearNotifyAutoHide();
-      notifyState.value = "orb";
+      if (notifyHovered) {
+        notifySuppressHoverUntilLeave = true;
+      }
+      if (notifyState.value === "detail") {
+        // 先让同宽详情卡片平滑伸缩收回至通知条内，再将通知条平滑收拢为图标
+        notifyState.value = "bar";
+        notifyCollapseSeqTimer = setTimeout(() => {
+          if (notifyState.value === "bar" && !notifyDragState) {
+            notifyState.value = "orb";
+          }
+          notifyCollapseSeqTimer = null;
+        }, 210);
+      } else {
+        notifyState.value = "orb";
+      }
     };
 
     const onNotifyMouseEnter = () => {
+      if (!canHoverDevice()) return;
       notifyHovered = true;
       clearNotifyAutoHide();
+      if (notifyState.value === "orb" && !notifySuppressHoverUntilLeave && !notifyDragState) {
+        notifyState.value = "bar";
+      }
     };
 
     const onNotifyMouseLeave = () => {
+      if (!canHoverDevice()) return;
       notifyHovered = false;
-      if (notifyState.value === "bar" && dueMistakesList.value.length === 0) {
-        scheduleNotifyAutoHide(4000);
+      notifySuppressHoverUntilLeave = false;
+      clearNotifyAutoHide();
+      // 鼠标移出立即触发收回（无需等待初始 30 秒倒计时），仅保留 180ms 防边缘抖动
+      if (notifyState.value === "bar" && !notifyDragState) {
+        notifyHoverLeaveTimer = setTimeout(() => {
+          if (notifyState.value === "bar" && !notifyHovered && !notifyDragState) {
+            notifyState.value = "orb";
+          }
+          notifyHoverLeaveTimer = null;
+        }, 180);
       }
     };
 
@@ -3156,6 +3199,14 @@ createApp({
           setTimeout(() => { notifyWasDragged = false; }, 60);
         }
         notifyDragState = null;
+        if (!notifyHovered && notifyState.value === "bar") {
+          notifyHoverLeaveTimer = setTimeout(() => {
+            if (notifyState.value === "bar" && !notifyHovered && !notifyDragState) {
+              notifyState.value = "orb";
+            }
+            notifyHoverLeaveTimer = null;
+          }, 180);
+        }
       };
 
       if (isTouch) {
@@ -3188,8 +3239,14 @@ createApp({
       }
       clearNotifyAutoHide();
       if (notifyState.value === "detail") {
-        notifyState.value = dueMistakesList.value.length > 0 ? "bar" : "orb";
+        if (notifyHovered) {
+          // 鼠标仍在通知条上时收起详情回到长条，移出后自动收回图标
+          notifyState.value = "bar";
+        } else {
+          collapseNotifyToOrb();
+        }
       } else {
+        notifySuppressHoverUntilLeave = false;
         notifyState.value = "detail";
       }
     };
@@ -3198,7 +3255,9 @@ createApp({
       if (notifyState.value !== "detail") return;
       const host = document.getElementById("notify-widget-host");
       if (host && !host.contains(e.target)) {
-        notifyState.value = dueMistakesList.value.length > 0 ? "bar" : "orb";
+        notifyHovered = false;
+        notifySuppressHoverUntilLeave = false;
+        collapseNotifyToOrb();
       }
     };
 
@@ -3342,7 +3401,7 @@ createApp({
         if (viewNoteModalOpen.value) {
           viewNoteModalOpen.value = false;
         } else if (notifyState.value === "detail") {
-          notifyState.value = dueMistakesList.value.length > 0 ? "bar" : "orb";
+          collapseNotifyToOrb();
         }
       }
     };
@@ -3606,6 +3665,7 @@ createApp({
       notifyTotalCount,
       notifyState,
       notifyAnchorSide,
+      notifyAnchorY,
       notifyHostStyle,
       notifyPopoverStyle,
       notifyBarHeadline,

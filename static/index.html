@@ -50,7 +50,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=3.8.4">
+  <link rel="stylesheet" href="/static/style.css?v=3.8.5">
 </head>
 <body :class="[isDark ? 'dark text-[#e5e7eb]' : 'text-[#1f2937]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -1814,10 +1814,11 @@
            @mouseenter="onNotifyMouseEnter"
            @mouseleave="onNotifyMouseLeave">
 
-        <!-- 详情展开面板 (点击悬浮球或长条均可展开) -->
-        <div v-if="notifyState === 'detail'"
-             class="notify-popover"
-             :style="notifyPopoverStyle">
+        <!-- 详情展开面板（点击通知条展开，与伸缩条严格同宽，从通知条平滑伸缩上去/收回） -->
+        <transition name="notify-telescope">
+          <div v-if="notifyState === 'detail'"
+               :class="['notify-popover', notifyAnchorY === 'top' ? 'from-top' : 'from-bottom']"
+               :style="notifyPopoverStyle">
           <!-- 头部 -->
           <div class="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-subtle)]">
             <div class="flex items-center space-x-2">
@@ -1919,7 +1920,8 @@
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </transition>
 
         <!-- 主体交互壳：边缘锚定单 DOM 平滑变形 (长条 <-> 悬浮图标，彻底消除收缩瞬移) -->
         <div class="notify-trigger-wrap">
@@ -1932,7 +1934,7 @@
                @mousedown="onNotifyPointerDown"
                @touchstart.passive="onNotifyTouchStart"
                @click="onNotifyShellClick"
-               :title="notifyState === 'orb' ? '点击查看提醒，可拖拽移动' : '点击展开详情，可拖拽移动'">
+               :title="notifyState === 'orb' ? '悬停展开，点击查看详情，可拖拽' : '点击展开/收起详情，可拖拽'">
 
             <!-- 固定锚点图标位（展开/收起全程原地不动） -->
             <div class="notify-icon-slot">
@@ -2391,6 +2393,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=3.8.3"></script>
+  <script src="/static/app.js?v=3.8.5"></script>
 </body>
 </html>
