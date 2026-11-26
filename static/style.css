@@ -195,8 +195,8 @@ html[data-glass="on"] body::before {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-color: #eceef4;
-  background-image: url("/static/bg-light.svg?v=3.7.0");
+  background-color: #e4e9f2;
+  background-image: url("/static/bg-light.svg?v=3.8.6");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -218,8 +218,8 @@ html[data-glass="on"] body::after {
   z-index: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(to right, rgba(15, 23, 42, 0.032) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(15, 23, 42, 0.032) 1px, transparent 1px);
+    linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
   background-size: 72px 72px;
   -webkit-mask-image: radial-gradient(ellipse 84% 78% at 50% 36%, #000 28%, transparent 100%);
   mask-image: radial-gradient(ellipse 84% 78% at 50% 36%, #000 28%, transparent 100%);
@@ -237,15 +237,15 @@ html[data-glass="on"].dark body::after {
 /* Tier 1: 主卡片 — macOS 15 真实通透磨砂玻璃 + 顶光微折射 + 双层物理倒角 */
 html[data-glass="on"] .ui-card,
 html[data-glass="on"] .apple-card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.66) 0%, rgba(252, 253, 255, 0.54) 100%);
-  border-color: rgba(255, 255, 255, 0.78);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.60) 0%, rgba(250, 252, 255, 0.48) 100%);
+  border-color: rgba(255, 255, 255, 0.80);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.055),
-    0 0 0 1px rgba(15, 23, 42, 0.06),
-    0 12px 30px -14px rgba(15, 23, 42, 0.16);
-  -webkit-backdrop-filter: blur(16px) saturate(175%);
-  backdrop-filter: blur(16px) saturate(175%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.06),
+    0 0 0 1px rgba(15, 23, 42, 0.065),
+    0 12px 30px -14px rgba(15, 23, 42, 0.17);
+  -webkit-backdrop-filter: blur(16px) saturate(185%);
+  backdrop-filter: blur(16px) saturate(185%);
 }
 
 html[data-glass="on"].dark .ui-card,

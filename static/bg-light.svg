@@ -1,61 +1,61 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
   <defs>
-    <!-- Porcelain Studio Base -->
+    <!-- Porcelain Studio Base (Richer architectural light stone for genuine frosted glass contrast) -->
     <linearGradient id="baseL" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ebeef5"/>
-      <stop offset="50%" stop-color="#f2f3f7"/>
-      <stop offset="100%" stop-color="#e7ebf3"/>
+      <stop offset="0%" stop-color="#dfe5f1"/>
+      <stop offset="50%" stop-color="#e9edf5"/>
+      <stop offset="100%" stop-color="#dbe2ef"/>
     </linearGradient>
 
-    <!-- Sculpted Architectural Fold 1 (Cool Mist Titanium) -->
+    <!-- Sculpted Architectural Fold 1 (Cool Mist Cobalt-Titanium) -->
     <linearGradient id="foldL1" x1="12%" y1="0%" x2="88%" y2="100%">
-      <stop offset="0%" stop-color="#b8d0f8" stop-opacity="0.46"/>
-      <stop offset="48%" stop-color="#d7e4fb" stop-opacity="0.26"/>
-      <stop offset="100%" stop-color="#eef2f9" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#88b0f2" stop-opacity="0.62"/>
+      <stop offset="48%" stop-color="#b7cff7" stop-opacity="0.38"/>
+      <stop offset="100%" stop-color="#e3e9f5" stop-opacity="0"/>
     </linearGradient>
 
-    <!-- Sculpted Architectural Fold 2 (MiMo Warm Porcelain Sand) -->
+    <!-- Sculpted Architectural Fold 2 (MiMo Warm Travertine Sand) -->
     <linearGradient id="foldL2" x1="100%" y1="10%" x2="15%" y2="95%">
-      <stop offset="0%" stop-color="#e5cfb8" stop-opacity="0.48"/>
-      <stop offset="46%" stop-color="#f0e3d5" stop-opacity="0.22"/>
-      <stop offset="100%" stop-color="#f2f3f7" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#d6b28d" stop-opacity="0.58"/>
+      <stop offset="46%" stop-color="#e6d0b9" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#e8ecf4" stop-opacity="0"/>
     </linearGradient>
 
-    <!-- Sculpted Architectural Fold 3 (Lower Slate Horizon) -->
+    <!-- Sculpted Architectural Fold 3 (Lower Slate-Indigo Horizon) -->
     <linearGradient id="foldL3" x1="0%" y1="100%" x2="90%" y2="15%">
-      <stop offset="0%" stop-color="#c3cfe8" stop-opacity="0.44"/>
-      <stop offset="52%" stop-color="#dce4f4" stop-opacity="0.16"/>
-      <stop offset="100%" stop-color="#eef1f7" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#96acdd" stop-opacity="0.60"/>
+      <stop offset="52%" stop-color="#bfcce8" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#e4e9f3" stop-opacity="0"/>
     </linearGradient>
 
     <!-- Crisp Specular Ridge Highlights -->
     <linearGradient id="ridgeL1" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
-      <stop offset="30%" stop-color="#ffffff" stop-opacity="0.88"/>
-      <stop offset="70%" stop-color="#7ca9f2" stop-opacity="0.34"/>
+      <stop offset="28%" stop-color="#ffffff" stop-opacity="0.96"/>
+      <stop offset="68%" stop-color="#4e7fd4" stop-opacity="0.44"/>
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
 
     <linearGradient id="ridgeL2" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
-      <stop offset="35%" stop-color="#ffffff" stop-opacity="0.82"/>
-      <stop offset="75%" stop-color="#cfa984" stop-opacity="0.30"/>
+      <stop offset="34%" stop-color="#ffffff" stop-opacity="0.94"/>
+      <stop offset="72%" stop-color="#ad7f52" stop-opacity="0.38"/>
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
 
     <!-- Algorithmic Parametric Contour Stroke Fade -->
     <linearGradient id="contourL" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#3b5b96" stop-opacity="0"/>
-      <stop offset="28%" stop-color="#3b5b96" stop-opacity="0.13"/>
-      <stop offset="72%" stop-color="#6b5c4d" stop-opacity="0.11"/>
-      <stop offset="100%" stop-color="#3b5b96" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#2b4e8c" stop-opacity="0"/>
+      <stop offset="28%" stop-color="#2b4e8c" stop-opacity="0.24"/>
+      <stop offset="72%" stop-color="#70553c" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#2b4e8c" stop-opacity="0"/>
     </linearGradient>
 
     <linearGradient id="contourL2" x1="100%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#2c5ba8" stop-opacity="0"/>
-      <stop offset="35%" stop-color="#2c5ba8" stop-opacity="0.11"/>
-      <stop offset="70%" stop-color="#3b7a6c" stop-opacity="0.09"/>
-      <stop offset="100%" stop-color="#2c5ba8" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#234f99" stop-opacity="0"/>
+      <stop offset="35%" stop-color="#234f99" stop-opacity="0.22"/>
+      <stop offset="70%" stop-color="#236a5c" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#234f99" stop-opacity="0"/>
     </linearGradient>
   </defs>
 
@@ -67,12 +67,12 @@
   <path d="M-140,760 C260,560 640,860 1140,680 C1520,545 1780,690 2060,560 L2060,1180 L-140,1180 Z" fill="url(#foldL3)"/>
 
   <!-- Specular Fold Crests -->
-  <path d="M-120,260 C280,90 660,360 1120,180 C1460,48 1740,120 2060,-40" fill="none" stroke="url(#ridgeL1)" stroke-width="1.5"/>
-  <path d="M2040,140 C1640,340 1320,120 880,310 C500,474 220,380 -120,560" fill="none" stroke="url(#ridgeL2)" stroke-width="1.25"/>
-  <path d="M-140,760 C260,560 640,860 1140,680 C1520,545 1780,690 2060,560" fill="none" stroke="url(#ridgeL1)" stroke-width="1.2"/>
+  <path d="M-120,260 C280,90 660,360 1120,180 C1460,48 1740,120 2060,-40" fill="none" stroke="url(#ridgeL1)" stroke-width="1.8"/>
+  <path d="M2040,140 C1640,340 1320,120 880,310 C500,474 220,380 -120,560" fill="none" stroke="url(#ridgeL2)" stroke-width="1.55"/>
+  <path d="M-140,760 C260,560 640,860 1140,680 C1520,545 1780,690 2060,560" fill="none" stroke="url(#ridgeL1)" stroke-width="1.45"/>
 
   <!-- Algorithmic Parametric Contour Family (Top-Left to Mid-Right) -->
-  <g fill="none" stroke="url(#contourL)" stroke-width="0.9">
+  <g fill="none" stroke="url(#contourL)" stroke-width="1.05">
     <path d="M-80,120 C360,-20 740,260 1220,90 C1560,-30 1800,70 2020,-20"/>
     <path d="M-80,175 C350,30 730,305 1210,138 C1550,20 1790,115 2020,25"/>
     <path d="M-80,230 C340,80 720,350 1200,186 C1540,70 1780,160 2020,70"/>
@@ -81,7 +81,7 @@
   </g>
 
   <!-- Secondary Counter-Flow Iso-Contours (Lower Arc) -->
-  <g fill="none" stroke="url(#contourL2)" stroke-width="0.85">
+  <g fill="none" stroke="url(#contourL2)" stroke-width="1.0">
     <path d="M-100,820 C320,640 720,920 1200,740 C1560,605 1820,730 2040,620"/>
     <path d="M-100,875 C330,695 730,975 1210,795 C1570,660 1830,785 2040,675"/>
     <path d="M-100,930 C340,750 740,1030 1220,850 C1580,715 1840,840 2040,730"/>
