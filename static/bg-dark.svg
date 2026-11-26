@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <!-- Deep Titanium Obsidian Base -->
+    <linearGradient id="baseD" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#07090f"/>
+      <stop offset="50%" stop-color="#0a0e17"/>
+      <stop offset="100%" stop-color="#070a12"/>
+    </linearGradient>
+
+    <!-- Sculpted Anodized Titanium Fold 1 (Deep Cobalt Slate) -->
+    <linearGradient id="foldD1" x1="10%" y1="0%" x2="88%" y2="100%">
+      <stop offset="0%" stop-color="#224482" stop-opacity="0.54"/>
+      <stop offset="46%" stop-color="#132342" stop-opacity="0.34"/>
+      <stop offset="100%" stop-color="#090d16" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Sculpted Fold 2 (Muted Alpine Teal / Steel) -->
+    <linearGradient id="foldD2" x1="100%" y1="12%" x2="18%" y2="92%">
+      <stop offset="0%" stop-color="#154d4a" stop-opacity="0.44"/>
+      <stop offset="48%" stop-color="#112232" stop-opacity="0.26"/>
+      <stop offset="100%" stop-color="#080b12" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Sculpted Fold 3 (Deep Indigo Horizon) -->
+    <linearGradient id="foldD3" x1="0%" y1="100%" x2="92%" y2="18%">
+      <stop offset="0%" stop-color="#2b265c" stop-opacity="0.48"/>
+      <stop offset="50%" stop-color="#15182e" stop-opacity="0.24"/>
+      <stop offset="100%" stop-color="#080b12" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Grazing Metallic Crest Highlights -->
+    <linearGradient id="ridgeD1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#79b0ff" stop-opacity="0"/>
+      <stop offset="28%" stop-color="#8abaff" stop-opacity="0.36"/>
+      <stop offset="68%" stop-color="#5be0c2" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#79b0ff" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="ridgeD2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9ca6ff" stop-opacity="0"/>
+      <stop offset="35%" stop-color="#9ca6ff" stop-opacity="0.28"/>
+      <stop offset="72%" stop-color="#60a5fa" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#9ca6ff" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Algorithmic Parametric Contour Lines (Luminous Hairline) -->
+    <linearGradient id="contourD1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7fb2ff" stop-opacity="0"/>
+      <stop offset="28%" stop-color="#7fb2ff" stop-opacity="0.16"/>
+      <stop offset="70%" stop-color="#58d6c0" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#7fb2ff" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="contourD2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a59cff" stop-opacity="0"/>
+      <stop offset="32%" stop-color="#a59cff" stop-opacity="0.15"/>
+      <stop offset="70%" stop-color="#6aa6ff" stop-opacity="0.11"/>
+      <stop offset="100%" stop-color="#a59cff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#baseD)"/>
+
+  <!-- Sculptural Machined Titanium Folds -->
+  <path d="M-120,260 C280,90 660,360 1120,180 C1460,48 1740,120 2060,-40 L2060,640 C1660,720 1320,440 840,590 C440,715 160,520 -120,660 Z" fill="url(#foldD1)"/>
+  <path d="M2040,140 C1640,340 1320,120 880,310 C500,474 220,380 -120,560 L-120,1180 L2040,1180 Z" fill="url(#foldD2)"/>
+  <path d="M-140,760 C260,560 640,860 1140,680 C1520,545 1780,690 2060,560 L2060,1180 L-140,1180 Z" fill="url(#foldD3)"/>
+
+  <!-- Specular Titanium Crest Edges -->
+  <path d="M-120,260 C280,90 660,360 1120,180 C1460,48 1740,120 2060,-40" fill="none" stroke="url(#ridgeD1)" stroke-width="1.35"/>
+  <path d="M2040,140 C1640,340 1320,120 880,310 C500,474 220,380 -120,560" fill="none" stroke="url(#ridgeD2)" stroke-width="1.15"/>
+  <path d="M-140,760 C260,560 640,860 1140,680 C1520,545 1780,690 2060,560" fill="none" stroke="url(#ridgeD1)" stroke-width="1.1"/>
+
+  <!-- Algorithmic Parametric Contour Family -->
+  <g fill="none" stroke="url(#contourD1)" stroke-width="0.9">
+    <path d="M-80,120 C360,-20 740,260 1220,90 C1560,-30 1800,70 2020,-20"/>
+    <path d="M-80,175 C350,30 730,305 1210,138 C1550,20 1790,115 2020,25"/>
+    <path d="M-80,230 C340,80 720,350 1200,186 C1540,70 1780,160 2020,70"/>
+    <path d="M-80,285 C330,130 710,395 1190,234 C1530,120 1770,205 2020,115"/>
+    <path d="M-80,340 C320,180 700,440 1180,282 C1520,170 1760,250 2020,160"/>
+  </g>
+
+  <!-- Secondary Counter-Flow Iso-Contours -->
+  <g fill="none" stroke="url(#contourD2)" stroke-width="0.85">
+    <path d="M-100,820 C320,640 720,920 1200,740 C1560,605 1820,730 2040,620"/>
+    <path d="M-100,875 C330,695 730,975 1210,795 C1570,660 1830,785 2040,675"/>
+    <path d="M-100,930 C340,750 740,1030 1220,850 C1580,715 1840,840 2040,730"/>
+    <path d="M-100,985 C350,805 750,1085 1230,905 C1590,770 1850,895 2040,785"/>
+  </g>
+</svg>

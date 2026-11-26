@@ -187,36 +187,30 @@ body {
   z-index: 1;
 }
 
-/* ================= macOS 15 Sequoia Frosted Glass & Architectural Studio Backdrop (Zero-Idle CPU/GPU) ================= */
-/* 借鉴 Apple Pro 钛金属光场、Xiaomi MiMo 暖纸排版极简与 Antigravity 建筑经纬微网格：
-   全程纯静态 CSS 渐变与遮罩网格，无动画、无 WebGL、无大半径实时滤镜球，静止时 CPU/GPU 额外占用为 0% */
-
-/* 亮色模式背景：冷暖双色工作室漫射光场（冷雾蓝 + MiMo 暖瓷沙 + 远景淡钴灰），让白色磨砂玻璃产生真实通透对比 */
+/* ================= macOS 15 Sequoia Frosted Glass & Sculptural Contour Backdrop (Zero-Idle CPU/GPU) ================= */
+/* 静态矢量折面与算法等高线背景（bg-light.svg / bg-dark.svg）：4K 矢量锐利，无动画、零静止 CPU/GPU 开销 */
 html[data-glass="on"] body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(58% 52% at 14% 8%, rgba(86, 146, 245, 0.24) 0%, rgba(86, 146, 245, 0.06) 46%, transparent 74%),
-    radial-gradient(52% 48% at 88% 12%, rgba(226, 200, 174, 0.30) 0%, rgba(226, 200, 174, 0.08) 48%, transparent 74%),
-    radial-gradient(48% 46% at 54% 92%, rgba(124, 152, 224, 0.20) 0%, rgba(124, 152, 224, 0.04) 50%, transparent 75%),
-    radial-gradient(36% 32% at 78% 68%, rgba(72, 187, 150, 0.14) 0%, transparent 70%),
-    linear-gradient(155deg, #eaedf4 0%, #eff1f5 48%, #e8ecf4 100%);
+  background-color: #eceef4;
+  background-image: url("/static/bg-light.svg?v=3.7.0");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
-/* 深色模式背景：Apple 钛曜石 + Antigravity 深空克制双色光晕（深钴蓝 + 哑光青松 + 暮色靛灰），无刺眼霓虹 */
 html[data-glass="on"].dark body::before {
-  background:
-    radial-gradient(56% 48% at 16% 6%, rgba(56, 122, 238, 0.26) 0%, rgba(56, 122, 238, 0.07) 48%, transparent 74%),
-    radial-gradient(48% 44% at 86% 14%, rgba(34, 168, 146, 0.17) 0%, rgba(34, 168, 146, 0.04) 48%, transparent 72%),
-    radial-gradient(52% 48% at 24% 94%, rgba(114, 96, 224, 0.18) 0%, rgba(114, 96, 224, 0.04) 50%, transparent 75%),
-    radial-gradient(42% 38% at 82% 82%, rgba(182, 146, 114, 0.11) 0%, transparent 70%),
-    linear-gradient(160deg, #07090f 0%, #0b0f18 52%, #070a11 100%);
+  background-color: #07090f;
+  background-image: url("/static/bg-dark.svg?v=3.7.0");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
-/* 建筑感微网格 + 顶部漫射光带：仅在玻璃模式下呈现，边缘径向羽化消隐，为磨砂玻璃提供可感知的细腻折射层次 */
+/* 顶部极细建筑微网格叠加（径向羽化消隐，强化矢量折面与玻璃折射的纵深层次） */
 html[data-glass="on"] body::after {
   content: "";
   position: fixed;
@@ -224,22 +218,20 @@ html[data-glass="on"] body::after {
   z-index: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(to right, rgba(15, 23, 42, 0.042) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(15, 23, 42, 0.042) 1px, transparent 1px),
-    radial-gradient(90% 42% at 50% -6%, rgba(255, 255, 255, 0.55) 0%, transparent 65%);
-  background-size: 64px 64px, 64px 64px, 100% 100%;
-  -webkit-mask-image: radial-gradient(ellipse 88% 82% at 50% 38%, #000 35%, rgba(0, 0, 0, 0.18) 100%);
-  mask-image: radial-gradient(ellipse 88% 82% at 50% 38%, #000 35%, rgba(0, 0, 0, 0.18) 100%);
+    linear-gradient(to right, rgba(15, 23, 42, 0.032) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.032) 1px, transparent 1px);
+  background-size: 72px 72px;
+  -webkit-mask-image: radial-gradient(ellipse 84% 78% at 50% 36%, #000 28%, transparent 100%);
+  mask-image: radial-gradient(ellipse 84% 78% at 50% 36%, #000 28%, transparent 100%);
 }
 
 html[data-glass="on"].dark body::after {
   background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.042) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.042) 1px, transparent 1px),
-    radial-gradient(85% 40% at 50% -8%, rgba(120, 172, 255, 0.12) 0%, transparent 64%);
-  background-size: 64px 64px, 64px 64px, 100% 100%;
-  -webkit-mask-image: radial-gradient(ellipse 88% 82% at 50% 38%, #000 35%, rgba(0, 0, 0, 0.16) 100%);
-  mask-image: radial-gradient(ellipse 88% 82% at 50% 38%, #000 35%, rgba(0, 0, 0, 0.16) 100%);
+    linear-gradient(to right, rgba(255, 255, 255, 0.032) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.032) 1px, transparent 1px);
+  background-size: 72px 72px;
+  -webkit-mask-image: radial-gradient(ellipse 84% 78% at 50% 36%, #000 28%, transparent 100%);
+  mask-image: radial-gradient(ellipse 84% 78% at 50% 36%, #000 28%, transparent 100%);
 }
 
 /* Tier 1: 主卡片 — macOS 15 真实通透磨砂玻璃 + 顶光微折射 + 双层物理倒角 */

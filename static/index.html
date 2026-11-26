@@ -50,7 +50,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=3.6.0">
+  <link rel="stylesheet" href="/static/style.css?v=3.7.0">
 </head>
 <body :class="[isDark ? 'dark text-[#e5e7eb]' : 'text-[#1f2937]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -888,7 +888,7 @@
                         <line x1="8" y1="2" x2="8" y2="6"></line>
                         <line x1="3" y1="10" x2="21" y2="10"></line>
                       </svg>
-                      <span>暂无匹配比赛日程 (可点击右上角刷新比赛)</span>
+                      <span>暂无匹配比赛</span>
                     </div>
                   </td>
                 </tr>
@@ -1123,7 +1123,6 @@
                 <span class="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] font-mono">{{ mistakesCounts.total || 0 }}</span>
                 <span class="text-xs text-[var(--text-tertiary)]">题</span>
               </div>
-              <p class="text-[11px] text-[var(--text-muted)] mt-1">点击查看全部</p>
             </div>
 
             <!-- 今日待复习 (柔和琥珀色左侧指示线，无刺眼大红底) -->
@@ -1143,9 +1142,6 @@
                 </span>
                 <span class="text-xs text-[var(--text-tertiary)]">题</span>
               </div>
-              <p class="text-[11px] mt-1 text-[var(--text-muted)]">
-                {{ mistakesCounts.due > 0 ? '到期可复刷' : '暂无到期' }}
-              </p>
             </div>
 
             <!-- 训练中 -->
@@ -1162,7 +1158,6 @@
                 <span class="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] font-mono">{{ mistakesCounts.in_progress || 0 }}</span>
                 <span class="text-xs text-[var(--text-tertiary)]">题</span>
               </div>
-              <p class="text-[11px] text-[var(--text-muted)] mt-1">按周期间隔强化</p>
             </div>
 
             <!-- 已掌握 -->
@@ -1179,7 +1174,6 @@
                 <span class="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">{{ mistakesCounts.mastered || 0 }}</span>
                 <span class="text-xs text-[var(--text-tertiary)]">题</span>
               </div>
-              <p class="text-[11px] text-[var(--text-muted)] mt-1">已完成周期训练</p>
             </div>
           </div>
 
@@ -1385,10 +1379,7 @@
               <div class="w-11 h-11 mx-auto rounded-xl bg-[var(--apple-blue-subtle)] text-[var(--primary)] flex items-center justify-center">
                 <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
               </div>
-              <h3 class="text-sm font-bold text-[var(--text-primary)]">暂无错题记录</h3>
-              <p class="text-xs text-[var(--text-muted)] max-w-md mx-auto leading-relaxed">
-                可从「提交记录」中点击「入错题」，或点击上方「收录错题」添加题目。
-              </p>
+              <h3 class="text-sm font-bold text-[var(--text-primary)]">暂无错题</h3>
               <button @click="openAddToMistakesModal({}, false)" type="button" class="btn-primary text-xs px-4 py-2 inline-flex items-center space-x-1.5 mt-2">
                 <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 <span>收录错题</span>
@@ -1447,7 +1438,7 @@
                   <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                   </svg>
-                  <span>平台配置与获取指南 (点击{{ showGuide ? '收起' : '展开' }})</span>
+                  <span>配置指南</span>
                 </span>
                 <svg class="w-4 h-4 text-blue-500 transition-transform duration-200" :class="{ 'rotate-180': showGuide }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="6 9 12 15 18 9"></polyline>
@@ -1497,8 +1488,7 @@
                         <circle cx="12" cy="8" r="4"></circle>
                         <path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"></path>
                       </svg>
-                      <p class="text-[11px] text-[var(--text-tertiary)]">暂无绑定账号</p>
-                      <p class="text-[10px] text-[var(--text-muted)] mt-0.5">支持主号与多个练习小号</p>
+                      <p class="text-[11px] text-[var(--text-tertiary)]">暂无账号</p>
                     </div>
 
                     <!-- 账号卡片项 -->
@@ -1630,17 +1620,15 @@
                     </button>
                   </div>
                   <div class="flex items-center space-x-2">
-                    <input v-model.number="settingsForm.poll_interval_minutes" type="number" min="1" max="10080" placeholder="自定义分钟数 (1-10080)"
+                    <input v-model.number="settingsForm.poll_interval_minutes" type="number" min="1" max="10080" placeholder="分钟"
                            class="ui-input font-mono flex-1 text-xs">
                     <span class="text-[var(--text-secondary)] text-xs font-sans">分钟</span>
                   </div>
-                  <p class="text-[10px] text-[var(--text-muted)] mt-2 font-mono">当前：{{ formatPollInterval(settingsForm.poll_interval_minutes || 1440) }}自动校正一次</p>
                 </div>
                 <div>
-                  <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">出站代理（可选）</label>
+                  <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">出站代理</label>
                   <input v-model="settingsForm.http_proxy" type="text" placeholder="http://ip:port 或 socks5://ip:port" 
                          class="ui-input font-mono text-xs">
-                  <p class="text-[10px] text-[var(--text-muted)] mt-2">支持 HTTP / SOCKS5，留空直连</p>
                 </div>
               </div>
             </div>
@@ -1659,65 +1647,55 @@
                 <span class="text-[10px] text-[var(--text-tertiary)] font-mono">{{ glassMode ? '磨砂玻璃' : '纯净实色' }} · {{ uiScalePref === 'auto' ? '自动缩放' : uiScalePref + '%' }}</span>
               </div>
 
-              <!-- 独立开关：macOS 15 磨砂玻璃与立体纹理层次 -->
+              <!-- 独立开关：磨砂玻璃 -->
               <div class="glass-inner-tile flex items-center justify-between gap-4 p-3.5 rounded-xl">
-                <div class="space-y-0.5 min-w-0">
-                  <div class="flex items-center space-x-2">
-                    <span class="text-xs font-semibold text-[var(--text-primary)]">磨砂玻璃与立体层次</span>
-                    <span :class="['px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold', glassMode ? 'bg-[var(--apple-blue-subtle)] text-[var(--primary)]' : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]']">
-                      {{ glassMode ? '已开启' : '已关闭' }}
-                    </span>
-                  </div>
-                  <p class="text-[11px] text-[var(--text-muted)]">macOS 15 风格通透磨砂与立体微粒层次，纯静态光场，静止零额外 CPU / GPU 占用</p>
+                <div class="flex items-center space-x-2">
+                  <span class="text-xs font-semibold text-[var(--text-primary)]">磨砂玻璃</span>
+                  <span :class="['px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold', glassMode ? 'bg-[var(--apple-blue-subtle)] text-[var(--primary)]' : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]']">
+                    {{ glassMode ? '开' : '关' }}
+                  </span>
                 </div>
                 <button type="button"
                         role="switch"
                         :aria-checked="glassMode"
                         @click="toggleGlassMode"
-                        :class="['mac-switch', glassMode ? 'is-on' : '']"
-                        :title="glassMode ? '点击关闭磨砂玻璃（切换纯净实色）' : '点击开启 macOS 15 磨砂玻璃与立体层次'">
+                        :class="['mac-switch', glassMode ? 'is-on' : '']">
                   <span class="mac-switch-knob"></span>
                 </button>
               </div>
 
               <div>
-                <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">界面整体缩放比例 (即时生效并自动记忆)</label>
-                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                <label class="block text-[var(--text-secondary)] mb-2 text-[11px] font-medium">界面缩放</label>
+                <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   <button type="button" @click="setUiScalePref('auto')"
-                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
-                                   uiScalePref === 'auto' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
-                    <span class="font-semibold">自动</span>
-                    <span class="text-[9px] opacity-75">根据屏幕自适应</span>
+                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-semibold transition-all border',
+                                   uiScalePref === 'auto' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'glass-inner-tile text-[var(--text-secondary)] hover:text-[var(--text-primary)]']">
+                    自动
                   </button>
                   <button type="button" @click="setUiScalePref('100')"
-                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
-                                   uiScalePref === '100' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
-                    <span class="font-semibold">100%</span>
-                    <span class="text-[9px] opacity-75">标准 1080P</span>
+                          :class="['px-3 py-2 rounded-xl text-xs font-mono font-semibold transition-all border',
+                                   uiScalePref === '100' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'glass-inner-tile text-[var(--text-secondary)] hover:text-[var(--text-primary)]']">
+                    100%
                   </button>
                   <button type="button" @click="setUiScalePref('115')"
-                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
-                                   uiScalePref === '115' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
-                    <span class="font-semibold">115%</span>
-                    <span class="text-[9px] opacity-75">舒适微调</span>
+                          :class="['px-3 py-2 rounded-xl text-xs font-mono font-semibold transition-all border',
+                                   uiScalePref === '115' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'glass-inner-tile text-[var(--text-secondary)] hover:text-[var(--text-primary)]']">
+                    115%
                   </button>
                   <button type="button" @click="setUiScalePref('125')"
-                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
-                                   uiScalePref === '125' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
-                    <span class="font-semibold">125%</span>
-                    <span class="text-[9px] opacity-75">2K QHD 推荐</span>
+                          :class="['px-3 py-2 rounded-xl text-xs font-mono font-semibold transition-all border',
+                                   uiScalePref === '125' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'glass-inner-tile text-[var(--text-secondary)] hover:text-[var(--text-primary)]']">
+                    125%
                   </button>
                   <button type="button" @click="setUiScalePref('140')"
-                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
-                                   uiScalePref === '140' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
-                    <span class="font-semibold">140%</span>
-                    <span class="text-[9px] opacity-75">3K 宽屏</span>
+                          :class="['px-3 py-2 rounded-xl text-xs font-mono font-semibold transition-all border',
+                                   uiScalePref === '140' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'glass-inner-tile text-[var(--text-secondary)] hover:text-[var(--text-primary)]']">
+                    140%
                   </button>
                   <button type="button" @click="setUiScalePref('150')"
-                          :class="['px-3 py-2 rounded-xl text-xs font-sans font-medium transition-all border flex flex-col items-center justify-center space-y-0.5',
-                                   uiScalePref === '150' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-subtle)]']">
-                    <span class="font-semibold">150%</span>
-                    <span class="text-[9px] opacity-75">4K</span>
+                          :class="['px-3 py-2 rounded-xl text-xs font-mono font-semibold transition-all border',
+                                   uiScalePref === '150' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'glass-inner-tile text-[var(--text-secondary)] hover:text-[var(--text-primary)]']">
+                    150%
                   </button>
                 </div>
               </div>
@@ -1730,30 +1708,27 @@
                   <svg class="w-4 h-4 text-cyan-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
                   </svg>
-                  <span class="font-bold text-[var(--text-primary)] text-xs">本地代码监控服务 (macOS Agent)</span>
+                  <span class="font-bold text-[var(--text-primary)] text-xs">本地代码同步</span>
                 </div>
                 <span :class="['status-pill', overview.local_code?.has_data ? 'status-ok' : 'status-unconfigured']">
-                  {{ overview.local_code?.has_data ? '已连接同步' : '待配置连接' }}
+                  {{ overview.local_code?.has_data ? '已连接' : '未连接' }}
                 </span>
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">当前同步凭据 (Sync Token)</label>
+                  <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">Sync Token</label>
                   <div class="flex items-center space-x-2">
                     <input :value="token" readonly type="password" 
-                           class="ui-input font-mono text-xs flex-1 bg-[var(--bg-card)] cursor-not-allowed">
+                           class="ui-input font-mono text-xs flex-1 cursor-not-allowed">
                     <button type="button" @click="copySyncToken" 
                             class="btn-secondary text-xs px-3 py-2 flex items-center space-x-1 shrink-0">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
                       </svg>
-                      <span>{{ isTokenCopied ? '已复制' : '复制 Token' }}</span>
+                      <span>{{ isTokenCopied ? '已复制' : '复制' }}</span>
                     </button>
                   </div>
-                  <p class="text-[10px] text-[var(--text-muted)] mt-1.5">
-                    用于本地同步客户端 (<code class="font-mono text-[var(--primary)]">127.0.0.1:2054</code>) 认证
-                  </p>
                 </div>
 
                 <div class="glass-inner-tile p-3.5 rounded-xl space-y-2">
@@ -2046,35 +2021,23 @@
           <!-- Cookie 凭据 (洛谷与 AcWing) -->
           <div v-if="accountForm.platform === 'luogu' || accountForm.platform === 'acwing'">
             <label class="block text-[var(--text-secondary)] font-medium mb-1.5">
-              {{ accountForm.platform === 'luogu' ? 'Cookie (__client_id 字段)' : 'Cookie (sessionid 字段)' }}
+              {{ accountForm.platform === 'luogu' ? 'Cookie (__client_id)' : 'Cookie (sessionid)' }}
             </label>
             <input v-model="accountForm.cookie" type="text"
-                   :placeholder="accountForm.platform === 'luogu' ? '输入 __client_id' : '输入 sessionid'"
+                   :placeholder="accountForm.platform === 'luogu' ? '__client_id' : 'sessionid'"
                    class="ui-input font-mono text-xs w-full">
-            <p class="text-[10px] text-[var(--text-muted)] mt-1">用于抓取该平台的个人私有提交与做题记录。</p>
-          </div>
-          <div v-else class="p-2.5 rounded-xl bg-blue-500/5 border border-blue-500/20 text-[11px] text-blue-600 dark:text-blue-400 flex items-center space-x-2">
-            <svg class="w-4 h-4 shrink-0 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
-            <span>{{ getPlatformName(accountForm.platform) }} 支持公开 API，无需配置 Cookie 即可同步。</span>
           </div>
 
           <!-- 账号别名 / 备注 -->
           <div>
-            <label class="block text-[var(--text-secondary)] font-medium mb-1.5">账号别名 / 备注 (可选)</label>
-            <input v-model="accountForm.alias" type="text" placeholder="例如: 大号、刷题小号、被封旧号等"
+            <label class="block text-[var(--text-secondary)] font-medium mb-1.5">备注</label>
+            <input v-model="accountForm.alias" type="text" placeholder="可选"
                    class="ui-input text-xs w-full">
           </div>
 
           <!-- 是否主账号 -->
           <div class="flex items-center justify-between pt-1">
-            <div>
-              <span class="font-medium text-[var(--text-primary)]">设为该平台主账号</span>
-              <p class="text-[10px] text-[var(--text-muted)]">主账号将作为该平台的首要状态与展示代表</p>
-            </div>
+            <span class="font-medium text-[var(--text-primary)]">设为主账号</span>
             <input type="checkbox" v-model="accountForm.is_primary"
                    class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer">
           </div>
@@ -2317,7 +2280,6 @@
         ]">
           <div class="flex items-center justify-between text-xs text-[var(--text-tertiary)] font-medium mb-1.5 flex-shrink-0">
             <span>思路与代码</span>
-            <span class="text-[10px] text-[var(--text-muted)] font-mono hidden sm:inline">可按住右下角自由拖拽缩放大小</span>
           </div>
           <div id="mistake-markdown-content" 
                :class="[
@@ -2395,6 +2357,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=3.6.0"></script>
+  <script src="/static/app.js?v=3.7.0"></script>
 </body>
 </html>
