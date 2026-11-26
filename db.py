@@ -1021,8 +1021,8 @@ def get_daily_counts(user_id: int = 1, platform: str = "", year: Optional[int] =
                 params.append(platform)
             
         if year:
-            conditions.append("strftime('%Y', date) = ?")
-            params.append(str(year))
+            conditions.append("date >= ? AND date <= ?")
+            params.extend([f"{year}-01-01", f"{year}-12-31"])
             
         where_clause = " AND ".join(conditions)
         cursor.execute(f"""
@@ -1119,9 +1119,9 @@ def get_submission_years(user_id: int = 1) -> List[int]:
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT DISTINCT strftime('%Y', date) as yr 
-            FROM submissions 
-            WHERE user_id = ? AND date != '' AND date IS NOT NULL AND yr IS NOT NULL
+            SELECT DISTINCT substr(date, 1, 4) as yr
+            FROM submissions
+            WHERE user_id = ? AND date != '' AND date IS NOT NULL
             ORDER BY yr DESC;
         """, (user_id,))
         years = []

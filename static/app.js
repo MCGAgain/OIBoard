@@ -381,6 +381,8 @@ createApp({
     let lastKnownSyncTime = "";
     let lastHeatmapDataStr = "";
     let lastHeatmapRenderKey = "";
+    let lastHeatmapCanvasW = 0;
+    let lastHeatmapCanvasH = 0;
     let lastClimbingKey = "";
     let lastDailyKey = "";
     let lastTagChartKey = "";
@@ -390,6 +392,162 @@ createApp({
       poll_interval_minutes: "1440",
       http_proxy: "",
       sprint_mode: "false"
+    };
+
+    // --- 热力图两级本地缓存 (内存 Map + 按用户隔离的 localStorage) 与防竞态/预取控制 ---
+    const HEATMAP_PAST_YEAR_TTL_MS = 6 * 60 * 60 * 1000;   // 往年数据几乎不变，缓存 6 小时
+    const HEATMAP_CURR_YEAR_TTL_MS = 60 * 1000;            // 当年数据缓存 60 秒（超期先秒开旧缓存再后台静默刷新）
+    const heatmapMemoryCache = new Map();                  // key: `${platform}:${year}` -> { heatmap, str, ts }
+    const heatmapYearDatesCache = new Map();               // key: year -> Array<'YYYY-MM-DD'>
+    let heatmapCacheHydratedUid = null;
+    let heatmapRequestSeq = 0;
+    let heatmapPrefetchGen = 0;
+    let heatmapPrefetchTimer = null;
+
+    const getHeatmapStorageKey = () => {
+      const uid = currentUser.value?.id;
+      return uid ? `oiboard_heatmap_cache_v1_${uid}` : null;
+    };
+
+    const hydrateHeatmapCache = () => {
+      const uid = currentUser.value?.id || null;
+      if (!uid || heatmapCacheHydratedUid === uid) return;
+      heatmapMemoryCache.clear();
+      heatmapCacheHydratedUid = uid;
+      try {
+        const raw = localStorage.getItem(`oiboard_heatmap_cache_v1_${uid}`);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          if (Array.isArray(parsed.available_years) && parsed.available_years.length > 0 && availableHeatmapYears.value.length <= 1) {
+            availableHeatmapYears.value = parsed.available_years;
+          }
+          const entries = parsed.entries || {};
+          for (const [k, v] of Object.entries(entries)) {
+            if (v && Array.isArray(v.heatmap) && typeof v.ts === "number") {
+              heatmapMemoryCache.set(k, {
+                heatmap: v.heatmap,
+                str: JSON.stringify(v.heatmap),
+                ts: v.ts
+              });
+            }
+          }
+        }
+      } catch (e) {}
+    };
+
+    const persistHeatmapCache = () => {
+      const storageKey = getHeatmapStorageKey();
+      if (!storageKey) return;
+      try {
+        const entries = {};
+        // 最多保留最近 24 条 (platform:year) 组合，单条仅数 KB，轻量无压力
+        const list = Array.from(heatmapMemoryCache.entries())
+          .sort((a, b) => (b[1].ts || 0) - (a[1].ts || 0))
+          .slice(0, 24);
+        for (const [k, v] of list) {
+          entries[k] = { heatmap: v.heatmap, ts: v.ts };
+        }
+        localStorage.setItem(storageKey, JSON.stringify({
+          available_years: availableHeatmapYears.value || [],
+          entries
+        }));
+      } catch (e) {}
+    };
+
+    const getCachedHeatmapEntry = (platform, year) => {
+      hydrateHeatmapCache();
+      const entry = heatmapMemoryCache.get(`${platform}:${year}`);
+      if (!entry) return null;
+      const nowYear = new Date().getFullYear();
+      const ttl = Number(year) < nowYear ? HEATMAP_PAST_YEAR_TTL_MS : HEATMAP_CURR_YEAR_TTL_MS;
+      return {
+        ...entry,
+        fresh: (Date.now() - entry.ts) < ttl
+      };
+    };
+
+    const setCachedHeatmapEntry = (platform, year, heatmap, incomingStr) => {
+      hydrateHeatmapCache();
+      heatmapMemoryCache.set(`${platform}:${year}`, {
+        heatmap,
+        str: incomingStr || JSON.stringify(heatmap),
+        ts: Date.now()
+      });
+      persistHeatmapCache();
+    };
+
+    const cancelHeatmapPrefetch = () => {
+      heatmapPrefetchGen++;
+      if (heatmapPrefetchTimer) {
+        clearTimeout(heatmapPrefetchTimer);
+        heatmapPrefetchTimer = null;
+      }
+    };
+
+    const invalidateHeatmapCache = (clearStorage = true) => {
+      cancelHeatmapPrefetch();
+      heatmapMemoryCache.clear();
+      lastHeatmapDataStr = "";
+      if (clearStorage) {
+        const storageKey = getHeatmapStorageKey();
+        if (storageKey) {
+          try { localStorage.removeItem(storageKey); } catch (e) {}
+        }
+      }
+    };
+
+    const getYearDatesList = (year) => {
+      let list = heatmapYearDatesCache.get(year);
+      if (list) return list;
+      list = [];
+      const cursor = new Date(year, 0, 1);
+      while (cursor.getFullYear() === year) {
+        const mm = String(cursor.getMonth() + 1).padStart(2, "0");
+        const dd = String(cursor.getDate()).padStart(2, "0");
+        list.push(`${year}-${mm}-${dd}`);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      heatmapYearDatesCache.set(year, list);
+      return list;
+    };
+
+    const schedulePrefetchOtherYears = (platform) => {
+      if (!isLoggedIn.value) return;
+      const years = (availableHeatmapYears.value || []).filter(y => y !== selectedHeatmapYear.value);
+      if (years.length === 0) return;
+      const missingYears = years.filter(y => {
+        const c = getCachedHeatmapEntry(platform, y);
+        return !c || !c.fresh;
+      });
+      if (missingYears.length === 0) return;
+
+      cancelHeatmapPrefetch();
+      const gen = heatmapPrefetchGen;
+      heatmapPrefetchTimer = setTimeout(() => {
+        heatmapPrefetchTimer = null;
+        const runPrefetch = async () => {
+          for (const yr of missingYears) {
+            if (gen !== heatmapPrefetchGen || !isLoggedIn.value || document.hidden) return;
+            const existing = getCachedHeatmapEntry(platform, yr);
+            if (existing && existing.fresh) continue;
+            try {
+              const res = await apiFetch(`/api/stats/heatmap?platform=${platform}&year=${yr}`);
+              if (gen !== heatmapPrefetchGen) return;
+              const data = await res.json();
+              const incoming = data.heatmap || [];
+              setCachedHeatmapEntry(platform, yr, incoming, JSON.stringify(incoming));
+            } catch (e) {
+              return;
+            }
+          }
+        };
+        if (typeof window.requestIdleCallback === "function") {
+          window.requestIdleCallback(() => { runPrefetch(); }, { timeout: 2500 });
+        } else {
+          runPrefetch();
+        }
+      }, 650);
     };
 
     // 统一轮询调度器全局状态
@@ -445,6 +603,11 @@ createApp({
       lastKnownSyncTime = "";
       lastHeatmapDataStr = "";
       lastHeatmapRenderKey = "";
+      lastHeatmapCanvasW = 0;
+      lastHeatmapCanvasH = 0;
+      cancelHeatmapPrefetch();
+      heatmapMemoryCache.clear();
+      heatmapCacheHydratedUid = null;
       lastClimbingKey = "";
       lastDailyKey = "";
       lastTagChartKey = "";
@@ -1198,6 +1361,9 @@ createApp({
             });
           }
 
+          if (lastKnownTotalSubs !== -1 && newTotal !== lastKnownTotalSubs) {
+            invalidateHeatmapCache(true);
+          }
           lastKnownTotalSubs = newTotal;
           lastKnownSyncTime = newSync;
           // 移除原有的内部联动调用 loadHeatmap()，统一由调度器在周期内发起，彻底杜绝重复请求
@@ -1228,28 +1394,60 @@ createApp({
       }
     };
 
-    const loadHeatmap = async ({ throwOnError = false } = {}) => {
+    const loadHeatmap = async ({ throwOnError = false, useCacheFirst = true, forceNetwork = false } = {}) => {
+      const targetPlatform = heatmapFilter.value;
+      const targetYear = selectedHeatmapYear.value || new Date().getFullYear();
+      const reqSeq = ++heatmapRequestSeq;
+
+      // 1. 优先命中本地缓存，零延迟直接上屏
+      const cached = useCacheFirst ? getCachedHeatmapEntry(targetPlatform, targetYear) : null;
+      if (cached) {
+        const cachedChanged = cached.str !== lastHeatmapDataStr;
+        if (cachedChanged || rawHeatmap.value !== cached.heatmap) {
+          lastHeatmapDataStr = cached.str;
+          rawHeatmap.value = cached.heatmap;
+        }
+        if (currentTab.value === "overview") {
+          renderHeatmap(false);
+        }
+        // 缓存仍在有效期内且未强制刷新：跳过网络请求，直接返回
+        if (cached.fresh && !forceNetwork) {
+          schedulePrefetchOtherYears(targetPlatform);
+          return;
+        }
+      }
+
+      // 2. 拉取服务端最新数据（带防竞态序列校验，快速连续切换年份不会串数据）
       try {
-        const res = await apiFetch(`/api/stats/heatmap?platform=${heatmapFilter.value}&year=${selectedHeatmapYear.value}`);
+        const res = await apiFetch(`/api/stats/heatmap?platform=${targetPlatform}&year=${targetYear}`);
         const data = await res.json();
         const incomingHeatmap = data.heatmap || [];
         const incomingStr = JSON.stringify(incomingHeatmap);
+        const resolvedYear = data.year || targetYear;
+
+        if (data.available_years && data.available_years.length > 0) {
+          availableHeatmapYears.value = data.available_years;
+        }
+        setCachedHeatmapEntry(targetPlatform, resolvedYear, incomingHeatmap, incomingStr);
+
+        // 若请求返回期间用户已切换到其他年份或平台，仅写入缓存，不覆盖当前画面
+        if (reqSeq !== heatmapRequestSeq || heatmapFilter.value !== targetPlatform || selectedHeatmapYear.value !== resolvedYear) {
+          return;
+        }
+
         const dataChanged = incomingStr !== lastHeatmapDataStr;
         if (dataChanged) {
           lastHeatmapDataStr = incomingStr;
           rawHeatmap.value = incomingHeatmap;
         }
-        if (data.available_years && data.available_years.length > 0) {
-          availableHeatmapYears.value = data.available_years;
-        }
-        if (data.year) {
+        if (data.year && selectedHeatmapYear.value !== data.year) {
           selectedHeatmapYear.value = data.year;
         }
-        // 仅在数据确实发生变化且当前处于概览页时才发起非强制渲染（由哈希比对防重绘）
-        if (dataChanged && currentTab.value === "overview") {
+        if (currentTab.value === "overview") {
           await nextTick();
           renderHeatmap(false);
         }
+        schedulePrefetchOtherYears(targetPlatform);
       } catch (e) {
         console.error("加载 Heatmap 失败:", e);
         if (throwOnError) throw e;
@@ -1719,9 +1917,14 @@ createApp({
       const contentWidth = Math.ceil(cellSize * 54 + leftOffset + rightPadding);
       const contentHeight = Math.ceil(cellSize * 7 + topOffset + Math.round(cellSize * 1.2));
 
-      chartDom.style.width = `${contentWidth}px`;
-      chartDom.style.height = `${contentHeight}px`;
-      chartDom.style.margin = "0 auto";
+      const sizeChanged = contentWidth !== lastHeatmapCanvasW || contentHeight !== lastHeatmapCanvasH;
+      if (sizeChanged) {
+        chartDom.style.width = `${contentWidth}px`;
+        chartDom.style.height = `${contentHeight}px`;
+        chartDom.style.margin = "0 auto";
+        lastHeatmapCanvasW = contentWidth;
+        lastHeatmapCanvasH = contentHeight;
+      }
 
       let chart = echarts.getInstanceByDom(chartDom);
       if (!chart) {
@@ -1732,41 +1935,39 @@ createApp({
       const dark = isDark.value;
       const targetYear = selectedHeatmapYear.value || new Date().getFullYear();
       const rawList = rawHeatmap.value || [];
-      const currentDataStr = JSON.stringify(rawList);
-      const displayKey = `${targetYear}_${heatmapFilter.value}_${dark ? 'dark' : 'light'}_${cellSize}`;
+      const currentDataStr = lastHeatmapDataStr || JSON.stringify(rawList);
+      const displayKey = `${targetYear}_${heatmapFilter.value}_${dark ? 'dark' : 'light'}_${glassMode.value ? 'g1' : 'g0'}_${cellSize}`;
       const currentKey = `${displayKey}##${currentDataStr}`;
 
-      // A4 / A7-1: 真实数据内容与显示参数未变且非强制时跳过 clear() 和重绘
+      // A4 / A7-1: 真实数据内容与显示参数未变且非强制时跳过重绘
       if (!force && currentKey === lastHeatmapRenderKey) {
-        chart.resize();
+        if (sizeChanged) chart.resize();
         return;
       }
       lastHeatmapRenderKey = currentKey;
-      chart.clear();
 
       const startDateStr = `${targetYear}-01-01`;
       const endDateStr = `${targetYear}-12-31`;
 
-      // 补齐全年 365/366 天数据，确保空日期与有提交日期全部统一渲染为圆角方格（规避 ECharts calendar.itemStyle 忽略 borderRadius 的问题）
+      // 补齐全年 365/366 天数据（复用年份日期缓存，避免每次切年重复分配 366 个 Date 对象）
       const dayStatMap = new Map();
-      (rawHeatmap.value || []).forEach(item => {
-        if (item.date && item.date.startsWith(`${targetYear}`)) {
+      const yearPrefix = `${targetYear}`;
+      for (let i = 0; i < rawList.length; i++) {
+        const item = rawList[i];
+        if (item.date && item.date.startsWith(yearPrefix)) {
           dayStatMap.set(item.date, {
             count: item.count || 0,
             unique_ac: item.unique_ac || 0
           });
         }
-      });
+      }
 
-      const heatMapData = [];
-      const cursor = new Date(targetYear, 0, 1);
-      while (cursor.getFullYear() === targetYear) {
-        const mm = String(cursor.getMonth() + 1).padStart(2, "0");
-        const dd = String(cursor.getDate()).padStart(2, "0");
-        const dStr = `${targetYear}-${mm}-${dd}`;
+      const yearDates = getYearDatesList(targetYear);
+      const heatMapData = new Array(yearDates.length);
+      for (let i = 0; i < yearDates.length; i++) {
+        const dStr = yearDates[i];
         const st = dayStatMap.get(dStr);
-        heatMapData.push([dStr, st ? st.count : 0, st ? st.unique_ac : 0]);
-        cursor.setDate(cursor.getDate() + 1);
+        heatMapData[i] = [dStr, st ? st.count : 0, st ? st.unique_ac : 0];
       }
 
       // GitHub 风格分位数自适应 4 阶色深（确保不同刷题强度下 4 个绿色阶梯都清晰可辨）
@@ -1886,8 +2087,10 @@ createApp({
             fontFamily: "JetBrains Mono"
           }
         },
+        animation: false,
         series: [{
           type: "custom",
+          animation: false,
           coordinateSystem: "calendar",
           renderItem: function (params, api) {
             const center = api.coord([api.value(0)]);
@@ -1929,7 +2132,9 @@ createApp({
       };
 
       chart.setOption(option, true);
-      chart.resize();
+      if (sizeChanged) {
+        chart.resize();
+      }
     };
 
     // 1. 累计解题成长曲线 (Unique AC Progress Curve) - 数据与顶部 total_ac 严格一致
@@ -2445,27 +2650,27 @@ createApp({
 
     // --- Platform & Sync Actions ---
     const setHeatmapFilter = async (p) => {
+      if (heatmapFilter.value === p) return;
       heatmapFilter.value = p;
-      lastHeatmapDataStr = "";
+      // 立即滑动分段指示器，杜绝等待网络往返导致的点击卡顿感
+      nextTick(syncSegmentedThumbs);
       try {
-        await loadHeatmap();
+        await loadHeatmap({ useCacheFirst: true });
       } catch (e) {
         // handled
       }
-      if (currentTab.value === "overview") renderHeatmap(true);
-      nextTick(syncSegmentedThumbs);
     };
 
     const setHeatmapYear = async (yr) => {
+      if (selectedHeatmapYear.value === yr) return;
       selectedHeatmapYear.value = yr;
-      lastHeatmapDataStr = "";
+      // 立即滑动分段指示器，本地命中缓存时 1 帧内完成渲染
+      nextTick(syncSegmentedThumbs);
       try {
-        await loadHeatmap();
+        await loadHeatmap({ useCacheFirst: true });
       } catch (e) {
         // handled
       }
-      if (currentTab.value === "overview") renderHeatmap(true);
-      nextTick(syncSegmentedThumbs);
     };
 
     const syncNow = async (platform = "all") => {
@@ -2486,6 +2691,7 @@ createApp({
         } else {
           showToast("部分平台同步失败", "error");
         }
+        invalidateHeatmapCache(true);
         await reloadAllData();
       } catch (e) {
         if (e.message !== "UNAUTHORIZED") {
@@ -2750,7 +2956,8 @@ createApp({
         }
         const count = data.count !== undefined ? data.count : (data.new_submissions !== undefined ? data.new_submissions : 0);
         showToast(`[${account.alias || account.handle}] 同步完成: +${count} 发`, "success");
-        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadDueMistakes(), loadMistakeKeys()]);
+        invalidateHeatmapCache(true);
+        await Promise.all([loadAccounts(), loadOverview(), loadHeatmap({ forceNetwork: true }), loadSubmissions(), loadMistakes(), loadDueMistakes(), loadMistakeKeys()]);
         if (currentTab.value === "overview") {
           renderHeatmap();
           renderActiveChart();
@@ -2817,7 +3024,8 @@ createApp({
         } else {
           showToast(`${getPlatformName(platform)} 同步完成: ${syncMsg || "已获取最新数据"}`, "success");
         }
-        await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadDueMistakes(), loadMistakeKeys()]);
+        invalidateHeatmapCache(true);
+        await Promise.all([loadAccounts(), loadOverview(), loadHeatmap({ forceNetwork: true }), loadSubmissions(), loadMistakes(), loadDueMistakes(), loadMistakeKeys()]);
         if (currentTab.value === "overview") {
           renderHeatmap();
           renderActiveChart();
