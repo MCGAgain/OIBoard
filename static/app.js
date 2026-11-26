@@ -116,7 +116,7 @@ createApp({
     const heatmapFilter = ref("all");
     const selectedHeatmapYear = ref(new Date().getFullYear());
     const availableHeatmapYears = ref([new Date().getFullYear()]);
-    const heatmapLegendTips = ref(["1 次提交", "2-3 次提交", "4-6 次提交", "≥7 次提交"]);
+    const heatmapLegendTips = ref(["1 发", "2-3 发", "4-6 发", "≥7 发"]);
     const tagStats = ref([]);
     const mistakes = ref([]);
     const dueMistakesList = ref([]);
@@ -1514,7 +1514,7 @@ createApp({
           if (data.mistake.status === "mastered") {
             showToast("已掌握", "success");
           } else {
-            showToast(`已打卡，下次 ${data.mistake.next_review_at}`, "success");
+            showToast(`已补刷，下次 ${data.mistake.next_review_at}`, "success");
           }
           await loadMistakes();
           await loadDueMistakes();
@@ -1535,7 +1535,7 @@ createApp({
         const res = await apiFetch(`/api/mistakes/${item.id}/toggle-master`, { method: "POST" });
         if (res.ok) {
           const data = await res.json();
-          showToast(data.mistake.status === "mastered" ? "已掌握" : "已恢复复习", "success");
+          showToast(data.mistake.status === "mastered" ? "已掌握" : "已恢复补刷", "success");
           await loadMistakes();
           await loadDueMistakes();
           if (activeMistake.value && activeMistake.value.id === item.id) {
@@ -1786,10 +1786,10 @@ createApp({
       }
 
       heatmapLegendTips.value = [
-        t1 === 1 ? "1 次提交" : `1-${t1} 次提交`,
-        t1 + 1 === t2 ? `${t2} 次提交` : `${t1 + 1}-${t2} 次提交`,
-        t2 + 1 === t3 ? `${t3} 次提交` : `${t2 + 1}-${t3} 次提交`,
-        `≥${t3 + 1} 次提交`
+        t1 === 1 ? "1 发" : `1-${t1} 发`,
+        t1 + 1 === t2 ? `${t2} 发` : `${t1 + 1}-${t2} 发`,
+        t2 + 1 === t3 ? `${t3} 发` : `${t2 + 1}-${t3} 发`,
+        `≥${t3 + 1} 发`
       ];
 
       // GitHub + 新洛谷风格双主题单色绿调色板（每格带细腻圆角描边分割，亮/暗模式均清晰克制）
@@ -1842,9 +1842,9 @@ createApp({
             if (subs <= 0) {
               html += `<div class="text-xs mt-1 font-sans" style="color: ${dark ? '#7d8590' : '#8c959f'};">暂无提交</div>`;
             } else {
-              html += `<div class="text-xs font-bold mt-1 font-sans" style="color: ${dark ? '#39d353' : '#1a7f37'};">提交: ${subs} 次</div>`;
+              html += `<div class="text-xs font-bold mt-1 font-sans" style="color: ${dark ? '#39d353' : '#1a7f37'};">提交: ${subs} 发</div>`;
               if (ac > 0) {
-                html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color: ${dark ? '#9ca3af' : '#57606a'};">通过: ${ac} 题</div>`;
+                html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color: ${dark ? '#9ca3af' : '#57606a'};">AC: ${ac} 题</div>`;
               }
             }
             return html;
@@ -2072,9 +2072,9 @@ createApp({
             const realVal = values[idx]; // 始终显示真实的整数累计通过量
             const newCount = newAcs[idx] || 0;
             let html = `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div>`;
-            html += `<div class="text-xs font-bold mt-1 font-sans" style="color:${dark ? '#2997ff' : '#0071e3'}">累计通过: ${realVal} 题</div>`;
+            html += `<div class="text-xs font-bold mt-1 font-sans" style="color:${dark ? '#2997ff' : '#0071e3'}">累计 AC: ${realVal} 题</div>`;
             if (newCount > 0) {
-              html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color:${dark ? '#30d158' : '#34c759'}">当日新增: +${newCount} 题</div>`;
+              html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color:${dark ? '#30d158' : '#34c759'}">当日新过: +${newCount} 题</div>`;
             }
             return html;
           }
@@ -2107,7 +2107,7 @@ createApp({
           axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
         },
         series: [{
-          name: "累计通过题目",
+          name: "累计 AC",
           type: "line",
           smooth: isCurveSmooth.value ? 0.45 : false,
           showSymbol: false,
@@ -2201,11 +2201,11 @@ createApp({
             const ac = acList[idx] || 0;
             const total = totalList[idx] || 0;
             let html = `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${date}</div>`;
-            html += `<div class="text-xs font-bold mt-1 font-sans" style="color: ${dark ? '#2997ff' : '#0071e3'}">通过题目: ${ac} 题</div>`;
-            html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">提交次数: ${total} 次</div>`;
+            html += `<div class="text-xs font-bold mt-1 font-sans" style="color: ${dark ? '#2997ff' : '#0071e3'}">过题 (AC): ${ac} 题</div>`;
+            html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">总提交: ${total} 发</div>`;
             if (total > 0) {
               const rate = Math.round((ac / total) * 100);
-              html += `<div class="text-[11px] font-mono mt-0.5" style="color: ${dark ? '#30d158' : '#34c759'}">通过率: ${rate}%</div>`;
+              html += `<div class="text-[11px] font-mono mt-0.5" style="color: ${dark ? '#30d158' : '#34c759'}">过题率: ${rate}%</div>`;
             }
             return html;
           }
@@ -2218,7 +2218,7 @@ createApp({
             fontSize: getChartFontSize(11),
             fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif'
           },
-          data: ["通过题目 (AC)", "未通过提交"]
+          data: ["AC 过题", "非 AC 提交"]
         },
         grid: {
           left: "3%",
@@ -2240,7 +2240,7 @@ createApp({
         },
         series: [
           {
-            name: "通过题目 (AC)",
+            name: "AC 过题",
             type: "bar",
             stack: "total",
             barMaxWidth: 16,
@@ -2251,7 +2251,7 @@ createApp({
             data: acList
           },
           {
-            name: "未通过提交",
+            name: "非 AC 提交",
             type: "bar",
             stack: "total",
             barMaxWidth: 16,
@@ -2312,7 +2312,7 @@ createApp({
           formatter: function (params) {
             const p = params[0];
             const col = dark ? '#2997ff' : '#0071e3';
-            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div><div class="text-xs font-bold mt-1 font-sans" style="color:${col}">通过题数: ${p.value} 题</div>`;
+            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div><div class="text-xs font-bold mt-1 font-sans" style="color:${col}">AC 题数: ${p.value} 题</div>`;
           }
         },
         grid: {
@@ -2334,7 +2334,7 @@ createApp({
           axisLabel: { color: dark ? "#f5f5f7" : "#1d1d1f", fontSize: getChartFontSize(11), fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }
         },
         series: [{
-          name: "通过题数",
+          name: "AC 题数",
           type: "bar",
           data: acData,
           itemStyle: {
@@ -2404,7 +2404,7 @@ createApp({
           textStyle: { color: dark ? "#a1a1a6" : "#6e6e73", fontSize: getChartFontSize(11), fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif' }
         },
         series: [{
-          name: "通过题量分布",
+          name: "各平台 AC 分布",
           type: "pie",
           radius: ["45%", "70%"],
           center: ["50%", "48%"],
@@ -2749,7 +2749,7 @@ createApp({
           return;
         }
         const count = data.count !== undefined ? data.count : (data.new_submissions !== undefined ? data.new_submissions : 0);
-        showToast(`[${account.alias || account.handle}] 同步完成: 成功获取 ${count} 条提交记录`, "success");
+        showToast(`[${account.alias || account.handle}] 同步完成: +${count} 发`, "success");
         await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadDueMistakes(), loadMistakeKeys()]);
         if (currentTab.value === "overview") {
           renderHeatmap();
@@ -2943,10 +2943,10 @@ createApp({
       const dueLen = dueMistakesList.value.length;
       const cLen = upcoming3dContests.value.length;
       if (dueLen > 0) {
-        return `${dueLen} 道错题待完成`;
+        return `${dueLen} 题待补刷`;
       }
       if (cLen > 0) {
-        return `近 3 天有 ${cLen} 场比赛`;
+        return `近 3 天 ${cLen} 场待打`;
       }
       return "近期日程与错题";
     });
@@ -2959,7 +2959,7 @@ createApp({
         const plat = getContestShortPlatform(nearest.platform);
         const t = formatContestShortTime(nearest.start_time);
         if (dueLen > 0) {
-          return `近3天 ${list.length} 场比赛 · 最近 ${plat} ${t}`;
+          return `近3天 ${list.length} 场待打 · 最近 ${plat} ${t}`;
         }
         return `最近 ${plat} · ${t} · ${nearest.name}`;
       }
