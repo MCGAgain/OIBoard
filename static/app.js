@@ -3055,7 +3055,7 @@ createApp({
             notifyState.value = "orb";
           }
           notifyCollapseSeqTimer = null;
-        }, 210);
+        }, 195);
       } else {
         notifyState.value = "orb";
       }
