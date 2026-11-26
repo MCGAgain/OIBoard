@@ -2114,6 +2114,16 @@ createApp({
           trigger: "item",
           appendToBody: true,
           confine: false,
+          position: function (point, params, dom, rect, size) {
+            const x = point[0];
+            const y = point[1];
+            const boxW = (size && size.contentSize && size.contentSize[0]) || 130;
+            const boxH = (size && size.contentSize && size.contentSize[1]) || 56;
+            const viewW = (size && size.viewSize && size.viewSize[0]) || contentWidth;
+            const left = (x + boxW + 16 > viewW) ? Math.max(8, x - boxW - 14) : (x + 14);
+            const top = Math.max(-boxH, y - boxH / 2);
+            return [left, top];
+          },
           padding: [9, 14],
           backgroundColor: dark ? (glassMode.value ? "rgba(22, 27, 38, 0.80)" : "rgba(22, 27, 34, 0.96)") : (glassMode.value ? "rgba(255, 255, 255, 0.82)" : "rgba(255, 255, 255, 0.96)"),
           borderColor: dark ? "rgba(255, 255, 255, 0.14)" : "rgba(15, 23, 42, 0.09)",
@@ -2127,6 +2137,7 @@ createApp({
             ? "border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); z-index: 99999;"
             : "border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
           formatter: function (p) {
+            if (!p || !Array.isArray(p.value)) return "";
             const date = p.value[0];
             const subs = p.value[1] || 0;
             const ac = p.value[2] || 0;
@@ -2142,21 +2153,11 @@ createApp({
             return html;
           }
         },
-        visualMap: {
-          type: "piecewise",
-          show: false,
-          dimension: 1,
-          pieces: [
-            { max: 0, color: ghPalette.empty },
-            { min: 1, max: t1, color: ghPalette.l1 },
-            { min: t1 + 1, max: t2, color: ghPalette.l2 },
-            { min: t2 + 1, max: t3, color: ghPalette.l3 },
-            { min: t3 + 1, color: ghPalette.l4 }
-          ]
-        },
         calendar: {
           top: topOffset,
           left: leftOffset,
+          z: 1,
+          silent: true,
           cellSize: [cellSize, cellSize], /* 动态正方形单元格 [cellSize, cellSize] 严格 1:1 */
           range: [startDateStr, endDateStr],
           itemStyle: {
@@ -2181,8 +2182,13 @@ createApp({
         animation: false,
         series: [{
           type: "custom",
+          z: 5,
           animation: false,
           coordinateSystem: "calendar",
+          encode: {
+            calendar: 0,
+            tooltip: [0, 1, 2]
+          },
           renderItem: function (params, api) {
             const center = api.coord([api.value(0)]);
             if (!center) return null;
@@ -2197,25 +2203,49 @@ createApp({
                     ? ghPalette.l3
                     : ghPalette.l4;
             return {
-              type: "rect",
-              shape: {
-                x: center[0] - boxSize / 2,
-                y: center[1] - boxSize / 2,
-                width: boxSize,
-                height: boxSize,
-                r: boxRadius
-              },
-              style: {
-                fill: fillColor,
-                stroke: count === 0 ? ghPalette.emptyBorder : ghPalette.activeBorder,
-                lineWidth: 1
-              },
-              emphasis: {
-                style: {
-                  stroke: dark ? "#c9d1d9" : "#1f2328",
-                  lineWidth: 1.4
+              type: "group",
+              children: [
+                {
+                  type: "rect",
+                  silent: false,
+                  shape: {
+                    x: center[0] - cellSize / 2,
+                    y: center[1] - cellSize / 2,
+                    width: cellSize,
+                    height: cellSize
+                  },
+                  style: {
+                    fill: "rgba(0, 0, 0, 0)"
+                  },
+                  emphasis: {
+                    style: {
+                      fill: "rgba(0, 0, 0, 0)"
+                    }
+                  }
+                },
+                {
+                  type: "rect",
+                  silent: false,
+                  shape: {
+                    x: center[0] - boxSize / 2,
+                    y: center[1] - boxSize / 2,
+                    width: boxSize,
+                    height: boxSize,
+                    r: boxRadius
+                  },
+                  style: {
+                    fill: fillColor,
+                    stroke: count === 0 ? ghPalette.emptyBorder : ghPalette.activeBorder,
+                    lineWidth: 1
+                  },
+                  emphasis: {
+                    style: {
+                      stroke: dark ? "#c9d1d9" : "#1f2328",
+                      lineWidth: 1.4
+                    }
+                  }
                 }
-              }
+              ]
             };
           },
           data: heatMapData
