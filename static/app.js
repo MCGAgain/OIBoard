@@ -558,9 +558,9 @@ createApp({
         doSwitch();
       }
       const desc = mode === "auto"
-        ? `自动模式 (${isDark.value ? '深色' : '浅色'})`
-        : (mode === "dark" ? "深色模式" : "浅色模式");
-      showToast(`外观已切换为 ${desc}`, "info");
+        ? `自动 (${isDark.value ? '深色' : '浅色'})`
+        : (mode === "dark" ? "深色" : "浅色");
+      showToast(`外观: ${desc}`, "info");
     };
 
     // --- UI Scale Engine & High-DPI Adaptation ---
@@ -583,7 +583,7 @@ createApp({
           renderActiveChart(true);
         });
       }
-      showToast(glassMode.value ? "已开启磨砂玻璃与立体层次" : "已切换为纯净实色模式", "info");
+      showToast(glassMode.value ? "已开启磨砂玻璃" : "已关闭磨砂玻璃", "info");
     };
 
     // 动态依据根元素实际 px 大小计算 ECharts 矢量字号，保证 2K/4K/大字号下文字清晰比例协调
@@ -625,7 +625,7 @@ createApp({
         '140': '140% (3K 宽屏)',
         '150': '150% (4K UHD 推荐)'
       };
-      showToast(`界面缩放已设置为 ${labelMap[scale] || (scale + '%')}`, "info");
+      showToast(`缩放: ${labelMap[scale] || (scale + '%')}`, "info");
     };
 
     // --- Toast 消息提示 ---
@@ -896,12 +896,12 @@ createApp({
       }
       navigator.clipboard.writeText(tok).then(() => {
         isTokenCopied.value = true;
-        showToast("Token 已复制到剪贴板，请前往本地服务粘贴", "success");
+        showToast("Token 已复制", "success");
         setTimeout(() => {
           isTokenCopied.value = false;
         }, 3000);
       }).catch(() => {
-        showToast("复制失败，请手动在控制台查看", "error");
+        showToast("复制失败", "error");
       });
     };
 
@@ -1218,7 +1218,7 @@ createApp({
           }
         });
         if (hasWarning) {
-          warningBanner.value = "部分平台连接存在告警，请在平台设置中检查账号凭证与网络连接。";
+          warningBanner.value = "部分平台连接异常";
         } else {
           warningBanner.value = "";
         }
@@ -1487,13 +1487,13 @@ createApp({
     };
 
     const deleteMistakeItem = async (item) => {
-      if (!confirm(`确定要将题目 [${item.problem_id}] ${item.problem_title} 从错题集中移除吗？`)) {
+      if (!confirm(`移除错题 [${item.problem_id}] ${item.problem_title}？`)) {
         return;
       }
       try {
         const res = await apiFetch(`/api/mistakes/${item.id}`, { method: "DELETE" });
         if (res.ok) {
-          showToast("已从错题集移除", "success");
+          showToast("已移除", "success");
           await loadMistakes();
           await loadDueMistakes();
           await loadMistakeKeys();
@@ -1511,11 +1511,10 @@ createApp({
         const res = await apiFetch(`/api/mistakes/${item.id}/review`, { method: "POST" });
         if (res.ok) {
           const data = await res.json();
-          const newCount = data.mistake.review_count;
           if (data.mistake.status === "mastered") {
-            showToast(`已完成第 ${newCount} 次复习，已标记为掌握`, "success");
+            showToast("已掌握", "success");
           } else {
-            showToast(`已记录复习，下次复习: ${data.mistake.next_review_at}`, "success");
+            showToast(`已打卡，下次 ${data.mistake.next_review_at}`, "success");
           }
           await loadMistakes();
           await loadDueMistakes();
@@ -1523,7 +1522,7 @@ createApp({
             activeMistake.value = data.mistake;
           }
         } else {
-          showToast("记录失败，请重试", "error");
+          showToast("记录失败", "error");
         }
       } catch (e) {
         console.error("记录复习失败:", e);
@@ -1536,11 +1535,7 @@ createApp({
         const res = await apiFetch(`/api/mistakes/${item.id}/toggle-master`, { method: "POST" });
         if (res.ok) {
           const data = await res.json();
-          if (data.mistake.status === "mastered") {
-            showToast("已标记为掌握", "success");
-          } else {
-            showToast("已恢复为训练状态", "success");
-          }
+          showToast(data.mistake.status === "mastered" ? "已掌握" : "已恢复复习", "success");
           await loadMistakes();
           await loadDueMistakes();
           if (activeMistake.value && activeMistake.value.id === item.id) {
@@ -1566,7 +1561,7 @@ createApp({
 
     const renderMarkdown = (content) => {
       if (!content || !content.trim()) {
-        return "<p class='text-[var(--text-muted)] text-xs italic'>暂无详细代码或笔记，可点击上方「编辑」补充思路与AC代码。</p>";
+        return "<p class='text-[var(--text-muted)] text-xs italic'>暂无笔记</p>";
       }
       if (window.marked) {
         try {
@@ -2487,9 +2482,9 @@ createApp({
           overview.value.last_sync_time = data.data.synced_at;
         }
         if (data.success) {
-          showToast("全平台数据同步完成！", "success");
+          showToast("同步完成", "success");
         } else {
-          showToast("部分平台同步未成功，请检查状态", "error");
+          showToast("部分平台同步失败", "error");
         }
         await reloadAllData();
       } catch (e) {
@@ -2520,16 +2515,16 @@ createApp({
         settingsForm.value.sprint_mode = next;
         settingsBaseline.sprint_mode = next;
         const regularMins = configs.value.poll_interval_minutes || "1440";
-        showToast(next === "true" ? "已开启刷题冲刺模式 (5分钟)" : `已切换为日常校正 (${formatPollInterval(regularMins)})`, "success");
+        showToast(next === "true" ? "已切换: 5分钟冲刺" : `已切换: ${formatPollInterval(regularMins)}`, "success");
       } catch (e) {
-        showToast("切换模式失败", "error");
+        showToast("切换失败", "error");
       }
     };
 
     const saveSystemSettingsOnly = async () => {
       const proxy = (settingsForm.value.http_proxy || "").trim();
       if (proxy && !/^(http|https|socks5|socks5h|socks4):\/\//i.test(proxy)) {
-        showToast("代理地址格式错误：必须以 http:// 或 socks5:// 开头（例如 http://127.0.0.1:7890）", "error");
+        showToast("代理需以 http:// 或 socks5:// 开头", "error");
         return;
       }
       isSavingSystem.value = true;
@@ -2550,7 +2545,7 @@ createApp({
           configs.value.http_proxy = payload.http_proxy;
           settingsBaseline.poll_interval_minutes = minsStr;
           settingsBaseline.http_proxy = proxy;
-          showToast(`参数已保存（${formatPollInterval(minsStr)}校正一次）`, "success");
+          showToast("参数已保存", "success");
         } else {
           showToast(data.detail || data.message || "保存失败", "error");
         }
@@ -2564,7 +2559,7 @@ createApp({
     const saveSettingsAndSync = async () => {
       const proxy = (settingsForm.value.http_proxy || "").trim();
       if (proxy && !/^(http|https|socks5|socks5h|socks4):\/\//i.test(proxy)) {
-        showToast("代理地址格式错误：必须以 http:// 或 socks5:// 开头（例如 http://127.0.0.1:7890）", "error");
+        showToast("代理需以 http:// 或 socks5:// 开头", "error");
         return;
       }
       isSaving.value = true;
@@ -2589,7 +2584,7 @@ createApp({
             poll_interval_minutes: minsStr,
             http_proxy: proxy
           };
-          showToast("配置保存成功，正在同步最新数据...", "success");
+          showToast("已保存，正在同步", "success");
           currentTab.value = "overview"; // 自动平滑切回总览看板
           await syncNow("all");
         } else {
@@ -2700,7 +2695,7 @@ createApp({
     };
 
     const handleDeleteAccount = async (account) => {
-      if (!confirm(`确定要移除账号 [${account.alias || account.handle}] 吗？\n注意：历史已抓取的提交记录与做题统计仍将安全保留。`)) {
+      if (!confirm(`移除账号 [${account.alias || account.handle}]？（历史记录将保留）`)) {
         return;
       }
       try {
@@ -3056,15 +3051,18 @@ createApp({
       const vw = viewportSize.value.w || window.innerWidth;
       const vh = viewportSize.value.h || window.innerHeight;
       const margin = 12;
-      // 始终以展开态宽度钳制最大边距离，确保展开/收起过程中边缘锚点坐标保持绝对不变
+      const sideX = anchor.sideX === "left" ? "left" : "right";
+      const sideY = anchor.sideY === "top" ? "top" : "bottom";
+      // 手机竖屏（<768px）底部留出底部导航栏安全区，避免悬浮通知遮挡导航按钮
+      const minEdgeY = (vw < 768 && sideY === "bottom") ? 76 : margin;
       const barW = Math.min(352, vw - margin * 2);
       const maxEdgeX = Math.max(margin, vw - barW - margin);
-      const maxEdgeY = Math.max(margin, vh - 46 - margin);
+      const maxEdgeY = Math.max(minEdgeY, vh - 46 - margin);
       return {
-        sideX: anchor.sideX === "left" ? "left" : "right",
-        sideY: anchor.sideY === "top" ? "top" : "bottom",
+        sideX,
+        sideY,
         edgeX: Math.round(Math.max(margin, Math.min(anchor.edgeX, maxEdgeX))),
-        edgeY: Math.round(Math.max(margin, Math.min(anchor.edgeY, maxEdgeY)))
+        edgeY: Math.round(Math.max(minEdgeY, Math.min(anchor.edgeY, maxEdgeY)))
       };
     };
 
