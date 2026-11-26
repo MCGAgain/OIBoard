@@ -234,40 +234,40 @@ html[data-glass="on"].dark body::after {
   mask-image: radial-gradient(ellipse 84% 78% at 50% 36%, #000 28%, transparent 100%);
 }
 
-/* Tier 1: 主卡片 — macOS 15 真实通透磨砂玻璃 + 顶光微折射 + 双层物理倒角 */
+/* Tier 1: 主卡片 — 克制 macOS 15 磨砂玻璃（柔化透光与饱和度，保留通透层次与轻盈倒角） */
 html[data-glass="on"] .ui-card,
 html[data-glass="on"] .apple-card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.60) 0%, rgba(250, 252, 255, 0.48) 100%);
-  border-color: rgba(255, 255, 255, 0.80);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.70) 0%, rgba(251, 252, 255, 0.62) 100%);
+  border-color: rgba(255, 255, 255, 0.72);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.06),
-    0 0 0 1px rgba(15, 23, 42, 0.065),
-    0 12px 30px -14px rgba(15, 23, 42, 0.17);
-  -webkit-backdrop-filter: blur(16px) saturate(185%);
-  backdrop-filter: blur(16px) saturate(185%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.045),
+    0 0 0 1px rgba(15, 23, 42, 0.06),
+    0 10px 26px -14px rgba(15, 23, 42, 0.14);
+  -webkit-backdrop-filter: blur(15px) saturate(155%);
+  backdrop-filter: blur(15px) saturate(155%);
 }
 
 html[data-glass="on"].dark .ui-card,
 html[data-glass="on"].dark .apple-card {
-  background: linear-gradient(180deg, rgba(26, 32, 46, 0.60) 0%, rgba(16, 20, 30, 0.52) 100%);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(25, 31, 44, 0.70) 0%, rgba(16, 20, 30, 0.63) 100%);
+  border-color: rgba(255, 255, 255, 0.105);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.50),
-    0 14px 36px -14px rgba(0, 0, 0, 0.72);
-  -webkit-backdrop-filter: blur(16px) saturate(170%);
-  backdrop-filter: blur(16px) saturate(170%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.11),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 12px 32px -14px rgba(0, 0, 0, 0.68);
+  -webkit-backdrop-filter: blur(15px) saturate(148%);
+  backdrop-filter: blur(15px) saturate(148%);
 }
 
 html[data-glass="on"] .ui-card:hover,
 html[data-glass="on"] .apple-card:hover {
-  border-color: rgba(255, 255, 255, 0.96);
+  border-color: rgba(255, 255, 255, 0.88);
 }
 
 html[data-glass="on"].dark .ui-card:hover,
 html[data-glass="on"].dark .apple-card:hover {
-  border-color: rgba(255, 255, 255, 0.19);
+  border-color: rgba(255, 255, 255, 0.165);
 }
 
 /* Tier 2: 卡片内部嵌套子区块（不叠加第二层 backdrop-filter，用通透内凹/浮雕玻璃色阶塑造真实层次且零额外 GPU 开销） */
@@ -278,20 +278,20 @@ html[data-glass="on"].dark .apple-card:hover {
 }
 
 html[data-glass="on"] .glass-subcard {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.52) 0%, rgba(242, 246, 252, 0.42) 100%);
-  border-color: rgba(15, 23, 42, 0.085);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.58) 0%, rgba(244, 247, 252, 0.50) 100%);
+  border-color: rgba(15, 23, 42, 0.08);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.86),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.03),
-    0 2px 6px -2px rgba(15, 23, 42, 0.05);
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.025),
+    0 2px 6px -2px rgba(15, 23, 42, 0.04);
 }
 
 html[data-glass="on"].dark .glass-subcard {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055) 0%, rgba(10, 14, 22, 0.40) 100%);
-  border-color: rgba(255, 255, 255, 0.09);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.048) 0%, rgba(12, 16, 24, 0.46) 100%);
+  border-color: rgba(255, 255, 255, 0.085);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.085),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.42);
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.38);
 }
 
 /* Tier 2.5: 子卡片内部小块（设置页账号项 / 统计盒 / 开关条），玻璃态下通透融入而非死白实色贴片 */
@@ -301,15 +301,15 @@ html[data-glass="on"].dark .glass-subcard {
 }
 
 html[data-glass="on"] .glass-inner-tile {
-  background: rgba(255, 255, 255, 0.56);
-  border-color: rgba(15, 23, 42, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.66);
+  border-color: rgba(15, 23, 42, 0.075);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.80);
 }
 
 html[data-glass="on"].dark .glass-inner-tile {
   background: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.085);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
 }
 
 html[data-glass="on"] .heatmap-container-outer {
