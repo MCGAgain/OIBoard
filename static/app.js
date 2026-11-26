@@ -1715,28 +1715,30 @@ createApp({
         `≥${t3 + 1} 次提交`
       ];
 
-      // GitHub 官方单色绿调色板（浅色/深色）
+      // GitHub + 新洛谷风格双主题单色绿调色板（每格带细腻圆角描边分割，亮/暗模式均清晰克制）
       const ghPalette = dark
         ? {
-            empty: "#1b2028",
-            emptyBorder: "rgba(255, 255, 255, 0.04)",
+            empty: "#191e26",
+            emptyBorder: "rgba(255, 255, 255, 0.095)",
+            activeBorder: "rgba(255, 255, 255, 0.13)",
             l1: "#0e4429",
             l2: "#006d32",
             l3: "#26a641",
             l4: "#39d353"
           }
         : {
-            empty: "#ebedf0",
-            emptyBorder: "rgba(27, 31, 35, 0.05)",
+            empty: "#f0f2f5",
+            emptyBorder: "rgba(15, 23, 42, 0.10)",
+            activeBorder: "rgba(15, 23, 42, 0.12)",
             l1: "#9be9a8",
             l2: "#40c463",
             l3: "#30a14e",
             l4: "#216e39"
           };
 
-      const cellGap = cellSize >= 24 ? 4 : 3;
+      const cellGap = cellSize >= 24 ? 4.5 : 3.5;
       const boxSize = Math.max(6, cellSize - cellGap);
-      const boxRadius = Math.max(3, Math.round(boxSize * 0.26));
+      const boxRadius = Math.max(3.5, Math.round(boxSize * 0.25));
 
       const option = {
         tooltip: {
@@ -1832,13 +1834,13 @@ createApp({
               },
               style: {
                 fill: fillColor,
-                stroke: count === 0 ? ghPalette.emptyBorder : "transparent",
-                lineWidth: count === 0 ? 1 : 0
+                stroke: count === 0 ? ghPalette.emptyBorder : ghPalette.activeBorder,
+                lineWidth: 1
               },
               emphasis: {
                 style: {
-                  stroke: dark ? "#8b949e" : "#1f2328",
-                  lineWidth: 1.25
+                  stroke: dark ? "#c9d1d9" : "#1f2328",
+                  lineWidth: 1.4
                 }
               }
             };
@@ -2883,19 +2885,24 @@ createApp({
     });
 
     const notifyState = ref("orb"); // 'orb' | 'bar' | 'detail'
-    let savedNotifyPos = null;
+    // 边缘锚定坐标（跨屏幕/缩放及长条<->图标伸缩全程原地稳定，彻底杜绝先缩到左边再瞬移到右边的错位）
+    let savedNotifyAnchor = { sideX: "right", edgeX: 20, sideY: "bottom", edgeY: 20 };
     try {
-      const rawPos = localStorage.getItem("oiboard_notify_pos");
-      if (rawPos) {
-        const parsed = JSON.parse(rawPos);
-        if (typeof parsed?.left === "number" && typeof parsed?.top === "number") {
-          savedNotifyPos = { left: parsed.left, top: parsed.top };
+      const rawAnchor = localStorage.getItem("oiboard_notify_anchor_v2");
+      if (rawAnchor) {
+        const parsed = JSON.parse(rawAnchor);
+        if (
+          (parsed?.sideX === "left" || parsed?.sideX === "right") &&
+          (parsed?.sideY === "top" || parsed?.sideY === "bottom") &&
+          typeof parsed?.edgeX === "number" &&
+          typeof parsed?.edgeY === "number"
+        ) {
+          savedNotifyAnchor = parsed;
         }
       }
-    } catch (e) {
-      savedNotifyPos = null;
-    }
-    const notifyPos = ref(savedNotifyPos);
+    } catch (e) {}
+    const notifyAnchor = ref(savedNotifyAnchor);
+    const notifyAnchorSide = computed(() => notifyAnchor.value.sideX);
     const viewportSize = ref({ w: window.innerWidth, h: window.innerHeight });
 
     let notifyAutoHideTimer = null;
@@ -2910,7 +2917,7 @@ createApp({
       }
     };
 
-    const scheduleNotifyAutoHide = (delayMs = 6500) => {
+    const scheduleNotifyAutoHide = (delayMs = 15000) => {
       clearNotifyAutoHide();
       if (dueMistakesList.value.length > 0 || notifyState.value !== "bar" || notifyHovered) {
         return;
@@ -2926,10 +2933,10 @@ createApp({
     const triggerStartupNotification = () => {
       if (!isLoggedIn.value) return;
       clearNotifyAutoHide();
-      // 刷新/进入页面：先以手机通知长条展开，有错题时常驻置顶，无错题时播报近3天比赛聚合后自动收起为悬浮球
+      // 刷新/进入页面：平滑展开为通知长条；有错题时常驻置顶，静默状态 15 秒后自动平滑收起为带角标的图标
       notifyState.value = "bar";
       if (dueMistakesList.value.length === 0) {
-        scheduleNotifyAutoHide(6500);
+        scheduleNotifyAutoHide(15000);
       }
     };
 
@@ -2946,7 +2953,7 @@ createApp({
     const onNotifyMouseLeave = () => {
       notifyHovered = false;
       if (notifyState.value === "bar" && dueMistakesList.value.length === 0) {
-        scheduleNotifyAutoHide(3200);
+        scheduleNotifyAutoHide(4000);
       }
     };
 
@@ -2954,50 +2961,47 @@ createApp({
       await recordMistakeReview(item);
     };
 
-    const getNotifyShellDimensions = () => {
+    const clampNotifyEdge = (anchor) => {
       const vw = viewportSize.value.w || window.innerWidth;
-      const isOrb = notifyState.value === "orb";
+      const vh = viewportSize.value.h || window.innerHeight;
+      const margin = 12;
+      // 始终以展开态宽度钳制最大边距离，确保展开/收起过程中边缘锚点坐标保持绝对不变
+      const barW = Math.min(352, vw - margin * 2);
+      const maxEdgeX = Math.max(margin, vw - barW - margin);
+      const maxEdgeY = Math.max(margin, vh - 46 - margin);
       return {
-        w: isOrb ? 44 : Math.min(348, vw - 24),
-        h: isOrb ? 44 : 54
+        sideX: anchor.sideX === "left" ? "left" : "right",
+        sideY: anchor.sideY === "top" ? "top" : "bottom",
+        edgeX: Math.round(Math.max(margin, Math.min(anchor.edgeX, maxEdgeX))),
+        edgeY: Math.round(Math.max(margin, Math.min(anchor.edgeY, maxEdgeY)))
       };
     };
 
-    const clampNotifyCoords = (left, top) => {
-      const vw = viewportSize.value.w || window.innerWidth;
-      const vh = viewportSize.value.h || window.innerHeight;
-      const { w, h } = getNotifyShellDimensions();
-      const margin = 12;
-      const clampedLeft = Math.max(margin, Math.min(left, vw - w - margin));
-      const clampedTop = Math.max(margin, Math.min(top, vh - h - margin));
-      return { left: Math.round(clampedLeft), top: Math.round(clampedTop) };
-    };
-
     const notifyHostStyle = computed(() => {
-      if (!notifyPos.value) {
-        return { right: "20px", bottom: "20px" };
+      const a = clampNotifyEdge(notifyAnchor.value);
+      const style = {};
+      if (a.sideX === "left") {
+        style.left = `${a.edgeX}px`;
+      } else {
+        style.right = `${a.edgeX}px`;
       }
-      const c = clampNotifyCoords(notifyPos.value.left, notifyPos.value.top);
-      return { left: `${c.left}px`, top: `${c.top}px` };
+      if (a.sideY === "top") {
+        style.top = `${a.edgeY}px`;
+      } else {
+        style.bottom = `${a.edgeY}px`;
+      }
+      return style;
     });
 
     const notifyPopoverStyle = computed(() => {
-      const vw = viewportSize.value.w || window.innerWidth;
-      const vh = viewportSize.value.h || window.innerHeight;
-      if (!notifyPos.value) {
-        return { right: "0px", bottom: "calc(100% + 10px)" };
-      }
-      const c = clampNotifyCoords(notifyPos.value.left, notifyPos.value.top);
-      const { w, h } = getNotifyShellDimensions();
-      const centerX = c.left + w / 2;
-      const centerY = c.top + h / 2;
+      const a = clampNotifyEdge(notifyAnchor.value);
       const style = {};
-      if (centerY >= vh / 2) {
+      if (a.sideY === "bottom") {
         style.bottom = "calc(100% + 10px)";
       } else {
         style.top = "calc(100% + 10px)";
       }
-      if (centerX >= vw / 2) {
+      if (a.sideX === "right") {
         style.right = "0px";
       } else {
         style.left = "0px";
@@ -3014,7 +3018,9 @@ createApp({
         startX: clientX,
         startY: clientY,
         originLeft: rect.left,
-        originTop: rect.top
+        originTop: rect.top,
+        width: rect.width,
+        height: rect.height
       };
 
       const onMove = (ev) => {
@@ -3029,7 +3035,18 @@ createApp({
         }
         if (notifyWasDragged) {
           if (ev.cancelable) ev.preventDefault();
-          notifyPos.value = clampNotifyCoords(notifyDragState.originLeft + dx, notifyDragState.originTop + dy);
+          const vw = viewportSize.value.w || window.innerWidth;
+          const vh = viewportSize.value.h || window.innerHeight;
+          const margin = 12;
+          const newLeft = Math.max(margin, Math.min(notifyDragState.originLeft + dx, vw - notifyDragState.width - margin));
+          const newTop = Math.max(margin, Math.min(notifyDragState.originTop + dy, vh - notifyDragState.height - margin));
+          const centerX = newLeft + notifyDragState.width / 2;
+          const centerY = newTop + notifyDragState.height / 2;
+          const sideX = centerX >= vw / 2 ? "right" : "left";
+          const sideY = centerY >= vh / 2 ? "bottom" : "top";
+          const edgeX = sideX === "right" ? Math.round(vw - (newLeft + notifyDragState.width)) : Math.round(newLeft);
+          const edgeY = sideY === "bottom" ? Math.round(vh - (newTop + notifyDragState.height)) : Math.round(newTop);
+          notifyAnchor.value = { sideX, edgeX: Math.max(margin, edgeX), sideY, edgeY: Math.max(margin, edgeY) };
         }
       };
 
@@ -3042,9 +3059,10 @@ createApp({
           window.removeEventListener("mousemove", onMove);
           window.removeEventListener("mouseup", onEnd);
         }
-        if (notifyWasDragged && notifyPos.value) {
+        if (notifyWasDragged && notifyAnchor.value) {
+          notifyAnchor.value = clampNotifyEdge(notifyAnchor.value);
           try {
-            localStorage.setItem("oiboard_notify_pos", JSON.stringify(notifyPos.value));
+            localStorage.setItem("oiboard_notify_anchor_v2", JSON.stringify(notifyAnchor.value));
           } catch (e) {}
           setTimeout(() => { notifyWasDragged = false; }, 60);
         }
@@ -3485,6 +3503,7 @@ createApp({
       upcoming3dContests,
       notifyTotalCount,
       notifyState,
+      notifyAnchorSide,
       notifyHostStyle,
       notifyPopoverStyle,
       notifyBarHeadline,

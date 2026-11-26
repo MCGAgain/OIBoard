@@ -5,36 +5,36 @@
 }
 
 :root {
-  /* Light Mode (Hydro Clean Paper & Crisp Hairlines) */
-  --bg-canvas: #f3f4f6;
+  /* Light Mode (Apple Porcelain & MiMo Editorial Minimalism) */
+  --bg-canvas: #f5f5f7;
   --bg-surface: #ffffff;
   --bg-card: #ffffff;
   --card-bg: #ffffff;
   --bg-card-hover: #ffffff;
-  --bg-subtle: #f5f6f8;
-  --bg-hover: rgba(15, 23, 42, 0.04);
+  --bg-subtle: #f2f3f6;
+  --bg-hover: rgba(17, 19, 24, 0.04);
   --bg-nav: #ffffff;
-  --bg-sidebar: #ffffff;
+  --bg-sidebar: #fbfbfd;
 
-  --border-subtle: #e5e7eb;
-  --border-hover: #d1d5db;
-  --border-bold: #cbd5e1;
-  --border-strong: #94a3b8;
-  --border-accent: rgba(41, 121, 255, 0.35);
+  --border-subtle: rgba(17, 19, 24, 0.075);
+  --border-hover: rgba(17, 19, 24, 0.14);
+  --border-bold: rgba(17, 19, 24, 0.18);
+  --border-strong: rgba(17, 19, 24, 0.28);
+  --border-accent: rgba(0, 113, 227, 0.32);
 
-  --text-primary: #1f2937;
-  --text-secondary: #4b5563;
-  --text-tertiary: #6b7280;
-  --text-muted: #9ca3af;
+  --text-primary: #111318;
+  --text-secondary: #4a5160;
+  --text-tertiary: #6e7687;
+  --text-muted: #8e96a6;
 
-  /* Hydro Restrained Semantic Colors */
-  --primary: #2979ff;
-  --apple-blue: #2979ff;
-  --apple-blue-hover: #1d64e0;
-  --apple-blue-subtle: rgba(41, 121, 255, 0.09);
+  /* Apple / Hydro Restrained Semantic Colors */
+  --primary: #0071e3;
+  --apple-blue: #0071e3;
+  --apple-blue-hover: #0062c4;
+  --apple-blue-subtle: rgba(0, 113, 227, 0.085);
   --apple-cyan: #0891b2;
-  --apple-green: #25ad40;
-  --apple-green-subtle: rgba(37, 173, 64, 0.10);
+  --apple-green: #1a9c46;
+  --apple-green-subtle: rgba(26, 156, 70, 0.10);
   --apple-orange: #d97706;
   --apple-orange-subtle: rgba(217, 119, 6, 0.10);
   --apple-red: #b94a48;
@@ -43,46 +43,47 @@
   --apple-purple-subtle: rgba(109, 92, 231, 0.10);
   --apple-indigo: #4f46e5;
 
-  --shadow-ambient: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-hover: 0 4px 14px rgba(15, 23, 42, 0.07);
-  --shadow-float: 0 12px 32px rgba(15, 23, 42, 0.14);
+  --shadow-ambient: 0 1px 2px rgba(15, 23, 42, 0.03), 0 8px 24px -14px rgba(15, 23, 42, 0.08);
+  --shadow-hover: 0 4px 18px -4px rgba(15, 23, 42, 0.09);
+  --shadow-float: 0 16px 40px -8px rgba(15, 23, 42, 0.16), 0 2px 8px rgba(15, 23, 42, 0.05);
   --shadow-pill: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --card-specular: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 
   --ease-hydro: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-fast: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, opacity 0.16s ease, transform 0.18s var(--ease-hydro);
+  --transition-fast: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease, opacity 0.18s ease, transform 0.2s var(--ease-hydro);
 }
 
-/* Dark Mode (Hydro Calm Charcoal) */
+/* Dark Mode (Apple Titanium & MiMo Deep Obsidian) */
 html.dark, body.dark, .dark {
-  --bg-canvas: #121316;
-  --bg-surface: #1b1d22;
-  --bg-card: #1b1d22;
-  --card-bg: #1b1d22;
-  --bg-card-hover: #21242b;
-  --bg-subtle: #23262e;
-  --bg-hover: rgba(255, 255, 255, 0.05);
-  --bg-nav: #1b1d22;
-  --bg-sidebar: #16181d;
+  --bg-canvas: #090a0d;
+  --bg-surface: #111318;
+  --bg-card: #111318;
+  --card-bg: #111318;
+  --bg-card-hover: #161921;
+  --bg-subtle: #161921;
+  --bg-hover: rgba(255, 255, 255, 0.055);
+  --bg-nav: #111318;
+  --bg-sidebar: #0d0f14;
 
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.15);
+  --border-subtle: rgba(255, 255, 255, 0.075);
+  --border-hover: rgba(255, 255, 255, 0.145);
   --border-bold: rgba(255, 255, 255, 0.18);
-  --border-strong: rgba(255, 255, 255, 0.25);
-  --border-accent: rgba(85, 150, 230, 0.42);
+  --border-strong: rgba(255, 255, 255, 0.26);
+  --border-accent: rgba(66, 153, 245, 0.42);
 
-  --text-primary: #e5e7eb;
-  --text-secondary: #9ca3af;
-  --text-tertiary: #717684;
-  --text-muted: #555b66;
+  --text-primary: #f2f4f8;
+  --text-secondary: #a1a8b8;
+  --text-tertiary: #737b8c;
+  --text-muted: #555c6b;
 
-  --primary: #5596e6;
-  --apple-blue: #5596e6;
-  --apple-blue-hover: #6aa6f0;
-  --apple-blue-subtle: rgba(85, 150, 230, 0.14);
+  --primary: #3b96ff;
+  --apple-blue: #3b96ff;
+  --apple-blue-hover: #58a6ff;
+  --apple-blue-subtle: rgba(59, 150, 255, 0.13);
   --apple-cyan: #38bdf8;
-  --apple-green: #34c759;
-  --apple-green-subtle: rgba(52, 199, 89, 0.12);
+  --apple-green: #39d353;
+  --apple-green-subtle: rgba(57, 211, 83, 0.12);
   --apple-orange: #e6a23c;
   --apple-orange-subtle: rgba(230, 162, 60, 0.12);
   --apple-red: #d47676;
@@ -90,10 +91,11 @@ html.dark, body.dark, .dark {
   --apple-purple: #9b8afb;
   --apple-purple-subtle: rgba(155, 138, 251, 0.12);
 
-  --shadow-ambient: 0 1px 2px rgba(0, 0, 0, 0.28);
-  --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.36);
-  --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.56);
-  --shadow-pill: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-ambient: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -16px rgba(0, 0, 0, 0.55);
+  --shadow-hover: 0 8px 24px -6px rgba(0, 0, 0, 0.52);
+  --shadow-float: 0 20px 48px -8px rgba(0, 0, 0, 0.68), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --shadow-pill: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --card-specular: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
 * {
@@ -213,13 +215,13 @@ body {
   transition: transform 0.16s ease-out, opacity 0.24s ease 0.12s;
 }
 
-/* ================= Hydro Section Cards ================= */
+/* ================= Apple / MiMo Editorial Section Cards ================= */
 .ui-card, .apple-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  box-shadow: var(--shadow-ambient);
-  transition: border-color 0.18s ease, background-color 0.24s ease, transform 0.2s var(--ease-hydro);
+  border-radius: 14px;
+  box-shadow: var(--shadow-ambient), var(--card-specular);
+  transition: border-color 0.2s ease, background-color 0.24s ease, box-shadow 0.22s ease, transform 0.22s var(--ease-hydro);
   position: relative;
   overflow: hidden;
   contain: paint;
@@ -230,8 +232,17 @@ body {
 }
 
 .kpi-lift:hover {
-  transform: translateY(-1px);
+  transform: translateY(-1.5px);
   border-color: var(--border-accent);
+  box-shadow: var(--shadow-hover), var(--card-specular);
+}
+
+.brand-slogan {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.14em;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
 }
 
 /* ================= Hydro Pixel-Perfect Sidebar & Sliding Indicator ================= */
@@ -521,7 +532,7 @@ body {
 .btn-secondary:hover:not(:disabled) { background: var(--bg-surface); border-color: var(--border-hover); }
 .btn-secondary:active:not(:disabled) { transform: scale(0.98); }
 
-/* ================= Draggable Phone-Style Notification Center ================= */
+/* ================= Draggable Phone-Style Notification Center (Edge-Anchored, Zero Teleport) ================= */
 .notify-host {
   position: fixed;
   z-index: 60;
@@ -529,67 +540,111 @@ body {
   touch-action: none;
 }
 
+.notify-trigger-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
 .notify-shell {
   position: relative;
   display: inline-flex;
   align-items: center;
+  height: 46px;
+  max-width: calc(100vw - 24px);
   background: var(--bg-surface);
   border: 1px solid var(--border-hover);
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--shadow-float), var(--card-specular);
   color: var(--text-primary);
   cursor: grab;
   overflow: hidden;
-  transition: width 0.34s var(--ease-spring), border-radius 0.3s var(--ease-spring), border-color 0.2s ease, transform 0.2s var(--ease-spring);
+  border-radius: 14px;
+  transition: width 0.36s var(--ease-spring), border-color 0.2s ease, transform 0.2s var(--ease-spring);
+  will-change: width;
 }
 .notify-shell:active { cursor: grabbing; }
+.notify-shell.anchor-right {
+  flex-direction: row-reverse;
+}
+.notify-shell.anchor-left {
+  flex-direction: row;
+}
 .notify-shell.is-orb {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  justify-content: center;
+  width: 46px;
 }
 .notify-shell.is-orb:hover {
   border-color: var(--primary);
   transform: translateY(-1px);
 }
 .notify-shell.is-bar {
-  width: 348px;
-  max-width: calc(100vw - 24px);
-  min-height: 46px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  gap: 10px;
+  width: 352px;
 }
 .notify-shell.is-pinned {
-  border-left: 3px solid var(--apple-orange);
+  border-color: rgba(230, 162, 60, 0.45);
+}
+
+.notify-icon-slot {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notify-bar-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 0 6px 0 12px;
+  opacity: 1;
+  transition: opacity 0.2s ease 0.06s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.notify-shell.anchor-left .notify-bar-body {
+  padding: 0 12px 0 4px;
+}
+.notify-shell.is-orb .notify-bar-body {
+  opacity: 0;
+  pointer-events: none;
+  padding: 0;
+  transition: opacity 0.1s ease;
 }
 
 .notify-badge-dot {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   border-radius: 999px;
   font-size: 10px;
   font-weight: 700;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
+  border: 2px solid var(--bg-canvas);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   pointer-events: none;
+  z-index: 2;
+  transition: transform 0.22s var(--ease-spring), opacity 0.18s ease;
 }
 
 .notify-popover {
   position: absolute;
-  width: 368px;
+  width: 372px;
   max-width: calc(100vw - 24px);
   max-height: min(72vh, 520px);
   background: var(--bg-surface);
   border: 1px solid var(--border-hover);
-  border-radius: 12px;
-  box-shadow: var(--shadow-float);
+  border-radius: 14px;
+  box-shadow: var(--shadow-float), var(--card-specular);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -623,13 +678,16 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
 
-/* ================= Heatmap Wrapper ================= */
+/* ================= Heatmap Wrapper (New Luogu Recessed Framed Tray) ================= */
 .heatmap-container-outer {
   width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: 0.25rem 0;
+  padding: 14px 12px 10px;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
   display: block;
   contain: paint;
 }

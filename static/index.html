@@ -48,7 +48,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=3.3.0">
+  <link rel="stylesheet" href="/static/style.css?v=3.4.0">
 </head>
 <body :class="[isDark ? 'dark text-[#e5e7eb]' : 'text-[#1f2937]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -103,7 +103,7 @@
           </div>
           <div>
             <h1 class="text-2xl font-bold text-[var(--text-primary)] font-sans tracking-tight">OIBoard</h1>
-            <p class="text-xs text-[var(--text-secondary)] font-sans mt-1">算法刷题数据看板</p>
+            <p class="brand-slogan mt-1.5">build or be built</p>
           </div>
         </div>
 
@@ -191,7 +191,7 @@
             </div>
             <div class="ml-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap overflow-hidden">
               <span class="text-sm font-bold font-mono tracking-tight text-[var(--text-primary)]">OIBoard</span>
-              <p class="text-[10px] text-[var(--text-tertiary)] font-sans">算法刷题看板</p>
+              <p class="text-[9.5px] font-mono tracking-[0.1em] text-[var(--text-tertiary)]">build or be built</p>
             </div>
           </div>
 
@@ -308,6 +308,8 @@
                  currentTab === 'submissions' ? '提交记录' : 
                  currentTab === 'mistakes' ? '错题集' : '系统设置' }}
             </h1>
+            <span class="hidden xl:inline-block h-3.5 w-px bg-[var(--border-hover)]"></span>
+            <span class="hidden xl:inline-block brand-slogan select-none">build or be built</span>
           </div>
 
           <!-- 右侧控制与状态区 -->
@@ -659,11 +661,11 @@
               </div>
               <div class="flex items-center space-x-1.5">
                 <span class="text-[var(--text-muted)] mr-1 text-[10px]">少</span>
-                <span class="w-3 h-3 rounded-[3.5px] border border-black/[0.06] dark:border-white/[0.06] inline-block" :style="{ backgroundColor: isDark ? '#1b2028' : '#ebedf0' }" title="0 次提交"></span>
-                <span class="w-3 h-3 rounded-[3.5px] inline-block" :style="{ backgroundColor: isDark ? '#0e4429' : '#9be9a8' }" :title="heatmapLegendTips[0]"></span>
-                <span class="w-3 h-3 rounded-[3.5px] inline-block" :style="{ backgroundColor: isDark ? '#006d32' : '#40c463' }" :title="heatmapLegendTips[1]"></span>
-                <span class="w-3 h-3 rounded-[3.5px] inline-block" :style="{ backgroundColor: isDark ? '#26a641' : '#30a14e' }" :title="heatmapLegendTips[2]"></span>
-                <span class="w-3 h-3 rounded-[3.5px] inline-block" :style="{ backgroundColor: isDark ? '#39d353' : '#216e39' }" :title="heatmapLegendTips[3]"></span>
+                <span class="w-3 h-3 rounded-[3.5px] border inline-block" :style="{ backgroundColor: isDark ? '#191e26' : '#f0f2f5', borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.12)' }" title="0 次提交"></span>
+                <span class="w-3 h-3 rounded-[3.5px] border inline-block" :style="{ backgroundColor: isDark ? '#0e4429' : '#9be9a8', borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.12)' }" :title="heatmapLegendTips[0]"></span>
+                <span class="w-3 h-3 rounded-[3.5px] border inline-block" :style="{ backgroundColor: isDark ? '#006d32' : '#40c463', borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.12)' }" :title="heatmapLegendTips[1]"></span>
+                <span class="w-3 h-3 rounded-[3.5px] border inline-block" :style="{ backgroundColor: isDark ? '#26a641' : '#30a14e', borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.12)' }" :title="heatmapLegendTips[2]"></span>
+                <span class="w-3 h-3 rounded-[3.5px] border inline-block" :style="{ backgroundColor: isDark ? '#39d353' : '#216e39', borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.14)' }" :title="heatmapLegendTips[3]"></span>
                 <span class="text-[var(--text-muted)] ml-1 text-[10px]">多</span>
               </div>
             </div>
@@ -1786,6 +1788,11 @@
           </div>
         </div>
 
+        <!-- 极简底部 Slogan 落款 -->
+        <footer class="pt-4 pb-2 flex items-center justify-center select-none">
+          <span class="brand-slogan opacity-65">OIBoard · build or be built</span>
+        </footer>
+
       </main>
       </div>
 
@@ -1902,56 +1909,57 @@
           </div>
         </div>
 
-        <!-- 主体交互壳：静默悬浮球 OR 展开通知长条 (均支持长按拖拽 + 点击展开详情) -->
-        <div class="notify-shell"
-             :class="[
-               notifyState === 'orb' ? 'is-orb' : 'is-bar',
-               dueMistakesList.length > 0 && notifyState !== 'orb' ? 'is-pinned' : ''
-             ]"
-             @mousedown="onNotifyPointerDown"
-             @touchstart.passive="onNotifyTouchStart"
-             @click="onNotifyShellClick"
-             :title="notifyState === 'orb' ? '点击查看提醒，可拖拽移动' : '点击展开详情，可拖拽移动'">
+        <!-- 主体交互壳：边缘锚定单 DOM 平滑变形 (长条 <-> 悬浮图标，彻底消除收缩瞬移) -->
+        <div class="notify-trigger-wrap">
+          <div class="notify-shell"
+               :class="[
+                 notifyState === 'orb' ? 'is-orb' : 'is-bar',
+                 notifyAnchorSide === 'left' ? 'anchor-left' : 'anchor-right',
+                 dueMistakesList.length > 0 && notifyState !== 'orb' ? 'is-pinned' : ''
+               ]"
+               @mousedown="onNotifyPointerDown"
+               @touchstart.passive="onNotifyTouchStart"
+               @click="onNotifyShellClick"
+               :title="notifyState === 'orb' ? '点击查看提醒，可拖拽移动' : '点击展开详情，可拖拽移动'">
 
-          <!-- 静默悬浮球视图 -->
-          <template v-if="notifyState === 'orb'">
-            <svg class="w-5 h-5 text-[var(--primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-            </svg>
-            <span v-if="notifyTotalCount > 0"
-                  class="notify-badge-dot font-mono"
-                  :style="{ backgroundColor: dueMistakesList.length > 0 ? 'var(--apple-orange)' : 'var(--primary)' }">
-              {{ notifyTotalCount > 9 ? '9+' : notifyTotalCount }}
-            </span>
-          </template>
-
-          <!-- 展开通知长条视图 (有错题常驻置顶 / 刷新聚合播报) -->
-          <template v-else>
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                 :class="dueMistakesList.length > 0 ? 'bg-amber-500/12 text-amber-600 dark:text-amber-400' : 'bg-[var(--apple-blue-subtle)] text-[var(--primary)]'">
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-              </svg>
-            </div>
-            <div class="min-w-0 flex-1 text-left leading-snug">
-              <div class="flex items-center space-x-1.5 text-xs font-semibold text-[var(--text-primary)] truncate">
-                <span v-if="dueMistakesList.length > 0" class="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">置顶</span>
-                <span class="truncate">{{ notifyBarHeadline }}</span>
-              </div>
-              <div class="text-[11px] text-[var(--text-secondary)] truncate font-mono mt-0.5">
-                {{ notifyBarSubline }}
+            <!-- 固定锚点图标位（展开/收起全程原地不动） -->
+            <div class="notify-icon-slot">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+                   :class="dueMistakesList.length > 0 ? 'bg-amber-500/12 text-amber-600 dark:text-amber-400' : 'bg-[var(--apple-blue-subtle)] text-[var(--primary)]'">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
               </div>
             </div>
-            <button @click.stop="collapseNotifyToOrb" type="button"
-                    class="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] shrink-0 transition-colors"
-                    title="收起为悬浮球">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </button>
-          </template>
+
+            <!-- 可伸缩文字内容区（随外框宽度平滑显现/淡出） -->
+            <div class="notify-bar-body">
+              <div class="min-w-0 flex-1 text-left leading-snug">
+                <div class="flex items-center space-x-1.5 text-xs font-semibold text-[var(--text-primary)] truncate">
+                  <span v-if="dueMistakesList.length > 0" class="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">置顶</span>
+                  <span class="truncate">{{ notifyBarHeadline }}</span>
+                </div>
+                <div class="text-[11px] text-[var(--text-secondary)] truncate font-mono mt-0.5">
+                  {{ notifyBarSubline }}
+                </div>
+              </div>
+              <button @click.stop="collapseNotifyToOrb" type="button"
+                      class="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] shrink-0 transition-colors"
+                      title="收起为悬浮图标">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- 收起态角标：放在 overflow:hidden 外侧，清晰显示待处理通知总数 -->
+          <span v-if="notifyState === 'orb' && notifyTotalCount > 0"
+                class="notify-badge-dot font-mono"
+                :style="{ backgroundColor: dueMistakesList.length > 0 ? 'var(--apple-orange)' : 'var(--primary)' }">
+            {{ notifyTotalCount > 99 ? '99+' : notifyTotalCount }}
+          </span>
         </div>
       </div>
 
@@ -2357,6 +2365,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=3.3.2"></script>
+  <script src="/static/app.js?v=3.4.0"></script>
 </body>
 </html>
