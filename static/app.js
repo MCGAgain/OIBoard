@@ -27,7 +27,7 @@ createApp({
 
     // --- Dashboard & Platform State ---
     const overview = ref({
-      stats: { total_ac: 0, total_subs: 0, today_ac: 0, today_subs: 0, streak: 0, platforms: {} },
+      stats: { total_ac: 0, total_subs: 0, today_ac: 0, today_ac_subs: 0, today_subs: 0, streak: 0, platforms: {} },
       platforms_status: [],
       last_sync_time: "",
       climbing_curve: [],
@@ -604,7 +604,7 @@ createApp({
 
       // 3. 清空业务响应式数据，杜绝跨用户数据残留
       overview.value = {
-        stats: { total_ac: 0, total_subs: 0, today_ac: 0, today_subs: 0, streak: 0, platforms: {} },
+        stats: { total_ac: 0, total_subs: 0, today_ac: 0, today_ac_subs: 0, today_subs: 0, streak: 0, platforms: {} },
         platforms_status: [],
         last_sync_time: "",
         climbing_curve: [],
@@ -1297,9 +1297,9 @@ createApp({
 
     const todayAcRate = computed(() => {
       const subs = overview.value.stats?.today_subs || 0;
-      const ac = overview.value.stats?.today_ac || 0;
+      const acSubs = overview.value.stats?.today_ac_subs ?? overview.value.stats?.today_ac ?? 0;
       if (subs <= 0) return 0;
-      return Math.min(100, Math.round((ac / subs) * 100));
+      return Math.min(100, Math.round((acSubs / subs) * 100));
     });
 
     // --- Data Loaders (绑定当前用户) ---

@@ -966,6 +966,7 @@ def get_submission_stats(user_id: int = 1) -> Dict[str, Any]:
         cursor.execute("""
             SELECT 
                 COUNT(*) as today_subs,
+                SUM(CASE WHEN verdict = 'AC' THEN 1 ELSE 0 END) as today_ac_subs,
                 COUNT(DISTINCT CASE WHEN verdict = 'AC' THEN platform || ':' || problem_id END) as today_ac
             FROM submissions 
             WHERE user_id = ? AND date = ?;
@@ -1003,6 +1004,7 @@ def get_submission_stats(user_id: int = 1) -> Dict[str, Any]:
             "total_ac": overall["total_ac"] or 0,
             "total_subs": overall["total_subs"] or 0,
             "today_ac": today["today_ac"] or 0,
+            "today_ac_subs": today["today_ac_subs"] or 0,
             "today_subs": today["today_subs"] or 0,
             "streak": streak,
             "platforms": platforms_stats
