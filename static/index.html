@@ -50,7 +50,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=3.8.0">
+  <link rel="stylesheet" href="/static/style.css?v=3.8.2">
 </head>
 <body :class="[isDark ? 'dark text-[#e5e7eb]' : 'text-[#1f2937]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -222,6 +222,7 @@
                 <line x1="8" y1="2" x2="8" y2="6"></line>
                 <line x1="3" y1="10" x2="21" y2="10"></line>
               </svg>
+              <span v-if="upcomingContestsCount > 0" class="hydro-nav-dot font-mono" style="background: var(--primary);">{{ upcomingContestsCount > 9 ? '9+' : upcomingContestsCount }}</span>
               <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap flex items-center justify-between flex-1">
                 <span>比赛日历</span>
                 <span v-if="upcomingContestsCount > 0" class="px-1.5 py-0.5 rounded text-[10px] bg-[var(--apple-blue-subtle)] text-[var(--primary)] font-semibold font-mono">{{ upcomingContestsCount }}</span>
@@ -251,6 +252,7 @@
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
               </svg>
+              <span v-if="mistakesCounts.due > 0" class="hydro-nav-dot font-mono" style="background: var(--apple-orange);">{{ mistakesCounts.due > 9 ? '9+' : mistakesCounts.due }}</span>
               <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap flex items-center justify-between flex-1">
                 <span>错题集</span>
                 <span v-if="mistakesCounts.due > 0" class="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono font-semibold" :title="mistakesCounts.due + ' 题待复习'">{{ mistakesCounts.due }}</span>
@@ -1988,9 +1990,9 @@
             </div>
           </div>
 
-          <!-- 收起态角标：放在 overflow:hidden 外侧，清晰显示待处理通知总数 -->
-          <span v-if="notifyState === 'orb' && notifyTotalCount > 0"
-                class="notify-badge-dot font-mono"
+          <!-- 消息总数角标：无论收起为图标还是展开为长条，均清晰显示在锚点图标右上/左上角 -->
+          <span v-if="notifyTotalCount > 0"
+                :class="['notify-badge-dot font-mono', notifyAnchorSide === 'left' ? 'is-left' : '']"
                 :style="{ backgroundColor: dueMistakesList.length > 0 ? 'var(--apple-orange)' : 'var(--primary)' }">
             {{ notifyTotalCount > 99 ? '99+' : notifyTotalCount }}
           </span>
