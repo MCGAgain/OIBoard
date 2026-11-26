@@ -1318,6 +1318,7 @@ createApp({
               total_ac: data.stats.total_ac || 0,
               total_subs: data.stats.total_subs || 0,
               today_ac: data.stats.today_ac || 0,
+              today_ac_subs: data.stats.today_ac_subs ?? data.stats.today_ac ?? 0,
               today_subs: data.stats.today_subs || 0,
               streak: data.stats.streak || 0,
               platforms: data.stats.platforms || {}
