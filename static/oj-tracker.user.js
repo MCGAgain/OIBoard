@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OJ Submission Tracker (多平台 OJ 提交采集与端云核实)
 // @namespace    https://github.com/OIBoard/oj-tracker
-// @version      1.1.1
+// @version      1.1.2
 // @author       OIBoard
 // @description  实时截获力扣、洛谷、AcWing、Codeforces、AtCoder 的判题与提交记录，并秒级同步至后端对账核实
 // @match        https://leetcode.cn/*
@@ -26,7 +26,7 @@
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-  // src/core/sandbox.ts
+  // oj-submission-tracker/src/core/sandbox.ts
   var pageWindow = typeof unsafeWindow !== "undefined" ? unsafeWindow : window;
   var Logger = class {
     static info(...args) {
@@ -44,7 +44,7 @@
   };
   __publicField(Logger, "prefix", "[OJ-Tracker]");
 
-  // src/core/network-hook.ts
+  // oj-submission-tracker/src/core/network-hook.ts
   var _NetworkHookBus = class _NetworkHookBus {
     static init(targetWindow, options = { fetch: true, xhr: true, ws: true }) {
       if (this.initialized) return;
@@ -240,7 +240,7 @@
   __publicField(_NetworkHookBus, "rawFetch");
   var NetworkHookBus = _NetworkHookBus;
 
-  // src/core/router-hook.ts
+  // oj-submission-tracker/src/core/router-hook.ts
   var _RouterHookBus = class _RouterHookBus {
     static init(targetWindow) {
       if (this.initialized) return;
@@ -301,7 +301,7 @@
   __publicField(_RouterHookBus, "currentUrl", "");
   var RouterHookBus = _RouterHookBus;
 
-  // src/core/storage.ts
+  // oj-submission-tracker/src/core/storage.ts
   var KEY_REPORTED_IDS = "reported_ids";
   var KEY_BACKEND_URL = "backend_url";
   var KEY_USER_TOKEN = "user_token";
@@ -314,7 +314,7 @@
      */
     static init(onOpenConfigModal) {
       if (typeof GM_registerMenuCommand === "function" && onOpenConfigModal) {
-        GM_registerMenuCommand("\u6253\u5F00 OJ Tracker \u914D\u7F6E\u9762\u677F", onOpenConfigModal);
+        GM_registerMenuCommand("打开 OJ Tracker 配置面板", onOpenConfigModal);
       }
     }
     /**
@@ -507,7 +507,7 @@
   };
   __publicField(Storage, "cachedReportedSet", null);
 
-  // src/core/transport.ts
+  // oj-submission-tracker/src/core/transport.ts
   var Transport = class {
     static onStatus(listener) {
       this.statusListeners.push(listener);
@@ -545,19 +545,19 @@
       const token = Storage.getUserToken();
       if (!backendUrl) {
         Logger.warn("[Transport] Backend URL is not configured.");
-        this.notifyStatus("error", "\u672A\u914D\u7F6E\u540E\u7AEF\u5730\u5740");
+        this.notifyStatus("error", "未配置后端地址");
         Storage.saveFailedPayload(payload);
         this.inflightSet.delete(flightKey);
         return false;
       }
-      this.notifyStatus("syncing", `\u6B63\u5728\u540C\u6B65 ${payload.problemId}...`);
+      this.notifyStatus("syncing", `正在同步 ${payload.problemId}...`);
       Logger.info(
         `[Transport] Sending submission (${flightKey}, attempt ${retryCount + 1})...`
       );
       return new Promise((resolve) => {
         if (typeof GM_xmlhttpRequest !== "function") {
           Logger.error("GM_xmlhttpRequest is not available in current environment!");
-          this.notifyStatus("error", "GM_xmlhttpRequest \u672A\u6388\u6743");
+          this.notifyStatus("error", "GM_xmlhttpRequest 未授权");
           Storage.saveFailedPayload(payload);
           this.inflightSet.delete(flightKey);
           resolve(false);
@@ -584,7 +584,7 @@
               );
               Storage.markReported(payload.platform, payload.platformSubmissionId);
               Storage.removeFailedPayload(payload.platform, payload.platformSubmissionId);
-              this.notifyStatus("synced", `\u5DF2\u540C\u6B65 \u2713 (${payload.problemId})`);
+              this.notifyStatus("synced", `已同步 ✓ (${payload.problemId})`);
               setTimeout(() => this.flushOfflineQueue(), 1500);
               resolve(true);
             } else {
@@ -596,11 +596,11 @@
           },
           onerror: (err) => {
             Logger.error("[Transport] Network error:", err);
-            this.handleRetry(payload, retryCount, resolve, "\u7F51\u7EDC\u9519\u8BEF");
+            this.handleRetry(payload, retryCount, resolve, "网络错误");
           },
           ontimeout: () => {
             Logger.warn("[Transport] Request timed out.");
-            this.handleRetry(payload, retryCount, resolve, "\u8FDE\u63A5\u8D85\u65F6");
+            this.handleRetry(payload, retryCount, resolve, "连接超时");
           }
         });
       });
@@ -616,7 +616,7 @@
         Logger.info(
           `[Transport] Retrying ${flightKey} in ${delayMs}ms (retry ${retryCount + 1}/${MAX_RETRIES})...`
         );
-        this.notifyStatus("syncing", `\u540C\u6B65\u5931\u8D25 (${reason})\uFF0C${delayMs / 1e3}s \u540E\u91CD\u8BD5...`);
+        this.notifyStatus("syncing", `同步失败 (${reason})，${delayMs / 1e3}s 后重试...`);
         setTimeout(async () => {
           const ok = await this.send(payload, retryCount + 1);
           resolve(ok);
@@ -627,7 +627,7 @@
           `[Transport] Exceeded max retries for ${flightKey}. Saving to offline queue.`
         );
         Storage.saveFailedPayload(payload);
-        this.notifyStatus("error", `\u540C\u6B65\u5931\u8D25 (${reason})\uFF0C\u5DF2\u52A0\u5165\u79BB\u7EBF\u6682\u5B58\u961F\u5217`);
+        this.notifyStatus("error", `同步失败 (${reason})，已加入离线暂存队列`);
         resolve(false);
       }
     }
@@ -662,7 +662,7 @@
   __publicField(Transport, "isFlushingFailedQueue", false);
   __publicField(Transport, "inflightSet", /* @__PURE__ */ new Set());
 
-  // src/ui/status-badge.ts
+  // oj-submission-tracker/src/ui/status-badge.ts
   var StatusBadge = class {
     static init(platformName) {
       this.currentPlatform = platformName;
@@ -721,7 +721,7 @@
         display: inline-block;
       }
 
-      /* \u53EF\u62D6\u62FD\u80F6\u56CA\u72B6\u6001\u680F */
+      /* 可拖拽胶囊状态栏 */
       .badge-capsule {
         display: inline-flex;
         align-items: center;
@@ -747,7 +747,7 @@
         cursor: grabbing;
       }
 
-      /* \u72B6\u6001\u5706\u70B9 */
+      /* 状态圆点 */
       .status-dot {
         width: 8px;
         height: 8px;
@@ -822,7 +822,7 @@
         transform: rotate(30deg);
       }
 
-      /* \u914D\u7F6E\u5F39\u7A97 */
+      /* 配置弹窗 */
       .modal-overlay {
         position: absolute;
         bottom: calc(100% + 10px);
@@ -992,48 +992,48 @@
       <style>${styles}</style>
       
       <div class="badge-container" id="container">
-        <!-- \u53EF\u62D6\u62FD\u80F6\u56CA\u72B6\u6001\u680F -->
-        <div class="badge-capsule" id="capsule" title="\u53EF\u957F\u6309\u62D6\u62FD\u4EFB\u610F\u4F4D\u7F6E">
+        <!-- 可拖拽胶囊状态栏 -->
+        <div class="badge-capsule" id="capsule" title="可长按拖拽任意位置">
           <span class="status-dot" id="status-dot"></span>
           <span class="badge-text" id="status-text">${this.currentPlatform} Ready</span>
-          <button class="btn-settings" id="btn-open-settings" title="\u914D\u7F6E OJ Tracker">${gearSvg}</button>
+          <button class="btn-settings" id="btn-open-settings" title="配置 OJ Tracker">${gearSvg}</button>
         </div>
 
-        <!-- \u914D\u7F6E\u5F39\u7A97 -->
+        <!-- 配置弹窗 -->
         <div class="modal-overlay" id="modal">
           <div class="modal-header">
             <div class="modal-title">
               ${serverSvg}
-              <span>OJ Tracker \u914D\u7F6E</span>
+              <span>OJ Tracker 配置</span>
             </div>
-            <button class="modal-close" id="btn-close-modal" title="\u5173\u95ED">${closeSvg}</button>
+            <button class="modal-close" id="btn-close-modal" title="关闭">${closeSvg}</button>
           </div>
 
           <div class="form-group">
-            <label class="form-label">\u540E\u7AEF\u63A5\u6536 API URL</label>
+            <label class="form-label">后端接收 API URL</label>
             <input type="text" class="form-input" id="input-backend-url" placeholder="http://localhost:8000/api/v1/submissions/push" />
           </div>
 
           <div class="form-group">
-            <label class="form-label">\u4E2A\u4EBA\u8BA4\u8BC1 Token / \u51ED\u636E (Bearer)</label>
-            <input type="password" class="form-input" id="input-user-token" placeholder="\u7559\u7A7A\u6216\u8F93\u5165 OIBoard \u540C\u6B65 Token / \u7528\u6237\u540D" />
+            <label class="form-label">个人认证 Token / 凭据 (Bearer)</label>
+            <input type="password" class="form-input" id="input-user-token" placeholder="留空或输入 OIBoard 同步 Token / 用户名" />
             <div style="font-size: 10px; color: #94a3b8; margin-top: 4px; line-height: 1.4;">
-              \u63D0\u793A: \u53EF\u5728 OIBoard\u300C\u8BBE\u7F6E -> \u8D26\u53F7\u8BBE\u7F6E\u300D\u4E2D\u590D\u5236\u5F53\u524D\u540C\u6B65\u51ED\u636E (Sync Token) \u586B\u5165\u6B64\u5904\uFF0C\u4EA6\u53EF\u7559\u7A7A\u6216\u8F93\u5165\u767B\u5F55\u7528\u6237\u540D\u3002
+              提示: 可在 OIBoard「设置 -> 账号设置」中复制当前同步凭据 (Sync Token) 填入此处，亦可留空或输入登录用户名。
             </div>
           </div>
 
           <div class="stats-box">
-            <span>\u5E73\u53F0: <b>${this.currentPlatform}</b></span>
-            <span id="cache-stats">\u7F13\u5B58: ${Storage.getReportedCount()}/500</span>
+            <span>平台: <b>${this.currentPlatform}</b></span>
+            <span id="cache-stats">缓存: ${Storage.getReportedCount()}/500</span>
           </div>
 
           <div class="btn-row" style="margin-bottom: 8px;">
-            <button class="btn btn-secondary" id="btn-test-conn">\u6D4B\u8BD5\u8FDE\u63A5</button>
-            <button class="btn btn-primary" id="btn-save">\u4FDD\u5B58\u914D\u7F6E</button>
+            <button class="btn btn-secondary" id="btn-test-conn">测试连接</button>
+            <button class="btn btn-primary" id="btn-save">保存配置</button>
           </div>
 
           <div class="btn-row">
-            <button class="btn btn-danger" id="btn-clear-cache">\u6E05\u7A7A\u53BB\u91CD\u7F13\u5B58</button>
+            <button class="btn btn-danger" id="btn-clear-cache">清空去重缓存</button>
           </div>
 
           <div class="feedback-msg" id="feedback"></div>
@@ -1197,12 +1197,12 @@
         const token = inputToken?.value || "";
         Storage.setBackendUrl(url);
         Storage.setUserToken(token);
-        this.showFeedback("\u914D\u7F6E\u5DF2\u4FDD\u5B58", "#059669");
+        this.showFeedback("配置已保存", "#059669");
       });
       btnTest?.addEventListener("click", () => {
         const url = inputUrl?.value || Storage.getBackendUrl();
         const token = inputToken?.value || Storage.getUserToken();
-        this.showFeedback("\u6B63\u5728\u6D4B\u8BD5\u8FDE\u63A5...", "#3b82f6");
+        this.showFeedback("正在测试连接...", "#3b82f6");
         if (typeof GM_xmlhttpRequest === "function") {
           GM_xmlhttpRequest({
             method: "GET",
@@ -1211,27 +1211,27 @@
             timeout: 5e3,
             onload: (res) => {
               if (res.status >= 200 && res.status < 400) {
-                this.showFeedback(`\u8FDE\u63A5\u6210\u529F (HTTP ${res.status})`, "#059669");
+                this.showFeedback(`连接成功 (HTTP ${res.status})`, "#059669");
               } else {
-                this.showFeedback(`\u670D\u52A1\u54CD\u5E94 HTTP ${res.status}`, "#d97706");
+                this.showFeedback(`服务响应 HTTP ${res.status}`, "#d97706");
               }
             },
             onerror: () => {
-              this.showFeedback("\u8FDE\u63A5\u5931\u8D25\uFF1A\u7F51\u7EDC\u9519\u8BEF\u6216\u8DE8\u57DF\u62D2\u7EDD", "#dc2626");
+              this.showFeedback("连接失败：网络错误或跨域拒绝", "#dc2626");
             },
             ontimeout: () => {
-              this.showFeedback("\u8FDE\u63A5\u8D85\u65F6", "#dc2626");
+              this.showFeedback("连接超时", "#dc2626");
             }
           });
         } else {
-          this.showFeedback("\u5F53\u524D\u73AF\u5883\u7F3A\u5C11 GM_xmlhttpRequest", "#dc2626");
+          this.showFeedback("当前环境缺少 GM_xmlhttpRequest", "#dc2626");
         }
       });
       btnClearCache?.addEventListener("click", () => {
         Storage.clearReported();
         const cacheStats = this.shadowRoot?.getElementById("cache-stats");
-        if (cacheStats) cacheStats.textContent = "\u7F13\u5B58: 0/500";
-        this.showFeedback("\u5DF2\u6E05\u7A7A\u53BB\u91CD\u961F\u5217", "#059669");
+        if (cacheStats) cacheStats.textContent = "缓存: 0/500";
+        this.showFeedback("已清空去重队列", "#059669");
       });
     }
     static toggleModal(open) {
@@ -1246,7 +1246,7 @@
           modal.classList.add("open");
           if (inputUrl) inputUrl.value = Storage.getBackendUrl();
           if (inputToken) inputToken.value = Storage.getUserToken();
-          if (cacheStats) cacheStats.textContent = `\u7F13\u5B58: ${Storage.getReportedCount()}/500`;
+          if (cacheStats) cacheStats.textContent = `缓存: ${Storage.getReportedCount()}/500`;
         } else {
           modal.classList.remove("open");
         }
@@ -1309,7 +1309,7 @@
   __publicField(StatusBadge, "currentPlatform", "OJ");
   __publicField(StatusBadge, "syncingTimeoutTimer", null);
 
-  // src/adapters/base-adapter.ts
+  // oj-submission-tracker/src/adapters/base-adapter.ts
   var BaseAdapter = class {
     constructor() {
       /**
@@ -1331,7 +1331,7 @@
     }
   };
 
-  // src/adapters/leetcode-adapter.ts
+  // oj-submission-tracker/src/adapters/leetcode-adapter.ts
   var LeetCodeAdapter = class extends BaseAdapter {
     constructor() {
       super(...arguments);
@@ -1389,7 +1389,7 @@
           code: reqBody.typed_code || "",
           timestamp: Date.now()
         });
-        Transport.notifyStatus("syncing", `\u529B\u6263\u5DF2\u63D0\u4EA4\u5224\u9898: ${titleSlug}...`);
+        Transport.notifyStatus("syncing", `力扣已提交判题: ${titleSlug}...`);
         Logger.info(`[LeetCodeAdapter] Cached pending submission: ID=${subIdStr}, Title=${titleSlug}`);
         this.startPollingCheckStatus(subIdStr, titleSlug);
       } catch (e) {
@@ -1547,40 +1547,40 @@
       );
       for (const el of Array.from(resultBadges)) {
         const t = el.textContent?.trim() || "";
-        if (t === "\u901A\u8FC7" || t === "Accepted") {
+        if (t === "通过" || t === "Accepted") {
           foundVerdict = "AC";
           foundStatusText = t;
           break;
-        } else if (t === "\u89E3\u7B54\u9519\u8BEF" || t === "Wrong Answer") {
+        } else if (t === "解答错误" || t === "Wrong Answer") {
           foundVerdict = "WA";
           foundStatusText = t;
           break;
-        } else if (t === "\u8D85\u51FA\u65F6\u95F4\u9650\u5236" || t === "Time Limit Exceeded") {
+        } else if (t === "超出时间限制" || t === "Time Limit Exceeded") {
           foundVerdict = "TLE";
           foundStatusText = t;
           break;
-        } else if (t === "\u8D85\u51FA\u5185\u5B58\u9650\u5236" || t === "Memory Limit Exceeded") {
+        } else if (t === "超出内存限制" || t === "Memory Limit Exceeded") {
           foundVerdict = "MLE";
           foundStatusText = t;
           break;
-        } else if (t.includes("\u6267\u884C\u51FA\u9519") || t.includes("Runtime Error")) {
+        } else if (t.includes("执行出错") || t.includes("Runtime Error")) {
           foundVerdict = "RE";
           foundStatusText = t;
           break;
-        } else if (t.includes("\u7F16\u8BD1\u51FA\u9519") || t.includes("Compile Error")) {
+        } else if (t.includes("编译出错") || t.includes("Compile Error")) {
           foundVerdict = "CE";
           foundStatusText = t;
           break;
         }
       }
       if (!foundVerdict) {
-        if (pageText.includes("\u6267\u884C\u7528\u65F6\u5206\u5E03") || pageText.includes("\u6D88\u8017\u5185\u5B58\u5206\u5E03")) {
-          if (/(\n|^)\s*通过\s*(\n|$)/m.test(pageText) || pageText.includes("\u72B6\u6001\uFF1A\u901A\u8FC7") || pageText.includes("\u72B6\u6001: \u901A\u8FC7")) {
+        if (pageText.includes("执行用时分布") || pageText.includes("消耗内存分布")) {
+          if (/(\n|^)\s*通过\s*(\n|$)/m.test(pageText) || pageText.includes("状态：通过") || pageText.includes("状态: 通过")) {
             foundVerdict = "AC";
-            foundStatusText = "\u901A\u8FC7";
+            foundStatusText = "通过";
           } else if (/(\n|^)\s*解答错误\s*(\n|$)/m.test(pageText)) {
             foundVerdict = "WA";
-            foundStatusText = "\u89E3\u7B54\u9519\u8BEF";
+            foundStatusText = "解答错误";
           }
         }
       }
@@ -1702,7 +1702,7 @@
     }
   };
 
-  // src/adapters/luogu-adapter.ts
+  // oj-submission-tracker/src/adapters/luogu-adapter.ts
   var LuoguAdapter = class extends BaseAdapter {
     constructor() {
       super(...arguments);
@@ -1744,7 +1744,7 @@
           timestamp: Date.now()
         });
         Logger.info(`[LuoguAdapter] Intercepted submit for problem ${problemId}, rid: ${ridStr}`);
-        Transport.notifyStatus("syncing", `\u6D1B\u8C37\u5DF2\u63D0\u4EA4: ${problemId} (rid: ${ridStr})...`);
+        Transport.notifyStatus("syncing", `洛谷已提交: ${problemId} (rid: ${ridStr})...`);
         this.startActivePolling(ridStr);
       } catch (e) {
         Logger.error("[LuoguAdapter] Error parsing submit response:", e);
@@ -1767,7 +1767,7 @@
       if (this.activePollers.has(rid)) return;
       if (Storage.isDuplicate(this.platform, rid)) return;
       this.activePollers.add(rid);
-      Transport.notifyStatus("syncing", `\u6B63\u5728\u7B49\u5F85\u6D1B\u8C37\u8BC4\u6D4B\u51FA\u8D44 (rid: ${rid})...`);
+      Transport.notifyStatus("syncing", `正在等待洛谷评测出资 (rid: ${rid})...`);
       let attempts = 0;
       const maxAttempts = 20;
       const intervalMs = 2e3;
@@ -1914,7 +1914,7 @@
     }
   };
 
-  // src/adapters/acwing-adapter.ts
+  // oj-submission-tracker/src/adapters/acwing-adapter.ts
   var AcWingAdapter = class extends BaseAdapter {
     constructor() {
       super(...arguments);
@@ -2022,7 +2022,7 @@
           timestamp: Date.now()
         };
         Logger.info(`[AcWingAdapter] Captured editor code for ${problemId}, lang: ${language}, length: ${code.length}`);
-        Transport.notifyStatus("syncing", `AcWing \u5DF2\u63D0\u4EA4\u5224\u9898: ${problemTitle || problemId}...`);
+        Transport.notifyStatus("syncing", `AcWing 已提交判题: ${problemTitle || problemId}...`);
       } catch (e) {
         Logger.error("[AcWingAdapter] Error capturing editor state:", e);
       }
@@ -2197,7 +2197,7 @@
         const verdict = this.mapStatusStringToVerdict(statusStr);
         if (!verdict) {
           if (/pending|judging|running|compiling|queue/i.test(statusStr)) {
-            Transport.notifyStatus("syncing", `AcWing \u5224\u9898\u4E2D (${statusStr})...`);
+            Transport.notifyStatus("syncing", `AcWing 判题中 (${statusStr})...`);
           } else {
             Logger.info(`[AcWingAdapter] Unrecognized status ignored: ${statusStr}`);
           }
@@ -2258,7 +2258,7 @@
       const problemNum = pidMatch ? pidMatch[1] : urlMatch ? urlMatch[1] : null;
       if (!problemNum) {
         Logger.warn("[AcWingAdapter] Cannot determine problem number, giving up. pathname=" + window.location.pathname);
-        Transport.notifyStatus("error", "AcWing \u65E0\u6CD5\u8BC6\u522B\u9898\u53F7\uFF0C\u672A\u540C\u6B65");
+        Transport.notifyStatus("error", "AcWing 无法识别题号，未同步");
         return;
       }
       const delays = [800, 1500, 2e3, 2500, 3e3, 4e3];
@@ -2297,7 +2297,7 @@
         }
       }
       Logger.warn("[AcWingAdapter] Could not resolve submission id from list page, giving up.");
-      Transport.notifyStatus("error", "AcWing \u5DF2\u51FA\u7ED3\u679C\uFF0C\u4F46\u672A\u80FD\u83B7\u53D6\u63D0\u4EA4 ID\uFF0C\u672A\u540C\u6B65");
+      Transport.notifyStatus("error", "AcWing 已出结果，但未能获取提交 ID，未同步");
     }
     /**
      * 初始化 DOM MutationObserver 双保险
@@ -2321,7 +2321,7 @@
       );
       if (!statusBlock) return;
       const text = statusBlock.textContent?.trim() || "";
-      if (!text || text.includes("Running") || text.includes("Pending") || text.includes("Compiling") || text.includes("\u5224\u9898\u4E2D") || text.includes("\u6392\u961F\u4E2D")) {
+      if (!text || text.includes("Running") || text.includes("Pending") || text.includes("Compiling") || text.includes("判题中") || text.includes("排队中")) {
         return;
       }
       const verdict = this.mapStatusStringToVerdict(text);
@@ -2419,12 +2419,12 @@
     }
     mapStatusStringToVerdict(status) {
       const s = String(status).toLowerCase().replace(/[_\-]+/g, " ").trim();
-      if (s.includes("accepted") || s.includes("\u901A\u8FC7") && !s.includes("\u672A\u901A\u8FC7") && !s.includes("\u4E0D\u901A\u8FC7")) return "AC";
-      if (s.includes("wrong answer") || s.includes("\u7B54\u6848\u9519\u8BEF")) return "WA";
-      if (s.includes("time limit") || s.includes("\u65F6\u95F4\u8D85\u9650")) return "TLE";
-      if (s.includes("memory limit") || s.includes("\u5185\u5B58\u8D85\u9650")) return "MLE";
-      if (s.includes("runtime error") || s.includes("\u8FD0\u884C\u65F6\u9519\u8BEF") || s.includes("segmentation") || s.includes("\u6BB5\u9519\u8BEF")) return "RE";
-      if (s.includes("compile error") || s.includes("compilation error") || s.includes("\u7F16\u8BD1\u9519\u8BEF")) return "CE";
+      if (s.includes("accepted") || s.includes("通过") && !s.includes("未通过") && !s.includes("不通过")) return "AC";
+      if (s.includes("wrong answer") || s.includes("答案错误")) return "WA";
+      if (s.includes("time limit") || s.includes("时间超限")) return "TLE";
+      if (s.includes("memory limit") || s.includes("内存超限")) return "MLE";
+      if (s.includes("runtime error") || s.includes("运行时错误") || s.includes("segmentation") || s.includes("段错误")) return "RE";
+      if (s.includes("compile error") || s.includes("compilation error") || s.includes("编译错误")) return "CE";
       return null;
     }
     extractUserHandle() {
@@ -2439,7 +2439,7 @@
             return m[1];
           }
           const text = userElem.textContent?.trim();
-          if (text && !text.includes("\u767B\u5F55") && !text.includes("\u6CE8\u518C")) {
+          if (text && !text.includes("登录") && !text.includes("注册")) {
             return text;
           }
         }
@@ -2449,7 +2449,7 @@
     }
   };
 
-  // src/adapters/codeforces-adapter.ts
+  // oj-submission-tracker/src/adapters/codeforces-adapter.ts
   var CodeforcesAdapter = class extends BaseAdapter {
     constructor() {
       super(...arguments);
@@ -2506,7 +2506,7 @@
       if (waiting === "true") {
         if (!this.observedCells.has(verdictCell)) {
           this.observedCells.add(verdictCell);
-          Transport.notifyStatus("syncing", `Codeforces \u5224\u9898\u4E2D (#${submissionId})...`);
+          Transport.notifyStatus("syncing", `Codeforces 判题中 (#${submissionId})...`);
           Logger.info(`[CodeforcesAdapter] Observing waiting submission: #${submissionId}`);
           const cellObserver = new MutationObserver(() => {
             const currentWaiting = verdictCell.getAttribute("waiting");
@@ -2643,14 +2643,14 @@
     }
   };
 
-  // src/adapters/atcoder-adapter.ts
+  // oj-submission-tracker/src/adapters/atcoder-adapter.ts
   var KEY_RECENT_SUBMIT_TS = "oiboard_atcoder_submit_ts";
   var AtCoderAdapter = class extends BaseAdapter {
     constructor() {
       super(...arguments);
       __publicField(this, "platform", "atcoder");
-      // 零网络/路由全局劫持：纯被动 DOM 观察，彻底避免触发 AtCoder / Cloudflare WAF 403
-      __publicField(this, "requiredHooks", { fetch: false, xhr: false, ws: false, router: false });
+      // 仅监听页面自身 jQuery $.ajax (XHR) 的 /status/json 响应；保持 fetch / ws / router 原生不劫持
+      __publicField(this, "requiredHooks", { fetch: false, xhr: true, ws: false, router: false });
       __publicField(this, "observedWaitingSids", /* @__PURE__ */ new Set());
       __publicField(this, "observerInitialized", false);
       __publicField(this, "scanDebounceTimer", null);
@@ -2658,21 +2658,32 @@
     matchDomain(hostname) {
       return hostname === "atcoder.jp" || hostname.endsWith(".atcoder.jp");
     }
-    /**
-     * 仅在提交列表页启用表格扫描与 DOM 观察，详情页 (/submissions/{id}) 完全静默
-     */
     isSubmissionsListPage() {
       const path = window.location.pathname;
       if (/\/submissions\/\d+/.test(path)) return false;
       return /\/submissions(\/me)?\/?$/.test(path);
     }
+    isMySubmissionsPage() {
+      return /\/submissions\/me\/?$/.test(window.location.pathname);
+    }
+    isSubmissionDetailPage() {
+      return /\/submissions\/\d+/.test(window.location.pathname);
+    }
     init() {
-      Logger.info("[AtCoderAdapter] Initialized (passive DOM mode, zero network hook).");
+      Logger.info("[AtCoderAdapter] Initialized (XHR /status/json + DOM observer dual mode).");
+      NetworkHookBus.onHttp((event) => {
+        this.handleHttpEvent(event);
+      });
       this.bindSubmitListener();
-      if (!this.isSubmissionsListPage()) return;
+      if (!this.isSubmissionsListPage() && !this.isSubmissionDetailPage()) return;
       const start = () => {
-        this.scanStaticSubmissions();
-        this.initDomObserver();
+        if (this.isSubmissionsListPage()) {
+          this.scanStaticSubmissions();
+          this.initDomObserver();
+        } else if (this.isSubmissionDetailPage()) {
+          this.scanDetailPage();
+          this.initDomObserver();
+        }
       };
       if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", start, { once: true });
@@ -2680,24 +2691,43 @@
         start();
       }
     }
+    markRecentSubmitIntent() {
+      try {
+        sessionStorage.setItem(KEY_RECENT_SUBMIT_TS, String(Date.now()));
+      } catch (_) {
+      }
+      Logger.info("[AtCoderAdapter] Submit detected. Waiting for judge...");
+      Transport.notifyStatus("syncing", "AtCoder 代码已提交，等待评测...");
+    }
     bindSubmitListener() {
       document.addEventListener("click", (e) => {
         const target = e.target;
         const btn = target?.closest('#submit, button[type="submit"], input[type="submit"]');
         if (btn && (window.location.pathname.includes("/tasks/") || window.location.pathname.includes("/submit"))) {
-          try {
-            sessionStorage.setItem(KEY_RECENT_SUBMIT_TS, String(Date.now()));
-          } catch (_) {
-          }
-          Logger.info("[AtCoderAdapter] Submit button clicked. Waiting for judge...");
-          Transport.notifyStatus("syncing", "AtCoder \u4EE3\u7801\u5DF2\u63D0\u4EA4\uFF0C\u7B49\u5F85\u8BC4\u6D4B...");
+          this.markRecentSubmitIntent();
+        }
+      }, true);
+      document.addEventListener("submit", (e) => {
+        const form = e.target;
+        const action = form?.getAttribute("action") || "";
+        if (action.includes("/submit") || window.location.pathname.includes("/tasks/") || window.location.pathname.includes("/submit")) {
+          this.markRecentSubmitIntent();
         }
       }, true);
     }
+    findSubmissionsTable() {
+      const tables = Array.from(document.querySelectorAll("table"));
+      for (const t of tables) {
+        if (t.querySelector('tbody a[href*="/submissions/"]')) {
+          return t;
+        }
+      }
+      return document.querySelector("table.table") || tables[0] || null;
+    }
     initDomObserver() {
       if (this.observerInitialized) return;
-      const table = document.querySelector("table");
-      if (!table) return;
+      const targetNode = this.isSubmissionsListPage() ? this.findSubmissionsTable() || document.querySelector("#main-container") || document.body : document.querySelector("#main-container") || document.body;
+      if (!targetNode) return;
       this.observerInitialized = true;
       const observer = new MutationObserver(() => {
         if (this.scanDebounceTimer !== null) {
@@ -2705,22 +2735,26 @@
         }
         this.scanDebounceTimer = window.setTimeout(() => {
           this.scanDebounceTimer = null;
-          this.scanStaticSubmissions();
+          if (this.isSubmissionsListPage()) {
+            this.scanStaticSubmissions();
+          } else if (this.isSubmissionDetailPage()) {
+            this.scanDetailPage();
+          }
         }, 150);
       });
-      observer.observe(table, {
+      observer.observe(targetNode, {
         childList: true,
         subtree: true,
         characterData: true
       });
-      Logger.info("[AtCoderAdapter] Submissions table DOM observer active.");
+      Logger.info("[AtCoderAdapter] Submissions DOM observer active.");
     }
     hasRecentSubmitIntent() {
       try {
         const raw = sessionStorage.getItem(KEY_RECENT_SUBMIT_TS);
         if (!raw) return false;
         const ts = parseInt(raw, 10);
-        if (!isNaN(ts) && Date.now() - ts < 9e4) {
+        if (!isNaN(ts) && Date.now() - ts < 12e4) {
           return true;
         }
         sessionStorage.removeItem(KEY_RECENT_SUBMIT_TS);
@@ -2734,17 +2768,78 @@
       } catch (_) {
       }
     }
+    handleHttpEvent(event) {
+      if (!event.url || !event.url.includes("/status/json") || !event.responseText) return;
+      try {
+        const json = JSON.parse(event.responseText);
+        const result = json.Result;
+        if (!result || typeof result !== "object") return;
+        const isMeEndpoint = event.url.includes("/submissions/me/");
+        const currentUser = this.extractUserHandle();
+        for (const [sid, item] of Object.entries(result)) {
+          const detail = item;
+          if (!detail) continue;
+          if (!isMeEndpoint && currentUser) {
+            const rowUser = this.extractRowUserBySid(sid);
+            if (rowUser && rowUser.toLowerCase() !== currentUser.toLowerCase()) {
+              continue;
+            }
+          }
+          const html = detail.Html || "";
+          const isWaiting = typeof detail.Interval === "number" && detail.Interval > 0 || html.includes("WJ") || html.includes("waiting-judge") || /\d+\s*\/\s*\d+/.test(html) || html.includes("Waiting for Judging");
+          if (isWaiting) {
+            this.observedWaitingSids.add(sid);
+            Transport.notifyStatus("syncing", `AtCoder 正在评测 (${sid})...`);
+          } else {
+            this.observedWaitingSids.delete(sid);
+            this.clearRecentSubmitIntent();
+            Transport.notifyStatus("syncing", `AtCoder 评测完成 (${sid})，正在同步...`);
+            this.handleFinishedSubmissionFromHtml(sid, html);
+          }
+        }
+      } catch (e) {
+        Logger.error("[AtCoderAdapter] Error parsing status json:", e);
+      }
+    }
+    handleFinishedSubmissionFromHtml(sid, htmlSnippet) {
+      if (Storage.isDuplicate(this.platform, sid)) return;
+      const verdict = this.parseVerdictFromHtml(htmlSnippet);
+      const score = this.parseScoreFromHtml(htmlSnippet);
+      const timeMs = this.parseTimeFromHtml(htmlSnippet);
+      const memoryKb = this.parseMemoryFromHtml(htmlSnippet);
+      const meta = this.extractRowMeta(sid);
+      const payload = {
+        platform: "atcoder",
+        platformSubmissionId: String(sid),
+        problemId: meta.problemId || "atcoder_unknown",
+        problemTitle: meta.problemTitle || meta.problemId || "atcoder_unknown",
+        problemUrl: meta.problemUrl || window.location.href,
+        platformUserHandle: this.extractUserHandle(),
+        verdict,
+        rawStatus: verdict,
+        score: typeof score === "number" && score > 0 ? score : verdict === "AC" ? 100 : 0,
+        language: meta.language || "unknown",
+        sourceCode: "",
+        executionTimeMs: timeMs,
+        memoryUsedKb: memoryKb,
+        submittedAt: meta.submittedAtMs > 0 ? meta.submittedAtMs : Date.now(),
+        clientVersion: "1.0.0"
+      };
+      this.submitPayload(payload);
+    }
     /**
-     * 表格扫描：只处理当前用户的行；
-     * 上报本会话观察到由 WJ/等待变为终态的行，或刚点击提交后 90s 内落在 /submissions/me 首行的秒判记录
+     * 列表页表格扫描（双保险）：
+     * 1. 捕获本会话中由 WJ/等待变为终态的行
+     * 2. 捕获刚提交后 120s 内落在 /submissions/me 首行的秒判记录
      */
     scanStaticSubmissions() {
-      const table = document.querySelector("table");
+      const table = this.findSubmissionsTable();
       if (!table) return;
       const rows = table.querySelectorAll("tbody tr");
       if (!rows || rows.length === 0) return;
       const cols = this.getTableColumnMap(table);
       const currentUser = this.extractUserHandle();
+      const isMePage = this.isMySubmissionsPage();
       const recentSubmit = this.hasRecentSubmitIntent();
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -2754,29 +2849,74 @@
         if (!subMatch) continue;
         const sid = subMatch[1];
         if (Storage.isDuplicate(this.platform, sid)) continue;
-        if (cols.userIndex >= 0 && currentUser) {
-          const rowUser = row.children[cols.userIndex]?.textContent?.trim();
-          if (rowUser && rowUser !== currentUser) {
+        if (!isMePage && currentUser) {
+          const rowUser = this.extractUserFromRow(row, cols);
+          if (rowUser && rowUser.toLowerCase() !== currentUser.toLowerCase()) {
             continue;
           }
         }
-        const statusSpan = row.querySelector(".label");
+        const statusCell = cols.statusIndex >= 0 ? row.children[cols.statusIndex] : null;
+        const statusSpan = statusCell?.querySelector(".label") || row.querySelector(".label");
         const statusText = statusSpan?.textContent?.trim() || "";
-        const isWaiting = !statusText || statusText === "WJ" || statusText.includes("/") || statusText.includes("Waiting");
+        const isWaiting = !statusText || statusText === "WJ" || statusText.includes("/") || statusText.includes("Waiting") || Boolean(row.querySelector(".waiting-judge"));
         if (isWaiting) {
           this.observedWaitingSids.add(sid);
-          Transport.notifyStatus("syncing", `AtCoder \u6B63\u5728\u8BC4\u6D4B (${sid})...`);
+          Transport.notifyStatus("syncing", `AtCoder 正在评测 (${sid})...`);
         } else if (this.observedWaitingSids.has(sid)) {
           this.observedWaitingSids.delete(sid);
           this.clearRecentSubmitIntent();
           this.handleFinishedRow(sid, row, statusText, cols);
-        } else if (i === 0 && recentSubmit) {
+        } else if (i === 0 && isMePage && recentSubmit) {
           const meta = this.extractRowMeta(sid, row);
-          if (meta.submittedAtMs > 0 && Math.abs(Date.now() - meta.submittedAtMs) < 12e4) {
+          const withinWindow = meta.submittedAtMs <= 0 || Math.abs(Date.now() - meta.submittedAtMs) < 18e4;
+          if (withinWindow) {
             this.clearRecentSubmitIntent();
             this.handleFinishedRow(sid, row, statusText, cols);
           }
         }
+      }
+    }
+    /**
+     * 详情页 (/contests/{cid}/submissions/{sid}) DOM 扫描兜底
+     */
+    scanDetailPage() {
+      const m = window.location.pathname.match(/\/submissions\/(\d+)/);
+      if (!m) return;
+      const sid = m[1];
+      if (Storage.isDuplicate(this.platform, sid)) return;
+      const currentUser = this.extractUserHandle();
+      const detailMeta = this.extractDetailPageMeta();
+      if (currentUser && detailMeta.userHandle && detailMeta.userHandle.toLowerCase() !== currentUser.toLowerCase()) {
+        return;
+      }
+      const statusElem = document.querySelector("#judge-status .label, td#judge-status .label, table .label");
+      const statusText = statusElem?.textContent?.trim() || "";
+      const isWaiting = !statusText || statusText === "WJ" || statusText.includes("/") || statusText.includes("Waiting") || Boolean(document.querySelector("#judge-status.waiting-judge, .waiting-judge"));
+      if (isWaiting) {
+        this.observedWaitingSids.add(sid);
+        Transport.notifyStatus("syncing", `AtCoder 正在评测 (${sid})...`);
+      } else if (this.observedWaitingSids.has(sid) || this.hasRecentSubmitIntent()) {
+        this.observedWaitingSids.delete(sid);
+        this.clearRecentSubmitIntent();
+        const verdict = this.mapStatusTextToVerdict(statusText);
+        const payload = {
+          platform: "atcoder",
+          platformSubmissionId: String(sid),
+          problemId: detailMeta.problemId || "atcoder_unknown",
+          problemTitle: detailMeta.problemTitle || detailMeta.problemId || "atcoder_unknown",
+          problemUrl: detailMeta.problemUrl || window.location.href,
+          platformUserHandle: currentUser || detailMeta.userHandle,
+          verdict,
+          rawStatus: statusText,
+          score: detailMeta.score > 0 ? detailMeta.score : verdict === "AC" ? 100 : 0,
+          language: detailMeta.language || "unknown",
+          sourceCode: "",
+          executionTimeMs: detailMeta.timeMs,
+          memoryUsedKb: detailMeta.memoryKb,
+          submittedAt: detailMeta.submittedAtMs > 0 ? detailMeta.submittedAtMs : Date.now(),
+          clientVersion: "1.0.0"
+        };
+        this.submitPayload(payload);
       }
     }
     handleFinishedRow(sid, row, statusText, cols) {
@@ -2789,12 +2929,12 @@
       const timeMs = this.parseTimeFromText(timeText || "");
       const memoryKb = this.parseMemoryFromText(memText || "");
       const { problemId, problemTitle, problemUrl, language, submittedAtMs } = this.extractRowMeta(sid, row);
-      Transport.notifyStatus("syncing", `AtCoder \u8BC4\u6D4B\u5B8C\u6210 (${sid})\uFF0C\u6B63\u5728\u540C\u6B65...`);
+      Transport.notifyStatus("syncing", `AtCoder 评测完成 (${sid})，正在同步...`);
       const payload = {
         platform: "atcoder",
         platformSubmissionId: String(sid),
         problemId: problemId || "atcoder_unknown",
-        problemTitle: problemTitle || problemId,
+        problemTitle: problemTitle || problemId || "atcoder_unknown",
         problemUrl: problemUrl || window.location.href,
         platformUserHandle: this.extractUserHandle(),
         verdict,
@@ -2817,36 +2957,107 @@
         timeIndex: 0,
         taskIndex: 1,
         userIndex: -1,
-        langIndex: 2,
-        scoreIndex: 3,
-        statusIndex: 5,
-        execTimeIndex: 6,
-        memoryIndex: 7
+        langIndex: 3,
+        scoreIndex: 4,
+        statusIndex: 6,
+        execTimeIndex: 7,
+        memoryIndex: 8
       };
       if (!table) return colMap;
       const ths = table.querySelectorAll("thead th");
       if (!ths || ths.length === 0) return colMap;
       ths.forEach((th, idx) => {
         const text = (th.textContent || "").trim().toLowerCase();
-        if (text.includes("\u63D0\u51FA\u65E5\u6642") || text.includes("submission time") || text.includes("date")) {
+        if (text.includes("提出日時") || text.includes("submission time") || text.includes("date")) {
           colMap.timeIndex = idx;
-        } else if (text.includes("\u554F\u984C") || text.includes("task") || text.includes("problem")) {
+        } else if (text.includes("問題") || text.includes("task") || text.includes("problem")) {
           colMap.taskIndex = idx;
-        } else if (text.includes("\u30E6\u30FC\u30B6") || text.includes("user")) {
+        } else if (text.includes("ユーザ") || text.includes("user")) {
           colMap.userIndex = idx;
-        } else if (text.includes("\u8A00\u8A9E") || text.includes("language")) {
+        } else if (text.includes("言語") || text.includes("language")) {
           colMap.langIndex = idx;
-        } else if (text.includes("\u5F97\u70B9") || text.includes("score")) {
+        } else if (text.includes("得点") || text.includes("score")) {
           colMap.scoreIndex = idx;
-        } else if (text.includes("\u7D50\u679C") || text.includes("status")) {
+        } else if (text.includes("結果") || text.includes("status")) {
           colMap.statusIndex = idx;
-        } else if (text.includes("\u5B9F\u884C\u6642\u9593") || text.includes("exec time") || text.includes("time") && !text.includes("submission")) {
+        } else if (text.includes("実行時間") || text.includes("exec time") || text.includes("time") && !text.includes("submission")) {
           colMap.execTimeIndex = idx;
-        } else if (text.includes("\u30E1\u30E2\u30EA") || text.includes("memory")) {
+        } else if (text.includes("メモリ") || text.includes("memory")) {
           colMap.memoryIndex = idx;
         }
       });
       return colMap;
+    }
+    extractUserFromRow(row, cols) {
+      const userCell = cols.userIndex >= 0 ? row.children[cols.userIndex] : null;
+      const link = userCell?.querySelector('a[href^="/users/"]') || row.querySelector('a[href^="/users/"]');
+      if (link) {
+        const href = link.getAttribute("href") || "";
+        const m = href.match(/\/users\/([^/?#]+)/);
+        if (m && m[1]) {
+          return decodeURIComponent(m[1]).trim();
+        }
+      }
+      return userCell?.textContent?.trim() || void 0;
+    }
+    extractRowUserBySid(sid) {
+      const link = document.querySelector(`a[href$="/submissions/${sid}"]`);
+      const row = link?.closest("tr");
+      if (!row) return void 0;
+      const table = row.closest("table");
+      return this.extractUserFromRow(row, this.getTableColumnMap(table));
+    }
+    parseAtCoderDateTime(raw) {
+      if (!raw) return 0;
+      const s = raw.trim();
+      const direct = Date.parse(s);
+      if (!isNaN(direct) && direct > 0) return direct;
+      const normalized = s.replace(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})\s+(\d{1,2}:\d{2}:\d{2})/, "$1-$2-$3T$4").replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
+      const parsed = Date.parse(normalized);
+      return !isNaN(parsed) && parsed > 0 ? parsed : 0;
+    }
+    extractDetailPageMeta() {
+      let problemId = "";
+      let problemTitle = "";
+      let problemUrl = "";
+      let language = "";
+      let submittedAtMs = 0;
+      let score = 0;
+      let timeMs = 0;
+      let memoryKb = 0;
+      let userHandle;
+      const rows = document.querySelectorAll("table tr");
+      rows.forEach((tr) => {
+        const th = tr.querySelector("th");
+        const td = tr.querySelector("td");
+        if (!th || !td) return;
+        const label = (th.textContent || "").trim().toLowerCase();
+        if (label.includes("提出日時") || label.includes("submission time")) {
+          const t = td.querySelector("time");
+          submittedAtMs = this.parseAtCoderDateTime(t?.getAttribute("datetime") || td.textContent || "");
+        } else if (label.includes("問題") || label.includes("task")) {
+          const a = td.querySelector('a[href*="/tasks/"]');
+          if (a) {
+            problemUrl = a.href;
+            problemTitle = a.textContent?.trim() || "";
+            const m = a.getAttribute("href")?.match(/\/tasks\/([A-Za-z0-9_]+)/);
+            if (m) problemId = m[1];
+          }
+        } else if (label.includes("ユーザ") || label.includes("user")) {
+          const a = td.querySelector('a[href^="/users/"]');
+          const m = a?.getAttribute("href")?.match(/\/users\/([^/?#]+)/);
+          if (m && m[1]) userHandle = decodeURIComponent(m[1]).trim();
+        } else if (label.includes("言語") || label.includes("language")) {
+          language = td.textContent?.trim() || "";
+        } else if (label.includes("得点") || label.includes("score")) {
+          score = parseInt((td.textContent || "").trim(), 10) || 0;
+        } else if (label.includes("実行時間") || label.includes("exec time")) {
+          timeMs = this.parseTimeFromText(td.textContent || "");
+        } else if (label.includes("メモリ") || label.includes("memory")) {
+          memoryKb = this.parseMemoryFromText(td.textContent || "");
+        }
+      });
+      return { problemId, problemTitle, problemUrl, language, submittedAtMs, score, timeMs, memoryKb, userHandle };
     }
     extractRowMeta(sid, targetRow) {
       let row = targetRow;
@@ -2857,6 +3068,16 @@
         }
       }
       if (!row) {
+        if (this.isSubmissionDetailPage()) {
+          const d = this.extractDetailPageMeta();
+          return {
+            problemId: d.problemId,
+            problemTitle: d.problemTitle,
+            problemUrl: d.problemUrl,
+            language: d.language,
+            submittedAtMs: d.submittedAtMs
+          };
+        }
         return { problemId: "", problemTitle: "", problemUrl: "", language: "", submittedAtMs: 0 };
       }
       const table = row.closest("table");
@@ -2866,18 +3087,13 @@
         const timeCell = row.children[cols.timeIndex];
         const timeElem = timeCell.querySelector("time");
         const timeStr = timeElem?.getAttribute("datetime") || timeCell.textContent?.trim() || "";
-        if (timeStr) {
-          const parsed = Date.parse(timeStr);
-          if (!isNaN(parsed) && parsed > 0) {
-            submittedAtMs = parsed;
-          }
-        }
+        submittedAtMs = this.parseAtCoderDateTime(timeStr);
       }
       let problemId = "";
       let problemTitle = "";
       let problemUrl = "";
       const taskCell = cols.taskIndex >= 0 ? row.children[cols.taskIndex] : row;
-      const taskLink = taskCell?.querySelector('a[href*="/tasks/"]');
+      const taskLink = taskCell?.querySelector('a[href*="/tasks/"]') || row.querySelector('a[href*="/tasks/"]');
       if (taskLink) {
         problemUrl = taskLink.href;
         problemTitle = taskLink.textContent?.trim() || "";
@@ -2892,6 +3108,16 @@
       }
       return { problemId, problemTitle, problemUrl, language, submittedAtMs };
     }
+    parseVerdictFromHtml(html) {
+      if (html.includes(">AC<") || html.includes("label-success")) return "AC";
+      if (html.includes(">WA<")) return "WA";
+      if (html.includes(">TLE<")) return "TLE";
+      if (html.includes(">MLE<")) return "MLE";
+      if (html.includes(">RE<")) return "RE";
+      if (html.includes(">CE<")) return "CE";
+      if (html.includes(">OLE<")) return "OTHER";
+      return "OTHER";
+    }
     mapStatusTextToVerdict(text) {
       const s = text.trim();
       if (s === "AC") return "AC";
@@ -2901,6 +3127,18 @@
       if (s === "RE") return "RE";
       if (s === "CE") return "CE";
       return "OTHER";
+    }
+    parseScoreFromHtml(html) {
+      const m = html.match(/submission-score[^>]*>\s*(\d+)/i);
+      return m ? parseInt(m[1], 10) : 0;
+    }
+    parseTimeFromHtml(html) {
+      const m = html.match(/(\d+)\s*ms/i);
+      return m ? parseInt(m[1], 10) : 0;
+    }
+    parseMemoryFromHtml(html) {
+      const m = html.match(/(\d+)\s*KB/i);
+      return m ? parseInt(m[1], 10) : 0;
     }
     parseTimeFromText(text) {
       const m = text.match(/(\d+)\s*ms/i);
@@ -2913,7 +3151,7 @@
     extractUserHandle() {
       try {
         const userLink = document.querySelector(
-          '#header a[href^="/users/"], .navbar a[href^="/users/"], a.username, a[href^="/users/"]'
+          '#header a[href^="/users/"], .navbar a[href^="/users/"], a.username'
         );
         if (userLink) {
           const href = userLink.getAttribute("href") || "";
@@ -2925,7 +3163,7 @@
             }
           }
           const text = userLink.textContent?.trim();
-          if (text && !["\u6211\u7684\u8D44\u6599", "My Profile", "\u30D7\u30ED\u30D5\u30A3\u30FC\u30EB", "Profile", "Sign In", "\u30ED\u30B0\u30A4\u30F3"].includes(text)) {
+          if (text && !["我的资料", "My Profile", "プロフィール", "Profile", "Sign In", "ログイン"].includes(text)) {
             return text;
           }
         }
@@ -2935,7 +3173,7 @@
     }
   };
 
-  // src/main.ts
+  // oj-submission-tracker/src/main.ts
   function bootstrap() {
     Logger.info("Starting OJ Submission Tracker bootstrap...");
     const adapters = [
