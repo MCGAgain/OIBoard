@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OIBoard - 算法刷题数据看板</title>
-  <!-- 早期执行 UI 缩放偏好恢复，防止页面渲染闪烁 -->
+  <!-- 早期执行 UI 缩放与毛玻璃材质偏好恢复，防止页面渲染闪烁 -->
   <script>
     (function() {
       try {
@@ -12,6 +12,8 @@
         if (s && s !== 'auto') {
           document.documentElement.dataset.uiScale = s;
         }
+        var g = localStorage.getItem('oiboard_glass_mode');
+        document.documentElement.dataset.glass = (g === 'off') ? 'off' : 'on';
       } catch (e) {}
     })();
   </script>
@@ -48,7 +50,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=3.4.0">
+  <link rel="stylesheet" href="/static/style.css?v=3.5.0">
 </head>
 <body :class="[isDark ? 'dark text-[#e5e7eb]' : 'text-[#1f2937]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -93,7 +95,7 @@
         </div>
       </div>
 
-      <div class="ui-card w-full max-w-md p-8 space-y-6 relative border border-[var(--border-subtle)] shadow-2xl rounded-3xl">
+      <div class="ui-card glass-modal w-full max-w-md p-8 space-y-6 relative border border-[var(--border-subtle)] shadow-2xl rounded-3xl">
         <!-- Logo & 系统名称 -->
         <div class="text-center space-y-2.5">
           <div class="w-14 h-14 mx-auto rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 shadow-sm">
@@ -575,7 +577,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
               <a v-for="c in topUpcomingContests" :key="c.id" 
                  :href="c.url" target="_blank" rel="noopener noreferrer"
-                 class="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] hover:border-blue-500/40 hover:shadow-md transition-all flex flex-col justify-between space-y-3 group block cursor-pointer">
+                 class="glass-subcard p-3.5 rounded-xl hover:border-blue-500/40 hover:shadow-md transition-all flex flex-col justify-between space-y-3 group block cursor-pointer">
                 <div>
                   <div class="flex items-center justify-between text-[11px] font-mono mb-1.5">
                     <span :class="['px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider',
@@ -754,7 +756,7 @@
 
               <!-- 刷新比赛按钮 -->
               <button @click="syncContestsNow" :disabled="isSyncingContests"
-                      class="btn-primary flex items-center space-x-1.5 disabled:opacity-50 text-xs self-start md:self-auto font-sans rounded-full">
+                      class="btn-primary flex items-center space-x-1.5 disabled:opacity-50 text-xs self-start md:self-auto font-sans">
                 <svg :class="['w-3.5 h-3.5', isSyncingContests ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                 </svg>
@@ -781,6 +783,7 @@
                     <span>进行中</span>
                   </span>
                 </button>
+                <button @click="contestStatusFilter = 'BEFORE'" :class="['segmented-item', contestStatusFilter === 'BEFORE' ? 'active' : '']">未开始</button>
               </div>
 
               <!-- 搜索框 -->
@@ -917,7 +920,7 @@
           </div>
 
           <!-- 多维组合筛选工具栏 -->
-          <div class="p-4 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-3 text-xs">
+          <div class="glass-subcard p-4 rounded-xl space-y-3 text-xs">
             <!-- 第一行: 日期快捷预设 + 自定义日期选择器 -->
             <div class="flex flex-wrap items-center justify-between gap-2.5">
               <div class="flex flex-wrap items-center gap-1.5">
@@ -1050,7 +1053,7 @@
                   </td>
                   <td class="px-4 py-3 text-right font-sans">
                     <div class="inline-flex items-center justify-end space-x-2">
-                      <button @click="openAddToMistakesModal(sub)" 
+                      <button @click="handleSubmissionMistakeClick(sub)" 
                               type="button"
                               class="px-2 py-1 rounded-md text-xs font-medium transition-colors inline-flex items-center space-x-1"
                               :class="mistakeKeySet.has(sub.platform + ':' + sub.problem_id) ? 'bg-amber-500/12 text-amber-600 dark:text-amber-400 border border-amber-500/25' : 'bg-[var(--bg-subtle)] hover:bg-[var(--apple-blue-subtle)] text-[var(--text-secondary)] hover:text-[var(--primary)] border border-[var(--border-subtle)]'"
@@ -1105,10 +1108,13 @@
           
           <!-- 1. 复习总览 KPI 卡片组 -->
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <!-- 全部错题 -->
-            <div class="ui-card kpi-lift p-4 sm:p-5 flex flex-col justify-between">
+            <!-- 全部错题（点击重置筛选并回到全部错题列表） -->
+            <div :class="['ui-card kpi-lift p-4 sm:p-5 flex flex-col justify-between cursor-pointer select-none',
+                          mistakeStatusFilter === 'all' ? 'ring-1 ring-[var(--primary)]/50' : '']"
+                 @click="resetMistakeFilters()"
+                 title="点击查看全部错题并重置筛选">
               <div class="flex items-center justify-between text-[var(--text-tertiary)] mb-2">
-                <span class="text-xs font-medium">全部错题</span>
+                <span class="text-xs font-medium" :class="mistakeStatusFilter === 'all' ? 'text-[var(--primary)] font-semibold' : ''">全部错题</span>
                 <div class="w-7 h-7 rounded-lg bg-[var(--apple-blue-subtle)] text-[var(--primary)] flex items-center justify-center">
                   <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
                 </div>
@@ -1117,15 +1123,16 @@
                 <span class="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] font-mono">{{ mistakesCounts.total || 0 }}</span>
                 <span class="text-xs text-[var(--text-tertiary)]">题</span>
               </div>
-              <p class="text-[11px] text-[var(--text-muted)] mt-1">已收录</p>
+              <p class="text-[11px] text-[var(--text-muted)] mt-1">点击查看全部</p>
             </div>
 
             <!-- 今日待复习 (柔和琥珀色左侧指示线，无刺眼大红底) -->
-            <div :class="['ui-card kpi-lift p-4 sm:p-5 flex flex-col justify-between cursor-pointer',
-                          mistakesCounts.due > 0 ? 'border-l-[3px] border-l-amber-500' : '']"
+            <div :class="['ui-card kpi-lift p-4 sm:p-5 flex flex-col justify-between cursor-pointer select-none',
+                          mistakesCounts.due > 0 ? 'border-l-[3px] border-l-amber-500' : '',
+                          mistakeStatusFilter === 'due' ? 'ring-1 ring-amber-500/50' : '']"
                  @click="mistakeStatusFilter = 'due'">
               <div class="flex items-center justify-between text-[var(--text-tertiary)] mb-2">
-                <span class="text-xs font-medium" :class="mistakesCounts.due > 0 ? 'text-amber-600 dark:text-amber-400 font-semibold' : ''">待复习</span>
+                <span class="text-xs font-medium" :class="mistakesCounts.due > 0 || mistakeStatusFilter === 'due' ? 'text-amber-600 dark:text-amber-400 font-semibold' : ''">待复习</span>
                 <div class="w-7 h-7 rounded-lg bg-amber-500/12 text-amber-600 dark:text-amber-400 flex items-center justify-center">
                   <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 </div>
@@ -1142,11 +1149,12 @@
             </div>
 
             <!-- 训练中 -->
-            <div class="ui-card p-4 sm:p-5 flex flex-col justify-between hover:border-[var(--border-hover)] transition-all cursor-pointer"
+            <div :class="['ui-card kpi-lift p-4 sm:p-5 flex flex-col justify-between cursor-pointer select-none',
+                          mistakeStatusFilter === 'pending_review' ? 'ring-1 ring-amber-500/50' : '']"
                  @click="mistakeStatusFilter = 'pending_review'">
               <div class="flex items-center justify-between text-[var(--text-tertiary)] mb-2">
-                <span class="text-xs font-medium">训练中</span>
-                <div class="w-7 h-7 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                <span class="text-xs font-medium" :class="mistakeStatusFilter === 'pending_review' ? 'text-amber-600 dark:text-amber-400 font-semibold' : ''">训练中</span>
+                <div class="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
                   <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                 </div>
               </div>
@@ -1158,11 +1166,12 @@
             </div>
 
             <!-- 已掌握 -->
-            <div class="ui-card p-4 sm:p-5 flex flex-col justify-between hover:border-[var(--border-hover)] transition-all cursor-pointer"
+            <div :class="['ui-card kpi-lift p-4 sm:p-5 flex flex-col justify-between cursor-pointer select-none',
+                          mistakeStatusFilter === 'mastered' ? 'ring-1 ring-emerald-500/50' : '']"
                  @click="mistakeStatusFilter = 'mastered'">
               <div class="flex items-center justify-between text-[var(--text-tertiary)] mb-2">
-                <span class="text-xs font-medium">已掌握</span>
-                <div class="w-7 h-7 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                <span class="text-xs font-medium" :class="mistakeStatusFilter === 'mastered' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : ''">已掌握</span>
+                <div class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
                   <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                 </div>
               </div>
@@ -1180,7 +1189,7 @@
             <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pb-4 border-b border-[var(--border-subtle)]">
               <!-- 状态筛选 Segmented Control -->
               <div class="segmented-control self-start overflow-x-auto max-w-full">
-                <button @click="mistakeStatusFilter = 'all'" :class="['segmented-item text-xs', mistakeStatusFilter === 'all' ? 'active' : '']">
+                <button @click="resetMistakeFilters()" :class="['segmented-item text-xs', mistakeStatusFilter === 'all' ? 'active' : '']">
                   <span>全部</span>
                   <span class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/[0.05] dark:bg-white/[0.1] font-mono">{{ mistakesCounts.total || 0 }}</span>
                 </button>
@@ -1235,9 +1244,9 @@
             <!-- 错题列表卡片流 -->
             <div v-if="mistakes.length > 0" class="space-y-3.5">
               <div v-for="item in mistakes" :key="item.id" 
-                   class="p-4 sm:p-5 rounded-xl border transition-colors hover:border-[var(--border-hover)]"
-                   :class="item.status === 'mastered' ? 'bg-[var(--bg-subtle)] border-[var(--border-subtle)] opacity-85' :
-                           item.is_due ? 'bg-[var(--bg-card)] border-[var(--border-subtle)] border-l-[3px] border-l-amber-500' : 'bg-[var(--bg-card)] border-[var(--border-subtle)]'">
+                   class="glass-subcard p-4 sm:p-5 rounded-xl transition-colors hover:border-[var(--border-hover)]"
+                   :class="item.status === 'mastered' ? 'opacity-85' :
+                           item.is_due ? 'border-l-[3px] border-l-amber-500' : ''">
                 
                 <!-- 头部：平台、题号、标题、标签与复习状态徽章 -->
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -1394,7 +1403,7 @@
                         class="px-3 py-1.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-subtle)] shadow-sm font-medium transition-all">
                   上一页
                 </button>
-                <button @click="mistakePage = mistakePage + 1; loadMistakes();" :disabled="mistakes.length < mistakePageSize"
+                <button @click="mistakePage = mistakePage + 1; loadMistakes();" :disabled="mistakePage * mistakePageSize >= mistakeTotal"
                         class="px-3 py-1.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-subtle)] shadow-sm font-medium transition-all">
                   下一页
                 </button>
@@ -1465,7 +1474,7 @@
             <!-- 多账号平台配置看板 (2K/4K 下 5 列对齐铺满，无留白缺口) -->
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-4 items-stretch">
               <div v-for="p in platformMetaList" :key="p.id" 
-                   class="p-4 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex flex-col justify-between h-full space-y-4 transition-colors hover:border-[var(--border-hover)]">
+                   class="glass-subcard p-4 rounded-xl flex flex-col justify-between h-full space-y-4 transition-colors hover:border-[var(--border-hover)]">
                 <!-- 卡片头部 -->
                 <div class="space-y-3">
                   <div class="flex items-center justify-between gap-2 pb-3 border-b border-[var(--border-subtle)]">
@@ -1587,7 +1596,7 @@
             </div>
 
             <!-- 系统参数与网络代理 -->
-            <div class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-4 shadow-sm">
+            <div class="glass-subcard p-5 rounded-xl space-y-4">
               <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
                 <div class="flex items-center space-x-2">
                   <svg class="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1636,8 +1645,8 @@
               </div>
             </div>
 
-            <!-- 显示与高分屏缩放 (UI Scale & High-DPI Adaptation) -->
-            <div class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-4 shadow-sm">
+            <!-- 外观材质与高分屏缩放 (macOS 15 磨砂玻璃开关 + UI Scale) -->
+            <div class="glass-subcard p-5 rounded-xl space-y-5">
               <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
                 <div class="flex items-center space-x-2">
                   <svg class="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1645,9 +1654,30 @@
                     <line x1="8" y1="21" x2="16" y2="21"></line>
                     <line x1="12" y1="17" x2="12" y2="21"></line>
                   </svg>
-                  <span class="font-bold text-[var(--text-primary)] text-xs">显示与高分屏缩放 (UI Scale)</span>
+                  <span class="font-bold text-[var(--text-primary)] text-xs">外观材质与界面缩放</span>
                 </div>
-                <span class="text-[10px] text-[var(--text-tertiary)] font-mono">当前: {{ uiScalePref === 'auto' ? '自动自适应' : uiScalePref + '%' }}</span>
+                <span class="text-[10px] text-[var(--text-tertiary)] font-mono">{{ glassMode ? '磨砂玻璃' : '纯净实色' }} · {{ uiScalePref === 'auto' ? '自动缩放' : uiScalePref + '%' }}</span>
+              </div>
+
+              <!-- 独立开关：macOS 15 磨砂玻璃与立体纹理层次 -->
+              <div class="flex items-center justify-between gap-4 p-3.5 rounded-xl bg-[var(--bg-surface)]/80 border border-[var(--border-subtle)]">
+                <div class="space-y-0.5 min-w-0">
+                  <div class="flex items-center space-x-2">
+                    <span class="text-xs font-semibold text-[var(--text-primary)]">磨砂玻璃与立体层次</span>
+                    <span :class="['px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold', glassMode ? 'bg-[var(--apple-blue-subtle)] text-[var(--primary)]' : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]']">
+                      {{ glassMode ? '已开启' : '已关闭' }}
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-[var(--text-muted)]">macOS 15 风格通透磨砂与立体微粒层次，纯静态光场，静止零额外 CPU / GPU 占用</p>
+                </div>
+                <button type="button"
+                        role="switch"
+                        :aria-checked="glassMode"
+                        @click="toggleGlassMode"
+                        :class="['mac-switch', glassMode ? 'is-on' : '']"
+                        :title="glassMode ? '点击关闭磨砂玻璃（切换纯净实色）' : '点击开启 macOS 15 磨砂玻璃与立体层次'">
+                  <span class="mac-switch-knob"></span>
+                </button>
               </div>
 
               <div>
@@ -1694,7 +1724,7 @@
             </div>
 
             <!-- 本地代码监控服务配置与密钥 (macOS oiboard-agent) -->
-            <div class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-4 shadow-sm">
+            <div class="glass-subcard p-5 rounded-xl space-y-4">
               <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
                 <div class="flex items-center space-x-2">
                   <svg class="w-4 h-4 text-cyan-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1744,7 +1774,7 @@
             </div>
 
             <!-- 账号密码安全设置卡片 (Password Change) -->
-            <div class="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-4 shadow-sm">
+            <div class="glass-subcard p-5 rounded-xl space-y-4">
               <div class="flex items-center space-x-2 pb-3 border-b border-[var(--border-subtle)]">
                 <svg class="w-4 h-4 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -1967,7 +1997,7 @@
 
     <!-- 账号添加 / 编辑浮层弹窗 -->
     <div v-if="accountModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 transition-opacity">
-      <div class="w-full max-w-md bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-6 space-y-5 font-sans modal-dialog-anim">
+      <div class="glass-modal w-full max-w-md bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-6 space-y-5 font-sans modal-dialog-anim">
         <!-- 弹窗标题 -->
         <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
           <div class="flex items-center space-x-2">
@@ -2067,7 +2097,7 @@
 
     <!-- 错题添加 / 编辑弹窗 -->
     <div v-if="mistakeModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 overflow-y-auto">
-      <div class="w-full max-w-2xl bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 font-sans my-8 modal-dialog-anim">
+      <div class="glass-modal w-full max-w-2xl bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 font-sans my-8 modal-dialog-anim">
         <!-- 弹窗标题 -->
         <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
           <h3 class="text-sm font-semibold text-[var(--text-primary)]">
@@ -2177,7 +2207,7 @@
          class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 overflow-y-auto">
       <div id="view-note-modal-dialog"
            :class="[
-             'bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-4 sm:p-6 font-sans relative flex flex-col modal-dialog-anim transition-[width,height,max-width] duration-150',
+             'glass-modal bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-4 sm:p-6 font-sans relative flex flex-col modal-dialog-anim transition-[width,height,max-width] duration-150',
              noteModalSize === 'full' ? 'w-[96vw] max-w-[96vw] h-[92vh] max-h-[92vh] my-auto' :
              noteModalSize === 'wide' ? 'w-full max-w-5xl lg:max-w-6xl my-4 sm:my-8' :
              noteModalSize === 'custom' ? 'my-auto max-w-[98vw] max-h-[94vh]' :
@@ -2345,7 +2375,7 @@
     </div>
 
     <!-- 全局浮动提示 (Hydro 克制左侧色条风格，位于右上避免与右下通知球冲突) -->
-    <div v-if="toast.show" class="fixed top-16 right-5 z-[70] px-4 py-2.5 rounded-lg shadow-lg text-xs font-medium border border-[var(--border-hover)] border-l-[3px] flex items-center space-x-2.5 bg-[var(--bg-card)] text-[var(--text-primary)] modal-dialog-anim font-sans"
+    <div v-if="toast.show" class="glass-toast fixed top-16 right-5 z-[70] px-4 py-2.5 rounded-lg shadow-lg text-xs font-medium border border-[var(--border-hover)] border-l-[3px] flex items-center space-x-2.5 bg-[var(--bg-card)] text-[var(--text-primary)] modal-dialog-anim font-sans"
          :class="toast.type === 'success' ? 'border-l-emerald-500' : toast.type === 'info' ? 'border-l-[var(--primary)]' : 'border-l-amber-500'">
       <svg v-if="toast.type === 'success'" class="w-4 h-4 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="20 6 9 17 4 12"></polyline>
@@ -2365,6 +2395,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=3.4.0"></script>
+  <script src="/static/app.js?v=3.5.0"></script>
 </body>
 </html>

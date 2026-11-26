@@ -1262,7 +1262,7 @@ def add_mistake(
                     last_submission_id = sub_row["id"]
         
         if not last_submitted_at:
-            last_submitted_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            last_submitted_at = get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
 
         next_review = calculate_next_review_date(last_submitted_at, 0)
 
@@ -1307,7 +1307,8 @@ def get_user_mistakes(
     page_size: int = 50
 ) -> Dict[str, Any]:
     """获取用户错题集，严格按最新提交时间排序，并提供智能到期/进度聚合统计"""
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    beijing_now = get_beijing_now()
+    today_str = beijing_now.strftime("%Y-%m-%d")
 
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -1335,8 +1336,11 @@ def get_user_mistakes(
         params: List[Any] = [user_id]
 
         if platform and platform != "all":
-            query_sql += " AND platform = ?"
-            params.append(platform)
+            if platform in ("leetcode", "leetcode_cn"):
+                query_sql += " AND (platform = 'leetcode' OR platform = 'leetcode_cn')"
+            else:
+                query_sql += " AND platform = ?"
+                params.append(platform)
 
         if status == "due":
             query_sql += " AND status != 'mastered' AND next_review_at != '' AND next_review_at <= ?"
@@ -1378,7 +1382,7 @@ def get_user_mistakes(
         cursor.execute(query_sql, params)
         rows = cursor.fetchall()
         items = []
-        today_date = datetime.now().date()
+        today_date = beijing_now.date()
 
         for r in rows:
             item = dict(r)
@@ -1427,15 +1431,23 @@ def get_user_mistake_keys(user_id: int = 1) -> List[str]:
 def update_mistake(
     user_id: int,
     mistake_id: int,
+    problem_title: Optional[str] = None,
+    difficulty: Optional[str] = None,
     key_point: Optional[str] = None,
     notes: Optional[str] = None,
     tags: Optional[Any] = None,
     problem_url: Optional[str] = None,
     status: Optional[str] = None
 ) -> bool:
-    """更新错题的卡点、笔记代码、标签或状态"""
+    """更新错题的标题、难度、卡点、笔记代码、标签或状态"""
     fields = []
     params = []
+    if problem_title is not None and str(problem_title).strip():
+        fields.append("problem_title = ?")
+        params.append(str(problem_title).strip())
+    if difficulty is not None:
+        fields.append("difficulty = ?")
+        params.append(str(difficulty).strip())
     if key_point is not None:
         fields.append("key_point = ?")
         params.append(key_point)
@@ -1487,7 +1499,7 @@ def manual_record_review(user_id: int, mistake_id: int, review_time: str = "") -
             return None
         
         m = dict(row)
-        now_str = review_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = review_time or get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
         new_count = (m["review_count"] or 0) + 1
         max_reviews = m["max_review_count"] or 6
 
@@ -1534,7 +1546,7 @@ def toggle_mistake_mastered(user_id: int, mistake_id: int, mastered: Optional[bo
         if new_status == "mastered":
             next_review = ""
         else:
-            next_review = calculate_next_review_date(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), m["review_count"] or 0)
+            next_review = calculate_next_review_date(get_beijing_now().strftime("%Y-%m-%d %H:%M:%S"), m["review_count"] or 0)
         
         cursor.execute("""
             UPDATE mistakes

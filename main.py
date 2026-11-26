@@ -136,6 +136,8 @@ class MistakeCreatePayload(BaseModel):
     last_submission_id: Optional[Union[str, int]] = ""
 
 class MistakeUpdatePayload(BaseModel):
+    problem_title: Optional[str] = None
+    difficulty: Optional[Union[str, int, float]] = None
     key_point: Optional[str] = None
     notes: Optional[str] = None
     tags: Optional[Union[List[Any], str]] = None
@@ -380,6 +382,8 @@ async def update_mistake(mistake_id: int, payload: MistakeUpdatePayload, current
     ok = db.update_mistake(
         user_id=uid,
         mistake_id=mistake_id,
+        problem_title=payload.problem_title,
+        difficulty=str(payload.difficulty).strip() if payload.difficulty is not None else None,
         key_point=payload.key_point,
         notes=payload.notes,
         tags=payload.tags,
@@ -577,7 +581,11 @@ async def trigger_sync(payload: SyncPayload, current_user: Dict[str, Any] = Depe
         return {"success": True, "data": res}
     else:
         res = await scheduler_instance.sync_platform(platform, user_id=uid)
-        return {"success": res.get("success", False), "data": res}
+        return {
+            "success": res.get("success", False),
+            "message": res.get("message", ""),
+            "data": res
+        }
 
 @app.post("/api/verify")
 async def verify_credentials(payload: VerifyPayload, current_user: Dict[str, Any] = Depends(get_current_user)):

@@ -566,6 +566,20 @@ createApp({
     // --- UI Scale Engine & High-DPI Adaptation ---
     const uiScalePref = ref(localStorage.getItem("oiboard_ui_scale") || "auto");
 
+    // --- macOS 15 Frosted Glass & Layered Depth Switch ---
+    const glassMode = ref((localStorage.getItem("oiboard_glass_mode") || "on") !== "off");
+
+    const applyGlassMode = () => {
+      document.documentElement.dataset.glass = glassMode.value ? "on" : "off";
+    };
+
+    const toggleGlassMode = () => {
+      glassMode.value = !glassMode.value;
+      localStorage.setItem("oiboard_glass_mode", glassMode.value ? "on" : "off");
+      applyGlassMode();
+      showToast(glassMode.value ? "已开启磨砂玻璃与立体层次" : "已切换为纯净实色模式", "info");
+    };
+
     // 动态依据根元素实际 px 大小计算 ECharts 矢量字号，保证 2K/4K/大字号下文字清晰比例协调
     const getChartFontSize = (baseSize) => {
       try {
@@ -897,9 +911,13 @@ createApp({
     const filteredSubmissions = computed(() => {
       let list = submissions.value || [];
 
-      // 1. 平台过滤
+      // 1. 平台过滤（兼容 leetcode / leetcode_cn）
       if (subFilter.value !== "all") {
-        list = list.filter(s => s.platform === subFilter.value);
+        if (subFilter.value === "leetcode") {
+          list = list.filter(s => s.platform === "leetcode" || s.platform === "leetcode_cn");
+        } else {
+          list = list.filter(s => s.platform === subFilter.value);
+        }
       }
 
       // 2. 状态过滤
@@ -999,6 +1017,11 @@ createApp({
       currentPage.value = 1;
       nextTick(syncSegmentedThumbs);
     };
+
+    // 切换提交记录筛选条件时自动回到第 1 页，防止停留在空页
+    watch([subFilter, verdictFilter, selectedTag, startDate, endDate], () => {
+      currentPage.value = 1;
+    });
 
     // --- Contest Computed & Helpers (A5: 集中秒级计算并以 O(1) 字典缓存，消除模板中多卡片重复函数调用) ---
     const updateContestMetas = () => {
@@ -1297,6 +1320,57 @@ createApp({
       }
     };
 
+    let mistakeSearchDebounceTimer = null;
+    let isResettingMistakeFilters = false;
+
+    const resetMistakeFilters = async () => {
+      isResettingMistakeFilters = true;
+      if (mistakeSearchDebounceTimer) {
+        clearTimeout(mistakeSearchDebounceTimer);
+        mistakeSearchDebounceTimer = null;
+      }
+      mistakeStatusFilter.value = "all";
+      mistakePlatformFilter.value = "all";
+      mistakeSearch.value = "";
+      mistakeTagFilter.value = "";
+      mistakePage.value = 1;
+      await nextTick();
+      isResettingMistakeFilters = false;
+      syncSegmentedThumbs();
+      await loadMistakes();
+    };
+
+    const handleSubmissionMistakeClick = async (sub) => {
+      if (!sub) return;
+      const key = `${sub.platform}:${sub.problem_id}`;
+      if (mistakeKeySet.value.has(key)) {
+        let existing = (mistakes.value || []).find(
+          m => m.platform === sub.platform && String(m.problem_id) === String(sub.problem_id)
+        );
+        if (!existing) {
+          try {
+            const params = new URLSearchParams({
+              status: "all",
+              platform: sub.platform || "",
+              search: String(sub.problem_id || ""),
+              page: "1",
+              page_size: "20"
+            });
+            const res = await apiFetch(`/api/mistakes?${params.toString()}`);
+            const data = await res.json();
+            existing = (data.items || []).find(
+              m => m.platform === sub.platform && String(m.problem_id) === String(sub.problem_id)
+            );
+          } catch (e) {}
+        }
+        if (existing) {
+          openAddToMistakesModal(existing, true);
+          return;
+        }
+      }
+      openAddToMistakesModal(sub, false);
+    };
+
     const openAddToMistakesModal = (subOrItem, fromMistakesList = false) => {
       isMistakeEditing.value = fromMistakesList;
       mistakeFormTab.value = "write";
@@ -1350,6 +1424,8 @@ createApp({
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              problem_title: String(mistakeForm.value.problem_title || "").trim(),
+              difficulty: mistakeForm.value.difficulty != null ? String(mistakeForm.value.difficulty).trim() : "",
               key_point: mistakeForm.value.key_point,
               notes: mistakeForm.value.notes,
               tags: tags,
@@ -2726,10 +2802,11 @@ createApp({
           timeoutMs: 180000
         });
         const data = await res.json();
+        const syncMsg = data.message || data.data?.message;
         if (!res.ok || data.success === false) {
-          showToast(`${getPlatformName(platform)} 同步未完成: ${data.message || "请求失败"}`, "error");
+          showToast(`${getPlatformName(platform)} 同步未完成: ${syncMsg || "请求失败"}`, "error");
         } else {
-          showToast(`${getPlatformName(platform)} 同步完成: ${data.message || "已获取最新数据"}`, "success");
+          showToast(`${getPlatformName(platform)} 同步完成: ${syncMsg || "已获取最新数据"}`, "success");
         }
         await Promise.all([loadAccounts(), loadOverview(), loadSubmissions(), loadMistakes(), loadDueMistakes(), loadMistakeKeys()]);
         if (currentTab.value === "overview") {
@@ -3271,9 +3348,10 @@ createApp({
 
     // --- Lifecycle ---
     onMounted(async () => {
-      // 初始化应用主题模式与高分屏缩放比例
+      // 初始化应用主题模式、高分屏缩放比例与毛玻璃材质
       applyTheme();
       applyUiScale();
+      applyGlassMode();
 
       // 30 秒级自动昼夜检测定时器 (仅在 auto 模式下无感平滑切换)
       themeTimer = setInterval(() => {
@@ -3343,6 +3421,7 @@ createApp({
       if (pollTimeoutId) clearTimeout(pollTimeoutId);
       if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
       if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      if (mistakeSearchDebounceTimer) clearTimeout(mistakeSearchDebounceTimer);
       clearNotifyAutoHide();
 
       window.removeEventListener("resize", onWindowResize);
@@ -3374,9 +3453,20 @@ createApp({
 
     // 监控错题集状态与筛选切换
     watch([mistakeStatusFilter, mistakePlatformFilter, mistakeSortBy], () => {
+      if (isResettingMistakeFilters) return;
       mistakePage.value = 1;
       loadMistakes().catch(e => console.error("筛选切换加载错题失败:", e));
       nextTick(syncSegmentedThumbs);
+    });
+
+    // 错题搜索防抖实时查询（输入或清空自动刷新，无需手动回车）
+    watch(mistakeSearch, () => {
+      if (isResettingMistakeFilters) return;
+      if (mistakeSearchDebounceTimer) clearTimeout(mistakeSearchDebounceTimer);
+      mistakeSearchDebounceTimer = setTimeout(() => {
+        mistakePage.value = 1;
+        loadMistakes().catch(e => console.error("错题搜索失败:", e));
+      }, 220);
     });
 
     // 标签页切换自动静默拉取最新数据 + Hydro 顶部细进度条与定向平滑入场动效
@@ -3521,9 +3611,11 @@ createApp({
       isDark,
       setThemePref,
       isDaylightTime,
-      // UI Scale Engine exports
+      // UI Scale & Glass Material exports
       uiScalePref,
       setUiScalePref,
+      glassMode,
+      toggleGlassMode,
       // Contests exports
       contests,
       contestFilter,
@@ -3564,6 +3656,8 @@ createApp({
       mistakeForm,
       isMistakeSaving,
       openAddToMistakesModal,
+      handleSubmissionMistakeClick,
+      resetMistakeFilters,
       saveMistake,
       deleteMistakeItem,
       recordMistakeReview,
