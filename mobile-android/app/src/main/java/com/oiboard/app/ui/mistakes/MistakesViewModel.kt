@@ -16,10 +16,12 @@ import com.oiboard.app.data.model.MistakeItemDto
 import com.oiboard.app.data.model.MistakeUpdateRequest
 import com.oiboard.app.data.repository.MistakesRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class MistakesUiState(
@@ -55,6 +57,7 @@ class MistakesViewModel(
     val uiState: StateFlow<MistakesUiState> = _uiState.asStateFlow()
 
     private var lastFetchTime: Long = 0L
+    private var detailFetchJob: Job? = null
 
     companion object {
         const val MAX_MISTAKES = 150
@@ -253,12 +256,17 @@ class MistakesViewModel(
         }
     }
 
-    // 详情页（打开时才请求最新详情）
-    fun openDetail(mistake: MistakeItemDto) {
-        _uiState.update { it.copy(selectedMistakeForDetail = mistake) }
-        viewModelScope.launch {
+    // 详情页静默刷新（严格绑定单任务取消，防止快速返回后异步响应重新弹出）
+    fun refreshDetail(mistake: MistakeItemDto) {
+        detailFetchJob?.cancel()
+        _uiState.update { state ->
+            if (state.selectedMistakeForDetail?.id == mistake.id) state
+            else state.copy(selectedMistakeForDetail = null)
+        }
+        detailFetchJob = viewModelScope.launch {
             when (val res = repository.getMistakes(search = mistake.problem_id, page = 1, pageSize = 20)) {
                 is ApiResult.Success -> {
+                    if (!isActive) return@launch
                     val fresh = res.data.items.firstOrNull { it.id == mistake.id }
                     if (fresh != null) {
                         _uiState.update { it.copy(selectedMistakeForDetail = fresh) }
@@ -269,7 +277,13 @@ class MistakesViewModel(
         }
     }
 
-    fun closeDetail() {
+    fun cancelDetailRefresh() {
+        detailFetchJob?.cancel()
+        detailFetchJob = null
+        _uiState.update { it.copy(selectedMistakeForDetail = null) }
+    }
+
+    fun consumeRefreshedDetail() {
         _uiState.update { it.copy(selectedMistakeForDetail = null) }
     }
 

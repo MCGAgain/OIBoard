@@ -216,14 +216,6 @@ fun MistakesScreen(
         )
     }
 
-    // 4. 监听错题详情更新并滑入全屏页
-    LaunchedEffect(uiState.selectedMistakeForDetail) {
-        uiState.selectedMistakeForDetail?.let { detail ->
-            onOpenMistakeDetail(detail)
-            viewModel.closeDetail()
-        }
-    }
-
     // 5. 同步外部触发展开全屏 Markdown 编辑器
     LaunchedEffect(uiState.showAddDialog) {
         if (uiState.showAddDialog) {
@@ -452,7 +444,6 @@ fun MistakesScreen(
                                 mistake = mistake,
                                 onClick = {
                                     onOpenMistakeDetail(mistake)
-                                    viewModel.openDetail(mistake)
                                 },
                                 onReview = { viewModel.requestReview(mistake) },
                                 onToggleMaster = { viewModel.requestToggleMaster(mistake) },

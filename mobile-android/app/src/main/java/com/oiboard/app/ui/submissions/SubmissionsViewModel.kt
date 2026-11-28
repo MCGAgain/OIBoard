@@ -15,10 +15,12 @@ import com.oiboard.app.data.model.MistakeItemDto
 import com.oiboard.app.data.model.SubmissionDto
 import com.oiboard.app.data.repository.SubmissionsRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -62,6 +64,7 @@ class SubmissionsViewModel(
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     private var lastFetchTime: Long = 0L
+    private var mistakeDetailJob: Job? = null
 
     companion object {
         const val MAX_SUBMISSIONS = 150
@@ -462,12 +465,14 @@ class SubmissionsViewModel(
         _uiState.update { it.copy(filteredSubmissions = filtered, visibleSubmissions = visible) }
     }
 
-    // 查阅错题详情（点击已入错题打开，传入 platform 与 problemId 精准匹配）
+    // 查阅错题详情（点击已入错题打开，传入 platform 与 problemId 精准匹配，切换/关闭时取消旧请求）
     fun openMistakeDetail(platform: String, problemId: String) {
-        _uiState.update { it.copy(isLoadingMistakeDetail = true) }
-        viewModelScope.launch {
+        mistakeDetailJob?.cancel()
+        _uiState.update { it.copy(isLoadingMistakeDetail = true, viewingMistakeDetail = null) }
+        mistakeDetailJob = viewModelScope.launch {
             when (val res = repository.getMistakeDetail(platform = platform, problemId = problemId)) {
                 is ApiResult.Success -> {
+                    if (!isActive) return@launch
                     val item = res.data
                     if (item != null) {
                         _uiState.update { it.copy(isLoadingMistakeDetail = false, viewingMistakeDetail = item) }
@@ -476,9 +481,11 @@ class SubmissionsViewModel(
                     }
                 }
                 is ApiResult.Error -> {
+                    if (!isActive) return@launch
                     _uiState.update { it.copy(isLoadingMistakeDetail = false, actionMessage = res.message) }
                 }
                 is ApiResult.NetworkError -> {
+                    if (!isActive) return@launch
                     _uiState.update { it.copy(isLoadingMistakeDetail = false, actionMessage = "网络错误") }
                 }
             }
@@ -486,7 +493,9 @@ class SubmissionsViewModel(
     }
 
     fun closeMistakeDetail() {
-        _uiState.update { it.copy(viewingMistakeDetail = null) }
+        mistakeDetailJob?.cancel()
+        mistakeDetailJob = null
+        _uiState.update { it.copy(isLoadingMistakeDetail = false, viewingMistakeDetail = null) }
     }
 
     fun requestAddToMistake(submission: SubmissionDto) {

@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -98,9 +100,16 @@ fun MainScreen(
     // 全屏错题详情页与 Markdown 编辑器状态（错题页与提交页共用）
     var activeMistakeDetail by remember { mutableStateOf<MistakeItemDto?>(null) }
     var renderedMistakeDetail by remember { mutableStateOf<MistakeItemDto?>(null) }
+    var isDetailDismissing by remember { mutableStateOf(false) }
+    var detailGeneration by remember { mutableIntStateOf(0) }
+    var detailAnimJob by remember { mutableStateOf<Job?>(null) }
+
     var showMistakeEditor by remember { mutableStateOf(false) }
     var editingMistakeTarget by remember { mutableStateOf<MistakeItemDto?>(null) }
     var renderedEditorTarget by remember { mutableStateOf<MistakeItemDto?>(null) }
+    var isEditorDismissing by remember { mutableStateOf(false) }
+    var editorGeneration by remember { mutableIntStateOf(0) }
+    var editorAnimJob by remember { mutableStateOf<Job?>(null) }
 
     val detailBackProgress = remember { Animatable(0f) }
     var detailBackEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
@@ -114,36 +123,140 @@ fun MainScreen(
 
     val uiScope = rememberCoroutineScope()
 
+    val mistakesViewModel: MistakesViewModel? = if (mistakesRepository != null && userPreferencesRepository != null) {
+        viewModel(factory = MistakesViewModel.provideFactory(mistakesRepository, context, userPreferencesRepository))
+    } else null
+
+    val refreshedDetail = if (mistakesViewModel != null) {
+        val flow = remember(mistakesViewModel) {
+            mistakesViewModel.uiState
+                .map { it.selectedMistakeForDetail }
+                .distinctUntilChanged()
+        }
+        flow.collectAsStateWithLifecycle(initialValue = null).value
+    } else null
+
+    LaunchedEffect(refreshedDetail) {
+        val fresh = refreshedDetail ?: return@LaunchedEffect
+        if (!isDetailDismissing && activeMistakeDetail?.id == fresh.id) {
+            renderedMistakeDetail = fresh
+            activeMistakeDetail = fresh
+        }
+        mistakesViewModel?.consumeRefreshedDetail()
+    }
+
     fun openMistakeDetail(detail: MistakeItemDto) {
-        uiScope.launch {
+        val gen = ++detailGeneration
+        isDetailDismissing = false
+        detailAnimJob?.cancel()
+        wasDetailDismissedByBack = false
+        renderedMistakeDetail = detail
+        activeMistakeDetail = detail
+        mistakesViewModel?.refreshDetail(detail)
+        detailAnimJob = uiScope.launch {
+            if (detailGeneration != gen) return@launch
             detailBackProgress.snapTo(0f)
             detailBackAlpha.snapTo(1f)
-            wasDetailDismissedByBack = false
-            renderedMistakeDetail = detail
-            activeMistakeDetail = detail
         }
     }
 
     fun closeMistakeDetailByButton() {
+        if (isDetailDismissing) return
+        ++detailGeneration
+        detailAnimJob?.cancel()
+        mistakesViewModel?.cancelDetailRefresh()
+        isDetailDismissing = false
         wasDetailDismissedByBack = false
         activeMistakeDetail = null
     }
 
+    fun dismissDetailByPredictiveBack() {
+        if (isDetailDismissing || activeMistakeDetail == null) return
+        val gen = ++detailGeneration
+        isDetailDismissing = true
+        mistakesViewModel?.cancelDetailRefresh()
+        detailAnimJob?.cancel()
+        detailAnimJob = uiScope.launch {
+            try {
+                coroutineScope {
+                    launch {
+                        detailBackProgress.animateTo(
+                            targetValue = 1.15f,
+                            animationSpec = tween(durationMillis = 185, easing = FastOutSlowInEasing)
+                        )
+                    }
+                    launch {
+                        detailBackAlpha.animateTo(
+                            targetValue = 0f,
+                            animationSpec = tween(durationMillis = 170, easing = FastOutSlowInEasing)
+                        )
+                    }
+                }
+            } finally {
+                if (detailGeneration == gen) {
+                    wasDetailDismissedByBack = true
+                    activeMistakeDetail = null
+                    isDetailDismissing = false
+                }
+            }
+        }
+    }
+
     fun openMistakeEditor(editing: MistakeItemDto?) {
-        uiScope.launch {
+        val gen = ++editorGeneration
+        isEditorDismissing = false
+        editorAnimJob?.cancel()
+        wasEditorDismissedByBack = false
+        renderedEditorTarget = editing
+        editingMistakeTarget = editing
+        showMistakeEditor = true
+        editorAnimJob = uiScope.launch {
+            if (editorGeneration != gen) return@launch
             editorBackProgress.snapTo(0f)
             editorBackAlpha.snapTo(1f)
-            wasEditorDismissedByBack = false
-            renderedEditorTarget = editing
-            editingMistakeTarget = editing
-            showMistakeEditor = true
         }
     }
 
     fun closeMistakeEditorByButton() {
+        if (isEditorDismissing) return
+        ++editorGeneration
+        editorAnimJob?.cancel()
+        isEditorDismissing = false
         wasEditorDismissedByBack = false
         showMistakeEditor = false
         editingMistakeTarget = null
+    }
+
+    fun dismissEditorByPredictiveBack() {
+        if (isEditorDismissing || !showMistakeEditor) return
+        val gen = ++editorGeneration
+        isEditorDismissing = true
+        editorAnimJob?.cancel()
+        editorAnimJob = uiScope.launch {
+            try {
+                coroutineScope {
+                    launch {
+                        editorBackProgress.animateTo(
+                            targetValue = 1.15f,
+                            animationSpec = tween(durationMillis = 185, easing = FastOutSlowInEasing)
+                        )
+                    }
+                    launch {
+                        editorBackAlpha.animateTo(
+                            targetValue = 0f,
+                            animationSpec = tween(durationMillis = 170, easing = FastOutSlowInEasing)
+                        )
+                    }
+                }
+            } finally {
+                if (editorGeneration == gen) {
+                    wasEditorDismissedByBack = true
+                    showMistakeEditor = false
+                    editingMistakeTarget = null
+                    isEditorDismissing = false
+                }
+            }
+        }
     }
 
     val hasDetail = activeMistakeDetail != null
@@ -151,91 +264,78 @@ fun MainScreen(
     val hasOverlay = hasDetail || hasEditor
     val deviceCornerShape = rememberDeviceCornerShape(hasOverlay)
 
-    // X (Twitter) 风格预测性返回手势：边缘滑动时页面贴合屏幕物理圆角缩退剥离，确认返回时连贯淡出，取消则弹性回弹
-    PredictiveBackHandler(enabled = hasDetail && !hasEditor) { progress: Flow<BackEventCompat> ->
-        try {
+    // X (Twitter) 风格预测性返回手势：仅在 try/catch 内采集手势流；松手确认后独立调度退出动画，彻底避免协程竞态回弹
+    PredictiveBackHandler(enabled = hasDetail && !isDetailDismissing && !hasEditor) { progress: Flow<BackEventCompat> ->
+        detailAnimJob?.cancel()
+        val committed = try {
             progress.collect { backEvent ->
                 detailBackEdge = backEvent.swipeEdge
                 detailBackProgress.snapTo(backEvent.progress)
             }
-            coroutineScope {
-                launch {
-                    detailBackProgress.animateTo(
-                        targetValue = 1.15f,
-                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
-                    )
-                }
-                launch {
-                    detailBackAlpha.animateTo(
-                        targetValue = 0f,
-                        animationSpec = tween(durationMillis = 185, easing = FastOutSlowInEasing)
-                    )
-                }
-            }
-            wasDetailDismissedByBack = true
-            activeMistakeDetail = null
+            true
         } catch (_: CancellationException) {
-            coroutineScope {
-                launch {
-                    detailBackProgress.animateTo(
-                        targetValue = 0f,
-                        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-                    )
-                }
-                launch {
-                    detailBackAlpha.animateTo(
-                        targetValue = 1f,
-                        animationSpec = tween(durationMillis = 120)
-                    )
+            if (!isDetailDismissing && activeMistakeDetail != null) {
+                val gen = detailGeneration
+                detailAnimJob = uiScope.launch {
+                    if (detailGeneration != gen || isDetailDismissing) return@launch
+                    coroutineScope {
+                        launch {
+                            detailBackProgress.animateTo(
+                                targetValue = 0f,
+                                animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+                            )
+                        }
+                        launch {
+                            detailBackAlpha.animateTo(
+                                targetValue = 1f,
+                                animationSpec = tween(durationMillis = 120)
+                            )
+                        }
+                    }
                 }
             }
+            false
+        }
+        if (committed) {
+            dismissDetailByPredictiveBack()
         }
     }
 
-    PredictiveBackHandler(enabled = hasEditor) { progress: Flow<BackEventCompat> ->
-        try {
+    PredictiveBackHandler(enabled = hasEditor && !isEditorDismissing) { progress: Flow<BackEventCompat> ->
+        editorAnimJob?.cancel()
+        val committed = try {
             progress.collect { backEvent ->
                 editorBackEdge = backEvent.swipeEdge
                 editorBackProgress.snapTo(backEvent.progress)
             }
-            coroutineScope {
-                launch {
-                    editorBackProgress.animateTo(
-                        targetValue = 1.15f,
-                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
-                    )
-                }
-                launch {
-                    editorBackAlpha.animateTo(
-                        targetValue = 0f,
-                        animationSpec = tween(durationMillis = 185, easing = FastOutSlowInEasing)
-                    )
-                }
-            }
-            wasEditorDismissedByBack = true
-            showMistakeEditor = false
-            editingMistakeTarget = null
+            true
         } catch (_: CancellationException) {
-            coroutineScope {
-                launch {
-                    editorBackProgress.animateTo(
-                        targetValue = 0f,
-                        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-                    )
-                }
-                launch {
-                    editorBackAlpha.animateTo(
-                        targetValue = 1f,
-                        animationSpec = tween(durationMillis = 120)
-                    )
+            if (!isEditorDismissing && showMistakeEditor) {
+                val gen = editorGeneration
+                editorAnimJob = uiScope.launch {
+                    if (editorGeneration != gen || isEditorDismissing) return@launch
+                    coroutineScope {
+                        launch {
+                            editorBackProgress.animateTo(
+                                targetValue = 0f,
+                                animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+                            )
+                        }
+                        launch {
+                            editorBackAlpha.animateTo(
+                                targetValue = 1f,
+                                animationSpec = tween(durationMillis = 120)
+                            )
+                        }
+                    }
                 }
             }
+            false
+        }
+        if (committed) {
+            dismissEditorByPredictiveBack()
         }
     }
-
-    val mistakesViewModel: MistakesViewModel? = if (mistakesRepository != null && userPreferencesRepository != null) {
-        viewModel(factory = MistakesViewModel.provideFactory(mistakesRepository, context, userPreferencesRepository))
-    } else null
 
     val animEnabled = LocalAnimationsEnabled.current
     val tabInDuration = if (animEnabled) 150 else 0
@@ -431,19 +531,21 @@ fun MainScreen(
                 Box(modifier = detailModifier) {
                     MistakeDetailScreen(
                         mistake = detail,
-                        onBack = { closeMistakeDetailByButton() },
+                        onBack = { if (!isDetailDismissing) closeMistakeDetailByButton() },
                         onEdit = { item ->
-                            openMistakeEditor(item)
+                            if (!isDetailDismissing) openMistakeEditor(item)
                         },
                         onReview = { item ->
-                            mistakesViewModel?.requestReview(item)
+                            if (!isDetailDismissing) mistakesViewModel?.requestReview(item)
                         },
                         onToggleMaster = { item ->
-                            mistakesViewModel?.requestToggleMaster(item)
+                            if (!isDetailDismissing) mistakesViewModel?.requestToggleMaster(item)
                         },
                         onDelete = { item ->
-                            closeMistakeDetailByButton()
-                            mistakesViewModel?.requestDelete(item)
+                            if (!isDetailDismissing) {
+                                closeMistakeDetailByButton()
+                                mistakesViewModel?.requestDelete(item)
+                            }
                         }
                     )
                     if (hasEditor) {
@@ -506,29 +608,33 @@ fun MainScreen(
             Box(modifier = editorModifier) {
                 MistakeEditorScreen(
                     initialMistake = renderedEditorTarget,
-                    onBack = { closeMistakeEditorByButton() },
+                    onBack = { if (!isEditorDismissing) closeMistakeEditorByButton() },
                     onConfirmAdd = { req ->
-                        mistakesViewModel?.submitAdd(req)
-                        closeMistakeEditorByButton()
-                        selectedTab = Screen.Mistakes.route
+                        if (!isEditorDismissing) {
+                            mistakesViewModel?.submitAdd(req)
+                            closeMistakeEditorByButton()
+                            selectedTab = Screen.Mistakes.route
+                        }
                     },
                     onConfirmEdit = { id, req ->
-                        mistakesViewModel?.submitEdit(id, req)
-                        val updated = activeMistakeDetail?.let { prev ->
-                            if (prev.id == id) {
-                                prev.copy(
-                                    key_point = req.key_point ?: prev.key_point,
-                                    notes = req.notes ?: prev.notes,
-                                    tags = req.tags ?: prev.tags,
-                                    problem_url = req.problem_url ?: prev.problem_url
-                                )
-                            } else prev
+                        if (!isEditorDismissing) {
+                            mistakesViewModel?.submitEdit(id, req)
+                            val updated = activeMistakeDetail?.let { prev ->
+                                if (prev.id == id) {
+                                    prev.copy(
+                                        key_point = req.key_point ?: prev.key_point,
+                                        notes = req.notes ?: prev.notes,
+                                        tags = req.tags ?: prev.tags,
+                                        problem_url = req.problem_url ?: prev.problem_url
+                                    )
+                                } else prev
+                            }
+                            activeMistakeDetail = updated
+                            if (updated != null) {
+                                renderedMistakeDetail = updated
+                            }
+                            closeMistakeEditorByButton()
                         }
-                        activeMistakeDetail = updated
-                        if (updated != null) {
-                            renderedMistakeDetail = updated
-                        }
-                        closeMistakeEditorByButton()
                     },
                     modifier = Modifier.fillMaxSize()
                 )
