@@ -53,7 +53,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=5.0.0">
+  <link rel="stylesheet" href="/static/style.css?v=5.0.1">
 </head>
 <body :class="[isDark ? 'dark text-[#e5e7eb]' : 'text-[#1f2937]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-clip selection:bg-blue-500 selection:text-white">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -880,32 +880,32 @@
 
           <!-- 比赛列表：桌面端表格视图 -->
           <div class="hidden md:block overflow-x-auto ui-card p-0">
-            <table class="ui-table w-full text-left text-xs text-[var(--text-secondary)]">
+            <table class="ui-table w-full min-w-[840px] text-left text-xs text-[var(--text-secondary)]">
               <thead class="bg-[var(--bg-subtle)] text-[var(--text-secondary)] uppercase border-b border-[var(--border-subtle)] font-sans">
                 <tr>
-                  <th class="px-4 py-3.5 w-28">平台</th>
-                  <th class="px-4 py-3.5">比赛名称</th>
-                  <th class="px-4 py-3.5 w-32">类型</th>
-                  <th class="px-4 py-3.5 w-44">开赛时间</th>
-                  <th class="px-4 py-3.5 w-28">时长</th>
-                  <th class="px-4 py-3.5 w-52">倒计时</th>
-                  <th class="px-4 py-3.5 w-24 text-right">操作</th>
+                  <th class="px-4 py-3.5 w-28 whitespace-nowrap">平台</th>
+                  <th class="px-4 py-3.5 min-w-[260px] whitespace-nowrap">比赛名称</th>
+                  <th class="px-4 py-3.5 w-24 whitespace-nowrap">类型</th>
+                  <th class="px-4 py-3.5 w-40 whitespace-nowrap">开赛时间</th>
+                  <th class="px-4 py-3.5 w-20 whitespace-nowrap">时长</th>
+                  <th class="px-4 py-3.5 w-44 whitespace-nowrap">倒计时</th>
+                  <th class="px-4 py-3.5 w-24 text-right whitespace-nowrap">操作</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-[var(--border-subtle)]">
                 <tr v-for="c in filteredContests" :key="c.id" 
                     :class="[getContestStatus(c) === 'CODING' ? 'bg-emerald-500/[0.04]' : '']">
                   <!-- 平台徽标 -->
-                  <td class="px-4 py-3.5 font-mono">
+                  <td class="px-4 py-3.5 font-mono whitespace-nowrap">
                     <span :class="['platform-badge', 'plat-' + c.platform]">
                       {{ c.platform }}
                     </span>
                   </td>
 
                   <!-- 比赛名称与直达链接 -->
-                  <td class="px-4 py-3.5 font-medium text-[var(--text-primary)]">
+                  <td class="px-4 py-3.5 min-w-[260px] font-medium text-[var(--text-primary)]">
                     <a :href="c.url" target="_blank" rel="noopener noreferrer" class="hover:text-[var(--primary)] transition-colors flex items-center space-x-1.5 group">
-                      <span class="font-semibold font-sans wrap-anywhere">{{ c.name }}</span>
+                      <span class="font-semibold font-sans leading-snug break-words">{{ c.name }}</span>
                       <svg class="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--primary)] opacity-0 group-hover:opacity-100 transition-all flex-shrink-0" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
                       </svg>
@@ -913,7 +913,7 @@
                   </td>
 
                   <!-- 规则 / Rated -->
-                  <td class="px-4 py-3.5 font-mono text-[var(--text-secondary)] text-[11px]">
+                  <td class="px-4 py-3.5 font-mono text-[var(--text-secondary)] text-[11px] whitespace-nowrap">
                     <span v-if="c.rule_type" class="ui-tag font-mono">
                       {{ c.rule_type }}
                     </span>
@@ -921,17 +921,17 @@
                   </td>
 
                   <!-- 开始时间 (北京时间) -->
-                  <td class="px-4 py-3.5 font-mono tabular-nums text-[var(--text-primary)]">
+                  <td class="px-4 py-3.5 font-mono tabular-nums text-[var(--text-primary)] whitespace-nowrap">
                     <div>{{ c.start_time.slice(0, 16) }}</div>
                   </td>
 
                   <!-- 比赛时长 -->
-                  <td class="px-4 py-3.5 font-mono tabular-nums text-[var(--text-secondary)]">
+                  <td class="px-4 py-3.5 font-mono tabular-nums text-[var(--text-secondary)] whitespace-nowrap">
                     {{ c.duration_str }}
                   </td>
 
                   <!-- 实时倒计时 -->
-                  <td class="px-4 py-3.5 font-mono tabular-nums font-bold">
+                  <td class="px-4 py-3.5 font-mono tabular-nums font-bold whitespace-nowrap">
                     <div v-if="getContestStatus(c) === 'CODING'" class="flex items-center space-x-1.5 text-emerald-600 dark:text-emerald-400">
                       <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                       <span>{{ formatContestCountdown(c) }}</span>
@@ -946,7 +946,7 @@
                   </td>
 
                   <!-- 快速操作 -->
-                  <td class="px-4 py-3.5 text-right font-sans">
+                  <td class="px-4 py-3.5 text-right font-sans whitespace-nowrap">
                     <a :href="c.url" target="_blank" rel="noopener noreferrer" class="btn-tinted-blue">
                        <span>前往</span>
                        <svg class="w-3 h-3 opacity-75" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1122,17 +1122,17 @@
 
           <!-- 提交记录：桌面端表格视图 -->
           <div class="hidden md:block overflow-x-auto rounded-xl border border-[var(--border-subtle)]" :class="{ 'opacity-65 transition-opacity': isSubmissionsLoading && paginatedSubmissions.length > 0 }">
-            <table class="ui-table w-full text-left text-xs text-[var(--text-secondary)]">
+            <table class="ui-table w-full min-w-[900px] text-left text-xs text-[var(--text-secondary)]">
               <thead class="text-[var(--text-tertiary)] bg-[var(--bg-subtle)] uppercase border-b border-[var(--border-subtle)] font-sans">
                 <tr>
-                  <th class="px-4 py-3">平台</th>
-                  <th class="px-4 py-3">题目</th>
-                  <th class="px-4 py-3">难度</th>
-                  <th class="px-4 py-3">标签</th>
-                  <th class="px-4 py-3">状态</th>
-                  <th class="px-4 py-3">语言</th>
-                  <th class="px-4 py-3">提交时间</th>
-                  <th class="px-4 py-3 text-right">操作</th>
+                  <th class="px-4 py-3 whitespace-nowrap">平台</th>
+                  <th class="px-4 py-3 min-w-[240px] whitespace-nowrap">题目</th>
+                  <th class="px-4 py-3 whitespace-nowrap">难度</th>
+                  <th class="px-4 py-3 whitespace-nowrap">标签</th>
+                  <th class="px-4 py-3 whitespace-nowrap">状态</th>
+                  <th class="px-4 py-3 whitespace-nowrap">语言</th>
+                  <th class="px-4 py-3 whitespace-nowrap">提交时间</th>
+                  <th class="px-4 py-3 text-right whitespace-nowrap">操作</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-[var(--border-subtle)] font-sans">
@@ -1149,7 +1149,7 @@
                   </tr>
                 </template>
                 <tr v-else v-for="sub in paginatedSubmissions" :key="sub.id">
-                  <td class="px-4 py-3 font-mono">
+                  <td class="px-4 py-3 font-mono whitespace-nowrap">
                     <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
                       <span :class="['platform-badge', 'plat-' + sub.platform]">
                         {{ sub.platform === 'codeforces' ? 'CF' : sub.platform === 'atcoder' ? 'ATCODER' : sub.platform === 'luogu' ? 'LUOGU' : sub.platform === 'acwing' ? 'ACWING' : 'LEETCODE' }}
@@ -1159,13 +1159,13 @@
                       </span>
                     </div>
                   </td>
-                  <td class="px-4 py-3 text-[var(--text-primary)] font-medium">
+                  <td class="px-4 py-3 min-w-[240px] text-[var(--text-primary)] font-medium">
                     <div class="flex items-center space-x-2 min-w-0">
                       <span class="text-[var(--text-tertiary)] font-mono shrink-0">[{{ sub.problem_id }}]</span>
-                      <span class="wrap-anywhere">{{ sub.problem_title }}</span>
+                      <span class="leading-snug break-words">{{ sub.problem_title }}</span>
                     </div>
                   </td>
-                  <td class="px-4 py-3 text-[var(--text-secondary)] font-mono tabular-nums">
+                  <td class="px-4 py-3 text-[var(--text-secondary)] font-mono tabular-nums whitespace-nowrap">
                     <span class="ui-tag font-mono">{{ sub.difficulty || '-' }}</span>
                   </td>
                   <td class="px-4 py-3">
@@ -1179,18 +1179,18 @@
                       </span>
                     </div>
                   </td>
-                  <td class="px-4 py-3 font-mono">
+                  <td class="px-4 py-3 font-mono whitespace-nowrap">
                     <span :class="['verdict-badge', sub.verdict === 'AC' ? 'is-ac' : 'is-wa']">
                       {{ sub.verdict }}
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-[var(--text-secondary)] font-mono text-[11px]">
+                  <td class="px-4 py-3 text-[var(--text-secondary)] font-mono text-[11px] whitespace-nowrap">
                     {{ sub.code_language || '-' }}
                   </td>
-                  <td class="px-4 py-3 text-[var(--text-secondary)] font-mono tabular-nums text-[11px]" :title="sub.submitted_at">
+                  <td class="px-4 py-3 text-[var(--text-secondary)] font-mono tabular-nums text-[11px] whitespace-nowrap" :title="sub.submitted_at">
                     {{ formatTimeAgo(sub.submitted_at) }}
                   </td>
-                  <td class="px-4 py-3 text-right font-sans">
+                  <td class="px-4 py-3 text-right font-sans whitespace-nowrap">
                     <div class="inline-flex items-center justify-end space-x-2">
                       <button @click="handleSubmissionMistakeClick(sub)" 
                               type="button"
