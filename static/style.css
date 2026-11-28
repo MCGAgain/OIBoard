@@ -212,8 +212,10 @@ html[data-glass="on"] body::before {
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  transform: translate3d(0, 0, 0);
+  contain: strict;
   background-color: #dbe5f6;
-  background-image: url("/static/bg-light.svg?v=5.0.3");
+  background-image: url("/static/bg-light.svg?v=5.0.4");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -221,67 +223,39 @@ html[data-glass="on"] body::before {
 
 html[data-glass="on"].dark body::before {
   background-color: #050811;
-  background-image: url("/static/bg-dark.svg?v=5.0.3");
+  background-image: url("/static/bg-dark.svg?v=5.0.4");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 
-/* 顶部极细建筑微网格叠加（径向羽化消隐，强化矢量折面与玻璃折射的纵深层次） */
-html[data-glass="on"] body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(to right, rgba(15, 23, 42, 0.036) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(15, 23, 42, 0.036) 1px, transparent 1px);
-  background-size: 72px 72px;
-  -webkit-mask-image: radial-gradient(ellipse 84% 78% at 50% 36%, #000 28%, transparent 100%);
-  mask-image: radial-gradient(ellipse 84% 78% at 50% 36%, #000 28%, transparent 100%);
-}
-
-html[data-glass="on"].dark body::after {
-  background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.026) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.026) 1px, transparent 1px);
-  background-size: 72px 72px;
-  -webkit-mask-image: radial-gradient(ellipse 84% 78% at 50% 36%, #000 28%, transparent 100%);
-  mask-image: radial-gradient(ellipse 84% 78% at 50% 36%, #000 28%, transparent 100%);
-}
-
-/* Tier 1: 主卡片 — macOS 15 Sequoia 高通透压克力磨砂玻璃（高饱和背景折射 + 菲涅尔顶部/左侧镜面高光） */
+/* Tier 1: 主卡片 — Zero-FBO Laminated Frosted Glass（搭配预柔化背景，零运行时模糊采样开销，120Hz 满帧低功耗） */
 html[data-glass="on"] .ui-card,
 html[data-glass="on"] .apple-card {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.44) 0%, rgba(255, 255, 255, 0.04) 48%, rgba(255, 255, 255, 0.14) 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.56) 0%, rgba(244, 248, 255, 0.42) 100%);
-  border-color: rgba(255, 255, 255, 0.78);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.05) 48%, rgba(255, 255, 255, 0.14) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(244, 248, 255, 0.48) 100%);
+  border-color: rgba(255, 255, 255, 0.80);
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.98),
-    inset 1px 0 0 rgba(255, 255, 255, 0.55),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.06),
-    0 0 0 1px rgba(15, 23, 42, 0.06),
-    0 16px 36px -16px rgba(15, 23, 42, 0.18);
-  -webkit-backdrop-filter: blur(28px) saturate(210%) brightness(1.03);
-  backdrop-filter: blur(28px) saturate(210%) brightness(1.03);
+    inset 1px 0 0 rgba(255, 255, 255, 0.58),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.055),
+    0 0 0 1px rgba(15, 23, 42, 0.055),
+    0 14px 32px -16px rgba(15, 23, 42, 0.15);
 }
 
 html[data-glass="on"].dark .ui-card,
 html[data-glass="on"].dark .apple-card {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.01) 46%, rgba(147, 197, 253, 0.04) 100%),
-    linear-gradient(180deg, rgba(22, 30, 48, 0.52) 0%, rgba(12, 17, 29, 0.44) 100%);
-  border-color: rgba(255, 255, 255, 0.16);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.085) 0%, rgba(255, 255, 255, 0.01) 46%, rgba(147, 197, 253, 0.035) 100%),
+    linear-gradient(180deg, rgba(22, 30, 48, 0.62) 0%, rgba(12, 17, 29, 0.54) 100%);
+  border-color: rgba(255, 255, 255, 0.155);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.24),
-    inset 1px 0 0 rgba(255, 255, 255, 0.08),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.52),
-    0 0 0 1px rgba(255, 255, 255, 0.045),
-    0 18px 40px -14px rgba(0, 0, 0, 0.76);
-  -webkit-backdrop-filter: blur(28px) saturate(200%) brightness(1.06);
-  backdrop-filter: blur(28px) saturate(200%) brightness(1.06);
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 1px 0 0 rgba(255, 255, 255, 0.075),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.50),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 16px 36px -14px rgba(0, 0, 0, 0.72);
 }
 
 html[data-glass="on"] .ui-card:hover,
@@ -291,14 +265,20 @@ html[data-glass="on"] .apple-card:hover {
 
 html[data-glass="on"].dark .ui-card:hover,
 html[data-glass="on"].dark .apple-card:hover {
-  border-color: rgba(255, 255, 255, 0.23);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
-/* Tier 2: 卡片内部嵌套子区块 — 通透精工铣削凹槽（零额外 backdrop-filter，透出主玻璃折射层） */
+/* Tier 2: 卡片内部嵌套子区块 — 精工铣削凹槽（零 backdrop-filter，轻量化过渡避免滚动悬停掉帧） */
 .glass-subcard {
   background: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
-  transition: border-color 0.18s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.22s var(--ease-hydro);
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.mistake-item-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 196px;
+  contain: layout style paint;
 }
 
 html[data-glass="on"] .glass-subcard {
@@ -355,21 +335,21 @@ html[data-glass="on"].dark .heatmap-container-outer {
   box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
 }
 
-/* Tier 3: 悬浮系统层（侧边栏 / 弹窗 / 通知中心 / Toast）— macOS 15 Sequoia 高通透 Vibrancy 毛玻璃 */
+/* Tier 3: 仅小型悬浮/吸顶控件保留实时单次下采样毛玻璃（blur 14px，无嵌套 FBO 读取） */
 html[data-glass="on"] .hydro-sidebar {
-  background: rgba(248, 250, 255, 0.62) !important;
+  background: rgba(248, 250, 255, 0.66) !important;
   border-right-color: rgba(15, 23, 42, 0.09) !important;
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.72), 6px 0 28px -12px rgba(15, 23, 42, 0.12);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(175%);
+  backdrop-filter: blur(14px) saturate(175%);
 }
 
 html[data-glass="on"].dark .hydro-sidebar {
-  background: rgba(13, 17, 26, 0.64) !important;
+  background: rgba(13, 17, 26, 0.68) !important;
   border-right-color: rgba(255, 255, 255, 0.10) !important;
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.05), 8px 0 32px -10px rgba(0, 0, 0, 0.68);
-  -webkit-backdrop-filter: blur(20px) saturate(175%);
-  backdrop-filter: blur(20px) saturate(175%);
+  -webkit-backdrop-filter: blur(14px) saturate(175%);
+  backdrop-filter: blur(14px) saturate(175%);
 }
 
 html[data-glass="on"] .notify-shell,
@@ -381,8 +361,8 @@ html[data-glass="on"] .glass-toast {
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
     0 0 0 1px rgba(15, 23, 42, 0.085),
     0 18px 44px -10px rgba(15, 23, 42, 0.22);
-  -webkit-backdrop-filter: blur(16px) saturate(175%);
-  backdrop-filter: blur(16px) saturate(175%);
+  -webkit-backdrop-filter: blur(14px) saturate(175%);
+  backdrop-filter: blur(14px) saturate(175%);
 }
 
 html[data-glass="on"].dark .notify-shell,
@@ -393,8 +373,8 @@ html[data-glass="on"].dark .glass-toast {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 22px 50px -10px rgba(0, 0, 0, 0.74);
-  -webkit-backdrop-filter: blur(16px) saturate(170%);
-  backdrop-filter: blur(16px) saturate(170%);
+  -webkit-backdrop-filter: blur(14px) saturate(175%);
+  backdrop-filter: blur(14px) saturate(175%);
 }
 
 /* 弹窗磨砂遮罩与窗口本体 */
@@ -413,24 +393,24 @@ html[data-glass="on"].dark .glass-backdrop {
 }
 
 html[data-glass="on"] .glass-modal {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.80) 0%, rgba(246, 249, 254, 0.72) 100%) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(246, 249, 254, 0.74) 100%) !important;
   border-color: rgba(255, 255, 255, 0.86) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.98),
     0 0 0 1px rgba(15, 23, 42, 0.09),
     0 28px 68px -12px rgba(15, 23, 42, 0.28);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(175%);
+  backdrop-filter: blur(14px) saturate(175%);
 }
 
 html[data-glass="on"].dark .glass-modal {
-  background: linear-gradient(180deg, rgba(28, 34, 48, 0.76) 0%, rgba(16, 20, 30, 0.72) 100%) !important;
+  background: linear-gradient(180deg, rgba(28, 34, 48, 0.78) 0%, rgba(16, 20, 30, 0.74) 100%) !important;
   border-color: rgba(255, 255, 255, 0.16) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 30px 72px -12px rgba(0, 0, 0, 0.82);
-  -webkit-backdrop-filter: blur(22px) saturate(170%);
-  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(14px) saturate(175%);
+  backdrop-filter: blur(14px) saturate(175%);
 }
 
 /* 控件、输入框、表格头、提示条在玻璃模式下的精工键帽与凹槽适配 */
@@ -585,8 +565,8 @@ html[data-glass="on"] .glass-topbar {
     inset 0 1px 0 rgba(255, 255, 255, 0.94),
     0 0 0 1px rgba(15, 23, 42, 0.065),
     0 12px 30px -14px rgba(15, 23, 42, 0.16);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(175%);
+  backdrop-filter: blur(14px) saturate(175%);
 }
 
 html[data-glass="on"].dark .glass-topbar {
@@ -596,8 +576,8 @@ html[data-glass="on"].dark .glass-topbar {
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     inset 0 -1px 0 rgba(0, 0, 0, 0.45),
     0 14px 36px -14px rgba(0, 0, 0, 0.72);
-  -webkit-backdrop-filter: blur(20px) saturate(175%);
-  backdrop-filter: blur(20px) saturate(175%);
+  -webkit-backdrop-filter: blur(14px) saturate(175%);
+  backdrop-filter: blur(14px) saturate(175%);
 }
 
 /* 玻璃态分段控件滑块质感提升 */
@@ -1589,15 +1569,15 @@ html[data-glass="on"].dark .btn-chip:not(.active) {
   html[data-glass="on"] .mobile-bottom-nav {
     background: rgba(248, 250, 255, 0.78);
     border-top-color: rgba(15, 23, 42, 0.09);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(175%);
+    backdrop-filter: blur(14px) saturate(175%);
   }
 
   html[data-glass="on"].dark .mobile-bottom-nav {
     background: rgba(13, 17, 26, 0.80);
     border-top-color: rgba(255, 255, 255, 0.10);
-    -webkit-backdrop-filter: blur(20px) saturate(175%);
-    backdrop-filter: blur(20px) saturate(175%);
+    -webkit-backdrop-filter: blur(14px) saturate(175%);
+    backdrop-filter: blur(14px) saturate(175%);
   }
 
   .mobile-nav-btn {

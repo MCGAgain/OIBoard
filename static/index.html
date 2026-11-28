@@ -53,7 +53,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=5.0.3">
+  <link rel="stylesheet" href="/static/style.css?v=5.0.4">
 </head>
 <body :class="[isDark ? 'dark text-[#e5e7eb]' : 'text-[#1f2937]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-clip selection:bg-blue-500 selection:text-white">
   <div id="app" v-cloak class="flex w-full min-h-screen">
@@ -1403,7 +1403,7 @@
             <!-- 错题列表卡片流 -->
             <div v-else-if="mistakes.length > 0" class="space-y-3.5" :class="{ 'opacity-65 transition-opacity': isMistakesLoading }">
               <div v-for="item in mistakes" :key="item.id" 
-                   class="glass-subcard p-4 sm:p-5 rounded-xl transition-colors hover:border-[var(--border-hover)]"
+                   class="glass-subcard mistake-item-card p-4 sm:p-5 rounded-xl hover:border-[var(--border-hover)]"
                    :class="item.status === 'mastered' ? 'opacity-85' :
                            item.is_due ? 'border-l-[3px] border-l-amber-500' : ''">
                 
@@ -1457,7 +1457,7 @@
                       <!-- 6段复习进度点 -->
                       <div class="flex items-center space-x-1">
                         <div v-for="step in 6" :key="step"
-                             :class="['h-1.5 w-3.5 sm:w-4 rounded-full transition-all',
+                             :class="['h-1.5 w-3.5 sm:w-4 rounded-full transition-colors',
                                       step <= (item.review_count || 0) ? 'bg-emerald-500' : 'bg-black/[0.08] dark:bg-white/[0.1]']"></div>
                       </div>
                       <span class="text-xs font-semibold" :class="item.review_count >= 6 ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--text-primary)]'">
@@ -2572,6 +2572,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=5.0.3"></script>
+  <script src="/static/app.js?v=5.0.4"></script>
 </body>
 </html>
