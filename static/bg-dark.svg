@@ -1,89 +1,89 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
   <defs>
-    <!-- Machined Obsidian Titanium Base (Zero-filter, Zero-animate 4K Static SVG) -->
+    <!-- Deep-Space Obsidian Titanium Optical Base (0% Idle CPU/GPU, 4K Vector Sharp) -->
     <linearGradient id="baseD" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#06080e"/>
-      <stop offset="50%" stop-color="#0a0e18"/>
-      <stop offset="100%" stop-color="#060911"/>
+      <stop offset="0%" stop-color="#050811"/>
+      <stop offset="50%" stop-color="#090e1c"/>
+      <stop offset="100%" stop-color="#050811"/>
     </linearGradient>
 
-    <!-- Controlled Studio Grazing Light Pools -->
-    <radialGradient id="causticSapphireD" cx="16%" cy="14%" r="54%">
-      <stop offset="0%" stop-color="#1e4388" stop-opacity="0.46"/>
-      <stop offset="50%" stop-color="#132952" stop-opacity="0.20"/>
-      <stop offset="100%" stop-color="#0a0e18" stop-opacity="0"/>
+    <!-- Rich Luminous Grazing Pools for Dark Frosted Vibrancy -->
+    <radialGradient id="causticCobaltD" cx="16%" cy="14%" r="54%">
+      <stop offset="0%" stop-color="#2563eb" stop-opacity="0.52"/>
+      <stop offset="48%" stop-color="#1d4ed8" stop-opacity="0.24"/>
+      <stop offset="100%" stop-color="#090e1c" stop-opacity="0"/>
     </radialGradient>
 
-    <radialGradient id="causticTealD" cx="84%" cy="28%" r="48%">
-      <stop offset="0%" stop-color="#124a4c" stop-opacity="0.34"/>
-      <stop offset="52%" stop-color="#0d2b31" stop-opacity="0.16"/>
-      <stop offset="100%" stop-color="#0a0e18" stop-opacity="0"/>
+    <radialGradient id="causticTealD" cx="84%" cy="24%" r="48%">
+      <stop offset="0%" stop-color="#14b8a6" stop-opacity="0.38"/>
+      <stop offset="50%" stop-color="#0f766e" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#090e1c" stop-opacity="0"/>
     </radialGradient>
 
-    <radialGradient id="causticIndigoD" cx="38%" cy="88%" r="56%">
-      <stop offset="0%" stop-color="#272258" stop-opacity="0.38"/>
-      <stop offset="54%" stop-color="#141432" stop-opacity="0.16"/>
-      <stop offset="100%" stop-color="#060911" stop-opacity="0"/>
+    <radialGradient id="causticIndigoD" cx="42%" cy="88%" r="56%">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.44"/>
+      <stop offset="52%" stop-color="#312e81" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#050811" stop-opacity="0"/>
     </radialGradient>
 
     <!-- Sculpted Anodized Titanium Bevel Folds -->
     <linearGradient id="foldD1" x1="10%" y1="0%" x2="88%" y2="100%">
-      <stop offset="0%" stop-color="#1e3d75" stop-opacity="0.42"/>
-      <stop offset="48%" stop-color="#12213f" stop-opacity="0.26"/>
-      <stop offset="100%" stop-color="#080c15" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#2563eb" stop-opacity="0.44"/>
+      <stop offset="48%" stop-color="#172f62" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#070c17" stop-opacity="0"/>
     </linearGradient>
 
     <linearGradient id="foldD2" x1="100%" y1="12%" x2="18%" y2="92%">
-      <stop offset="0%" stop-color="#144444" stop-opacity="0.36"/>
-      <stop offset="48%" stop-color="#0f1e2c" stop-opacity="0.20"/>
-      <stop offset="100%" stop-color="#070a11" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#0f766e" stop-opacity="0.42"/>
+      <stop offset="48%" stop-color="#0f2536" stop-opacity="0.24"/>
+      <stop offset="100%" stop-color="#060912" stop-opacity="0"/>
     </linearGradient>
 
     <linearGradient id="foldD3" x1="0%" y1="100%" x2="92%" y2="18%">
-      <stop offset="0%" stop-color="#262252" stop-opacity="0.40"/>
-      <stop offset="50%" stop-color="#13162a" stop-opacity="0.20"/>
-      <stop offset="100%" stop-color="#070a11" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.42"/>
+      <stop offset="50%" stop-color="#1d1b4a" stop-opacity="0.24"/>
+      <stop offset="100%" stop-color="#060912" stop-opacity="0"/>
     </linearGradient>
 
-    <!-- Grazing Metallic Crest Highlights -->
+    <!-- Luminous Metallic Crest Highlights -->
     <linearGradient id="ridgeD1" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#8cbdff" stop-opacity="0"/>
-      <stop offset="28%" stop-color="#8cbdff" stop-opacity="0.32"/>
-      <stop offset="68%" stop-color="#6ee7d2" stop-opacity="0.20"/>
-      <stop offset="100%" stop-color="#8cbdff" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#93c5fd" stop-opacity="0"/>
+      <stop offset="28%" stop-color="#93c5fd" stop-opacity="0.42"/>
+      <stop offset="68%" stop-color="#5eead4" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#93c5fd" stop-opacity="0"/>
     </linearGradient>
 
     <linearGradient id="ridgeD2" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#a2adff" stop-opacity="0"/>
-      <stop offset="34%" stop-color="#a2adff" stop-opacity="0.26"/>
-      <stop offset="72%" stop-color="#60a5fa" stop-opacity="0.18"/>
-      <stop offset="100%" stop-color="#a2adff" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#a5b4fc" stop-opacity="0"/>
+      <stop offset="34%" stop-color="#a5b4fc" stop-opacity="0.34"/>
+      <stop offset="72%" stop-color="#60a5fa" stop-opacity="0.24"/>
+      <stop offset="100%" stop-color="#a5b4fc" stop-opacity="0"/>
     </linearGradient>
 
     <!-- Algorithmic Luminous Hairline Contours -->
     <linearGradient id="contourD1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#82b4ff" stop-opacity="0"/>
-      <stop offset="28%" stop-color="#82b4ff" stop-opacity="0.13"/>
-      <stop offset="70%" stop-color="#5cd8c2" stop-opacity="0.10"/>
-      <stop offset="100%" stop-color="#82b4ff" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#93c5fd" stop-opacity="0"/>
+      <stop offset="28%" stop-color="#93c5fd" stop-opacity="0.18"/>
+      <stop offset="70%" stop-color="#5eead4" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#93c5fd" stop-opacity="0"/>
     </linearGradient>
 
     <linearGradient id="contourD2" x1="100%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#a69eff" stop-opacity="0"/>
-      <stop offset="32%" stop-color="#a69eff" stop-opacity="0.12"/>
-      <stop offset="70%" stop-color="#6aa6ff" stop-opacity="0.09"/>
-      <stop offset="100%" stop-color="#a69eff" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#a5b4fc" stop-opacity="0"/>
+      <stop offset="32%" stop-color="#a5b4fc" stop-opacity="0.16"/>
+      <stop offset="70%" stop-color="#60a5fa" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#a5b4fc" stop-opacity="0"/>
     </linearGradient>
 
     <radialGradient id="arcFadeD" cx="78%" cy="22%" r="36%">
-      <stop offset="0%" stop-color="#79b0ff" stop-opacity="0.14"/>
-      <stop offset="65%" stop-color="#58d6c0" stop-opacity="0.06"/>
+      <stop offset="0%" stop-color="#79b0ff" stop-opacity="0.18"/>
+      <stop offset="65%" stop-color="#5eead4" stop-opacity="0.08"/>
       <stop offset="100%" stop-color="#79b0ff" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
   <rect width="1920" height="1080" fill="url(#baseD)"/>
-  <rect width="1920" height="1080" fill="url(#causticSapphireD)"/>
+  <rect width="1920" height="1080" fill="url(#causticCobaltD)"/>
   <rect width="1920" height="1080" fill="url(#causticTealD)"/>
   <rect width="1920" height="1080" fill="url(#causticIndigoD)"/>
 
@@ -93,19 +93,19 @@
   <path d="M-140,764 C260,568 640,862 1140,684 C1520,550 1780,694 2060,564 L2060,1180 L-140,1180 Z" fill="url(#foldD3)"/>
 
   <!-- Grazing Titanium Crest Edges -->
-  <path d="M-120,250 C280,82 660,348 1120,174 C1460,46 1740,118 2060,-36" fill="none" stroke="url(#ridgeD1)" stroke-width="1.05"/>
-  <path d="M2040,150 C1640,346 1320,128 880,316 C500,480 220,388 -120,564" fill="none" stroke="url(#ridgeD2)" stroke-width="0.95"/>
-  <path d="M-140,764 C260,568 640,862 1140,684 C1520,550 1780,694 2060,564" fill="none" stroke="url(#ridgeD1)" stroke-width="0.95"/>
+  <path d="M-120,250 C280,82 660,348 1120,174 C1460,46 1740,118 2060,-36" fill="none" stroke="url(#ridgeD1)" stroke-width="1.2"/>
+  <path d="M2040,150 C1640,346 1320,128 880,316 C500,480 220,388 -120,564" fill="none" stroke="url(#ridgeD2)" stroke-width="1.05"/>
+  <path d="M-140,764 C260,568 640,862 1140,684 C1520,550 1780,694 2060,564" fill="none" stroke="url(#ridgeD1)" stroke-width="1.05"/>
 
   <!-- Subtle Geometric Optical Focal Arcs -->
-  <g fill="none" stroke="url(#arcFadeD)" stroke-width="0.75">
+  <g fill="none" stroke="url(#arcFadeD)" stroke-width="0.85">
     <circle cx="1520" cy="220" r="240"/>
     <circle cx="1520" cy="220" r="340"/>
     <circle cx="1520" cy="220" r="440"/>
   </g>
 
   <!-- Algorithmic Parametric Contour Family -->
-  <g fill="none" stroke="url(#contourD1)" stroke-width="0.75">
+  <g fill="none" stroke="url(#contourD1)" stroke-width="0.82">
     <path d="M-80,118 C360,-20 740,256 1220,88 C1560,-30 1800,72 2020,-18"/>
     <path d="M-80,172 C350,28 730,300 1210,136 C1550,20 1790,116 2020,26"/>
     <path d="M-80,226 C340,76 720,344 1200,184 C1540,70 1780,160 2020,70"/>
@@ -114,7 +114,7 @@
   </g>
 
   <!-- Secondary Counter-Flow Iso-Contours -->
-  <g fill="none" stroke="url(#contourD2)" stroke-width="0.72">
+  <g fill="none" stroke="url(#contourD2)" stroke-width="0.8">
     <path d="M-100,822 C320,644 720,922 1200,744 C1560,610 1820,734 2040,624"/>
     <path d="M-100,876 C330,698 730,976 1210,798 C1570,664 1830,788 2040,678"/>
     <path d="M-100,930 C340,752 740,1030 1220,852 C1580,718 1840,842 2040,732"/>

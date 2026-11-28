@@ -212,16 +212,16 @@ html[data-glass="on"] body::before {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-color: #e4e9f2;
-  background-image: url("/static/bg-light.svg?v=5.0.0");
+  background-color: #dbe5f6;
+  background-image: url("/static/bg-light.svg?v=5.0.3");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 
 html[data-glass="on"].dark body::before {
-  background-color: #06080e;
-  background-image: url("/static/bg-dark.svg?v=5.0.0");
+  background-color: #050811;
+  background-image: url("/static/bg-dark.svg?v=5.0.3");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -251,31 +251,37 @@ html[data-glass="on"].dark body::after {
   mask-image: radial-gradient(ellipse 84% 78% at 50% 36%, #000 28%, transparent 100%);
 }
 
-/* Tier 1: 主卡片 — Laminated Optical Frosted Glass (单层 blur + 精密顶部镜面高光唇 + 底部微倒角) */
+/* Tier 1: 主卡片 — macOS 15 Sequoia 高通透压克力磨砂玻璃（高饱和背景折射 + 菲涅尔顶部/左侧镜面高光） */
 html[data-glass="on"] .ui-card,
 html[data-glass="on"] .apple-card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.76) 0%, rgba(248, 250, 254, 0.64) 100%);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.44) 0%, rgba(255, 255, 255, 0.04) 48%, rgba(255, 255, 255, 0.14) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.56) 0%, rgba(244, 248, 255, 0.42) 100%);
   border-color: rgba(255, 255, 255, 0.78);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.055),
-    0 0 0 1px rgba(15, 23, 42, 0.065),
-    0 12px 28px -14px rgba(15, 23, 42, 0.16);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  backdrop-filter: blur(16px) saturate(160%);
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.98),
+    inset 1px 0 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.06),
+    0 0 0 1px rgba(15, 23, 42, 0.06),
+    0 16px 36px -16px rgba(15, 23, 42, 0.18);
+  -webkit-backdrop-filter: blur(28px) saturate(210%) brightness(1.03);
+  backdrop-filter: blur(28px) saturate(210%) brightness(1.03);
 }
 
 html[data-glass="on"].dark .ui-card,
 html[data-glass="on"].dark .apple-card {
-  background: linear-gradient(180deg, rgba(24, 30, 44, 0.74) 0%, rgba(14, 18, 28, 0.66) 100%);
-  border-color: rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.01) 46%, rgba(147, 197, 253, 0.04) 100%),
+    linear-gradient(180deg, rgba(22, 30, 48, 0.52) 0%, rgba(12, 17, 29, 0.44) 100%);
+  border-color: rgba(255, 255, 255, 0.16);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 1px 0 0 rgba(255, 255, 255, 0.08),
     inset 0 -1px 0 rgba(0, 0, 0, 0.52),
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 14px 34px -14px rgba(0, 0, 0, 0.74);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  backdrop-filter: blur(16px) saturate(150%);
+    0 0 0 1px rgba(255, 255, 255, 0.045),
+    0 18px 40px -14px rgba(0, 0, 0, 0.76);
+  -webkit-backdrop-filter: blur(28px) saturate(200%) brightness(1.06);
+  backdrop-filter: blur(28px) saturate(200%) brightness(1.06);
 }
 
 html[data-glass="on"] .ui-card:hover,
@@ -285,10 +291,10 @@ html[data-glass="on"] .apple-card:hover {
 
 html[data-glass="on"].dark .ui-card:hover,
 html[data-glass="on"].dark .apple-card:hover {
-  border-color: rgba(255, 255, 255, 0.19);
+  border-color: rgba(255, 255, 255, 0.23);
 }
 
-/* Tier 2: 卡片内部嵌套子区块 — 精工铣削凹槽 (零额外 backdrop-filter，纯色阶 + 内凹阴影塑造真实层次) */
+/* Tier 2: 卡片内部嵌套子区块 — 通透精工铣削凹槽（零额外 backdrop-filter，透出主玻璃折射层） */
 .glass-subcard {
   background: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
@@ -296,20 +302,20 @@ html[data-glass="on"].dark .apple-card:hover {
 }
 
 html[data-glass="on"] .glass-subcard {
-  background: linear-gradient(180deg, rgba(246, 249, 254, 0.62) 0%, rgba(255, 255, 255, 0.54) 100%);
-  border-color: rgba(15, 23, 42, 0.085);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(246, 250, 255, 0.28) 100%);
+  border-color: rgba(15, 23, 42, 0.075);
   box-shadow:
-    inset 0 1.5px 3px rgba(15, 23, 42, 0.045),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.85),
-    0 1px 2px rgba(15, 23, 42, 0.03);
+    inset 0 1px 2px rgba(15, 23, 42, 0.035),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.72),
+    0 1px 2px rgba(15, 23, 42, 0.025);
 }
 
 html[data-glass="on"].dark .glass-subcard {
-  background: linear-gradient(180deg, rgba(8, 11, 18, 0.44) 0%, rgba(16, 21, 32, 0.52) 100%);
+  background: linear-gradient(180deg, rgba(6, 10, 18, 0.34) 0%, rgba(16, 22, 35, 0.38) 100%);
   border-color: rgba(255, 255, 255, 0.09);
   box-shadow:
-    inset 0 1.5px 4px rgba(0, 0, 0, 0.48),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+    inset 0 1.5px 4px rgba(0, 0, 0, 0.42),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.07);
 }
 
 /* Tier 2.5: 子卡片内部小块 / 精工凹槽 (.tactile-well) */
@@ -321,32 +327,32 @@ html[data-glass="on"].dark .glass-subcard {
 
 html[data-glass="on"] .glass-inner-tile,
 html[data-glass="on"] .tactile-well {
-  background: rgba(255, 255, 255, 0.72);
-  border-color: rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.44);
+  border-color: rgba(15, 23, 42, 0.07);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    0 1px 2px rgba(15, 23, 42, 0.035);
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 1px 2px rgba(15, 23, 42, 0.03);
 }
 
 html[data-glass="on"].dark .glass-inner-tile,
 html[data-glass="on"].dark .tactile-well {
-  background: rgba(255, 255, 255, 0.048);
+  background: rgba(255, 255, 255, 0.045);
   border-color: rgba(255, 255, 255, 0.09);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.32);
 }
 
 html[data-glass="on"] .heatmap-container-outer {
-  background: rgba(242, 246, 252, 0.44);
-  border-color: rgba(15, 23, 42, 0.085);
-  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.055), inset 0 -1px 0 rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.34);
+  border-color: rgba(15, 23, 42, 0.075);
+  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.04), inset 0 -1px 0 rgba(255, 255, 255, 0.72);
 }
 
 html[data-glass="on"].dark .heatmap-container-outer {
-  background: rgba(7, 10, 17, 0.46);
+  background: rgba(6, 10, 18, 0.34);
   border-color: rgba(255, 255, 255, 0.09);
-  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.52), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
 }
 
 /* Tier 3: 悬浮系统层（侧边栏 / 弹窗 / 通知中心 / Toast）— macOS 15 Sequoia 高通透 Vibrancy 毛玻璃 */
@@ -1839,23 +1845,62 @@ html[data-glass="on"].dark .btn-chip:not(.active) {
 ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
 
-/* ================= Heatmap Wrapper (New Luogu Recessed Framed Tray) ================= */
+/* ================= Heatmap + Analytics Overview Insights Grid ================= */
+.overview-insights-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+@media (min-width: 1280px) and (orientation: landscape) {
+  .overview-insights-grid {
+    grid-template-columns: minmax(0, 1.22fr) minmax(0, 1fr);
+  }
+  .overview-insights-grid .analytics-chart-responsive {
+    height: 270px;
+  }
+}
+
+@media (min-width: 1920px) and (orientation: landscape) {
+  .overview-insights-grid {
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+  }
+  .overview-insights-grid .analytics-chart-responsive {
+    height: 300px;
+  }
+}
+
+@media (min-width: 2400px) and (orientation: landscape) {
+  .overview-insights-grid {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 2560px) and (orientation: landscape) {
+  .overview-insights-grid .analytics-chart-responsive {
+    height: 330px;
+  }
+}
+
+/* ================= Heatmap Wrapper (GitHub Recessed Framed Tray) ================= */
 .heatmap-container-outer {
   width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: 14px 12px 10px;
+  padding: 14px 12px 12px;
   border-radius: 12px;
   background: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
-  display: block;
+  display: flex;
+  align-items: center;
   contain: paint;
 }
 
 .heatmap-container-inner {
   margin: 0 auto;
-  min-height: 140px;
+  min-height: 126px;
 }
 
 .svg-icon {

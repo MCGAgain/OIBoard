@@ -2211,20 +2211,20 @@ createApp({
       if (!chartDom) return;
 
       const outer = chartDom.parentElement;
-      const outerWidth = outer ? outer.clientWidth : 900;
+      const outerWidth = outer ? outer.clientWidth : 800;
 
-      // 宽屏 / 2K / 4K 高分屏下自适应放宽单元格上限（13px ~ 38px），彻底消除宽屏下右侧死白空隙
-      const availableWidth = outerWidth - 32;
-      let cellSize = Math.floor((availableWidth - 44) / 54);
-      if (cellSize < 13) cellSize = 13;
-      if (cellSize > 38) cellSize = 38;
+      // 类 GitHub 紧凑精致格子比例：步长严格控制在 12px ~ 18px（4K/宽屏也不膨大，保留宽松呼吸间距）
+      const leftOffset = 24;
+      const rightPadding = 8;
+      const topOffset = 24;
+      const availableWidth = Math.max(0, outerWidth - 24);
+      let cellSize = Math.floor(((availableWidth - leftOffset - rightPadding) / 53) * 2) / 2;
+      if (cellSize < 12) cellSize = 12;
+      if (cellSize > 18) cellSize = 18;
 
-      // 根据动态单元格精确确定图表与内边距，确保完美居中无溢出
-      const leftOffset = Math.max(28, Math.round(cellSize * 1.5));
-      const topOffset = Math.max(24, Math.round(cellSize * 1.3));
-      const rightPadding = Math.max(16, Math.round(cellSize * 0.8));
-      const contentWidth = Math.ceil(cellSize * 54 + leftOffset + rightPadding);
-      const contentHeight = Math.ceil(cellSize * 7 + topOffset + Math.round(cellSize * 1.2));
+      // 根据动态单元格精确确定图表尺寸，保证居中且无多余空白
+      const contentWidth = Math.ceil(cellSize * 53 + leftOffset + rightPadding);
+      const contentHeight = Math.ceil(cellSize * 7 + topOffset + 10);
 
       const sizeChanged = contentWidth !== lastHeatmapCanvasW || contentHeight !== lastHeatmapCanvasH;
       if (sizeChanged) {
@@ -2302,30 +2302,30 @@ createApp({
         `≥${t3 + 1} 发`
       ];
 
-      // GitHub + 新洛谷风格双主题单色绿调色板（每格带细腻圆角描边分割，亮/暗模式均清晰克制）
+      // GitHub 原生质感调色板（兼容通透毛玻璃底托）
       const ghPalette = dark
         ? {
-            empty: "#191e26",
-            emptyBorder: "rgba(255, 255, 255, 0.095)",
-            activeBorder: "rgba(255, 255, 255, 0.13)",
+            empty: "rgba(255, 255, 255, 0.065)",
+            emptyBorder: "rgba(255, 255, 255, 0.065)",
+            activeBorder: "rgba(255, 255, 255, 0.10)",
             l1: "#0e4429",
             l2: "#006d32",
             l3: "#26a641",
             l4: "#39d353"
           }
         : {
-            empty: "#f0f2f5",
-            emptyBorder: "rgba(15, 23, 42, 0.10)",
-            activeBorder: "rgba(15, 23, 42, 0.12)",
+            empty: "rgba(27, 31, 35, 0.065)",
+            emptyBorder: "rgba(27, 31, 35, 0.075)",
+            activeBorder: "rgba(27, 31, 35, 0.09)",
             l1: "#9be9a8",
             l2: "#40c463",
             l3: "#30a14e",
             l4: "#216e39"
           };
 
-      const cellGap = cellSize >= 24 ? 4.5 : 3.5;
-      const boxSize = Math.max(6, cellSize - cellGap);
-      const boxRadius = Math.max(3.5, Math.round(boxSize * 0.25));
+      const cellGap = Math.max(3.5, Math.round(cellSize * 0.30 * 2) / 2);
+      const boxSize = Math.max(7.5, +(cellSize - cellGap).toFixed(1));
+      const boxRadius = Math.max(2, Math.min(3, +(boxSize * 0.22).toFixed(1)));
 
       const option = {
         tooltip: {
@@ -2365,7 +2365,7 @@ createApp({
           left: leftOffset,
           z: 1,
           silent: true,
-          cellSize: [cellSize, cellSize], /* 动态正方形单元格 [cellSize, cellSize] 严格 1:1 */
+          cellSize: [cellSize, cellSize],
           range: [startDateStr, endDateStr],
           itemStyle: {
             color: "transparent",
@@ -2375,14 +2375,16 @@ createApp({
           yearLabel: { show: false },
           dayLabel: {
             firstDay: 1,
-            nameMap: ["日", "一", "二", "三", "四", "五", "六"],
+            nameMap: ["", "一", "", "三", "", "五", ""],
+            margin: 6,
             color: dark ? "#7d8590" : "#656d76",
-            fontSize: Math.max(10, Math.min(15, Math.round(cellSize * 0.44))),
+            fontSize: 10.5,
             fontFamily: "JetBrains Mono"
           },
           monthLabel: {
+            margin: 8,
             color: dark ? "#8b949e" : "#57606a",
-            fontSize: Math.max(11, Math.min(16, Math.round(cellSize * 0.48))),
+            fontSize: 11,
             fontFamily: "JetBrains Mono"
           }
         },
@@ -2443,12 +2445,12 @@ createApp({
                   style: {
                     fill: fillColor,
                     stroke: count === 0 ? ghPalette.emptyBorder : ghPalette.activeBorder,
-                    lineWidth: 1
+                    lineWidth: 0.75
                   },
                   emphasis: {
                     style: {
                       stroke: dark ? "#c9d1d9" : "#1f2328",
-                      lineWidth: 1.4
+                      lineWidth: 1.25
                     }
                   }
                 }
