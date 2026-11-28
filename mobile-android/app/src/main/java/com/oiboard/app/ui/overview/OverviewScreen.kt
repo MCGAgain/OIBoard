@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -74,6 +75,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.oiboard.app.data.model.ContestDto
 import com.oiboard.app.ui.components.AnimatedMetricNumber
+import com.oiboard.app.ui.components.LocalDockBottomPadding
 import com.oiboard.app.ui.components.TactileGlassCard
 import com.oiboard.app.ui.components.TactileIconBadge
 import com.oiboard.app.ui.components.TactilePlatformBadge
@@ -273,7 +275,11 @@ fun OverviewScreen(
         }
 
         item(key = "bottom_spacer", contentType = "overview_spacer") {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .height(LocalDockBottomPadding.current + 12.dp)
+            )
         }
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -78,6 +79,7 @@ import com.oiboard.app.data.local.AppThemeMode
 import com.oiboard.app.data.model.AccountItemDto
 import com.oiboard.app.data.model.UserDto
 import com.oiboard.app.ui.auth.ServerUrlDialog
+import com.oiboard.app.ui.components.LocalDockBottomPadding
 import com.oiboard.app.ui.components.TactileGlassCard
 import com.oiboard.app.ui.components.TactileIconBadge
 import com.oiboard.app.ui.components.TactilePlatformBadge
@@ -555,14 +557,19 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .height(LocalDockBottomPadding.current + 12.dp)
+            )
         }
 
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp)
+                .navigationBarsPadding()
+                .padding(bottom = LocalDockBottomPadding.current + 8.dp)
         )
     }
 }

@@ -11,17 +11,17 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -36,6 +36,7 @@ import com.oiboard.app.data.repository.SettingsRepository
 import com.oiboard.app.data.repository.StatsRepository
 import com.oiboard.app.data.repository.SubmissionsRepository
 import com.oiboard.app.ui.components.FloatingTactileDock
+import com.oiboard.app.ui.components.LocalDockBottomPadding
 import com.oiboard.app.ui.components.OIBoardAmbientBackdrop
 import com.oiboard.app.ui.contests.ContestsScreen
 import com.oiboard.app.ui.contests.ContestsViewModel
@@ -81,23 +82,9 @@ fun MainScreen(
     val tabOutDuration = if (animEnabled) 90 else 0
     val detailAnimDuration = if (animEnabled) 180 else 0
 
-    OIBoardAmbientBackdrop {
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            containerColor = Color.Transparent,
-            bottomBar = {
-                MainBottomDock(
-                    mistakesViewModel = mistakesViewModel,
-                    selectedRoute = selectedTab,
-                    onSelect = { screen -> selectedTab = screen.route }
-                )
-            }
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        OIBoardAmbientBackdrop {
+            CompositionLocalProvider(LocalDockBottomPadding provides 96.dp) {
                 // 0% 掉帧的轻量淡入淡出切换
                 AnimatedContent(
                     targetState = selectedTab,
@@ -106,79 +93,87 @@ fun MainScreen(
                     },
                     label = "TabContentTransition"
                 ) { targetTab ->
-                    when (targetTab) {
-                        Screen.Overview.route -> {
-                            if (userPreferencesRepository != null) {
-                                val overviewViewModel: OverviewViewModel = viewModel(
-                                    factory = OverviewViewModel.provideFactory(statsRepository, context, userPreferencesRepository)
-                                )
-                                OverviewScreen(
-                                    viewModel = overviewViewModel,
-                                    onNavigateToContests = { selectedTab = Screen.Contests.route }
-                                )
+                        when (targetTab) {
+                            Screen.Overview.route -> {
+                                if (userPreferencesRepository != null) {
+                                    val overviewViewModel: OverviewViewModel = viewModel(
+                                        factory = OverviewViewModel.provideFactory(statsRepository, context, userPreferencesRepository)
+                                    )
+                                    OverviewScreen(
+                                        viewModel = overviewViewModel,
+                                        onNavigateToContests = { selectedTab = Screen.Contests.route }
+                                    )
+                                }
                             }
-                        }
-                        Screen.Contests.route -> {
-                            if (contestsRepository != null && userPreferencesRepository != null) {
-                                val contestsViewModel: ContestsViewModel = viewModel(
-                                    factory = ContestsViewModel.provideFactory(contestsRepository, context, userPreferencesRepository)
-                                )
-                                ContestsScreen(viewModel = contestsViewModel)
-                            } else {
-                                TabPlaceholderScreen("比赛日历", "近期赛事日程")
+                            Screen.Contests.route -> {
+                                if (contestsRepository != null && userPreferencesRepository != null) {
+                                    val contestsViewModel: ContestsViewModel = viewModel(
+                                        factory = ContestsViewModel.provideFactory(contestsRepository, context, userPreferencesRepository)
+                                    )
+                                    ContestsScreen(viewModel = contestsViewModel)
+                                } else {
+                                    TabPlaceholderScreen("比赛日历", "近期赛事日程")
+                                }
                             }
-                        }
-                        Screen.Submissions.route -> {
-                            if (submissionsRepository != null && userPreferencesRepository != null) {
-                                val submissionsViewModel: SubmissionsViewModel = viewModel(
-                                    factory = SubmissionsViewModel.provideFactory(submissionsRepository, context, userPreferencesRepository)
-                                )
-                                SubmissionsScreen(
-                                    viewModel = submissionsViewModel,
-                                    onOpenMistakeDetail = { detail ->
-                                        activeMistakeDetail = detail
-                                    }
-                                )
-                            } else {
-                                TabPlaceholderScreen("提交记录", "跨平台提交流")
+                            Screen.Submissions.route -> {
+                                if (submissionsRepository != null && userPreferencesRepository != null) {
+                                    val submissionsViewModel: SubmissionsViewModel = viewModel(
+                                        factory = SubmissionsViewModel.provideFactory(submissionsRepository, context, userPreferencesRepository)
+                                    )
+                                    SubmissionsScreen(
+                                        viewModel = submissionsViewModel,
+                                        onOpenMistakeDetail = { detail ->
+                                            activeMistakeDetail = detail
+                                        }
+                                    )
+                                } else {
+                                    TabPlaceholderScreen("提交记录", "跨平台提交流")
+                                }
                             }
-                        }
-                        Screen.Mistakes.route -> {
-                            if (mistakesViewModel != null) {
-                                MistakesScreen(
-                                    viewModel = mistakesViewModel,
-                                    onOpenMistakeDetail = { detail ->
-                                        activeMistakeDetail = detail
-                                    }
-                                )
-                            } else {
-                                TabPlaceholderScreen("错题集", "复习状态管理")
+                            Screen.Mistakes.route -> {
+                                if (mistakesViewModel != null) {
+                                    MistakesScreen(
+                                        viewModel = mistakesViewModel,
+                                        onOpenMistakeDetail = { detail ->
+                                            activeMistakeDetail = detail
+                                        }
+                                    )
+                                } else {
+                                    TabPlaceholderScreen("错题集", "复习状态管理")
+                                }
                             }
-                        }
-                        Screen.Settings.route -> {
-                            if (settingsRepository != null && userPreferencesRepository != null) {
-                                val settingsViewModel: SettingsViewModel = viewModel(
-                                    factory = SettingsViewModel.provideFactory(settingsRepository, userPreferencesRepository)
-                                )
-                                SettingsScreen(
-                                    viewModel = settingsViewModel,
-                                    currentUser = currentUser,
-                                    currentServerUrl = currentServerUrl,
-                                    currentThemeMode = currentThemeMode,
-                                    onThemeChange = onThemeChange,
-                                    onSaveServerUrl = onSaveServerUrl,
-                                    onLogout = onLogout
-                                )
-                            } else {
-                                TabPlaceholderScreen("系统设置", "平台与偏好")
+                            Screen.Settings.route -> {
+                                if (settingsRepository != null && userPreferencesRepository != null) {
+                                    val settingsViewModel: SettingsViewModel = viewModel(
+                                        factory = SettingsViewModel.provideFactory(settingsRepository, userPreferencesRepository)
+                                    )
+                                    SettingsScreen(
+                                        viewModel = settingsViewModel,
+                                        currentUser = currentUser,
+                                        currentServerUrl = currentServerUrl,
+                                        currentThemeMode = currentThemeMode,
+                                        onThemeChange = onThemeChange,
+                                        onSaveServerUrl = onSaveServerUrl,
+                                        onLogout = onLogout
+                                    )
+                                } else {
+                                    TabPlaceholderScreen("系统设置", "平台与偏好")
+                                }
                             }
                         }
                     }
                 }
-            }
         }
 
-        // 全屏从右侧滑入详情页（覆盖底栏，底层卡片景深退后）
+        // 悬浮玻璃胶囊底栏（内容可自由滑过底栏下方）
+        MainBottomDock(
+            mistakesViewModel = mistakesViewModel,
+            selectedRoute = selectedTab,
+            onSelect = { screen -> selectedTab = screen.route },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+
+        // 全屏从右侧滑入详情页（覆盖底栏）
         AnimatedVisibility(
             visible = activeMistakeDetail != null,
             enter = slideInHorizontally(
@@ -219,7 +214,8 @@ fun MainScreen(
 private fun MainBottomDock(
     mistakesViewModel: MistakesViewModel?,
     selectedRoute: String,
-    onSelect: (Screen) -> Unit
+    onSelect: (Screen) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val dueCount = if (mistakesViewModel != null) {
         val dueFlow = remember(mistakesViewModel) {
@@ -235,6 +231,7 @@ private fun MainBottomDock(
         items = Screen.items,
         selectedRoute = selectedRoute,
         dueMistakesCount = dueCount,
-        onSelect = onSelect
+        onSelect = onSelect,
+        modifier = modifier
     )
 }

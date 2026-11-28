@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -58,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.oiboard.app.data.model.ContestDto
+import com.oiboard.app.ui.components.LocalDockBottomPadding
 import com.oiboard.app.ui.components.TactileGlassCard
 import com.oiboard.app.ui.components.TactilePlatformBadge
 import com.oiboard.app.ui.theme.LocalIsDarkTheme
@@ -298,7 +300,11 @@ fun ContestsScreen(
                             )
                         }
                         item(contentType = { "spacer" }) {
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(
+                                modifier = Modifier
+                                    .navigationBarsPadding()
+                                    .height(LocalDockBottomPadding.current + 8.dp)
+                            )
                         }
                     }
                 }
@@ -309,7 +315,8 @@ fun ContestsScreen(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp)
+                .navigationBarsPadding()
+                .padding(bottom = LocalDockBottomPadding.current + 8.dp)
         )
     }
 }

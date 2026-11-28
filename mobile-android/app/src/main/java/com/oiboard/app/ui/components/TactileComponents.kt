@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -70,7 +71,12 @@ import com.oiboard.app.ui.theme.LocalIsDarkTheme
 import com.oiboard.app.ui.theme.PlatformColorTokens
 import kotlin.math.roundToInt
 
-// 预缓存只读 Shape 与色彩常量，杜绝列表滚动/重组期临时对象分配
+/**
+ * 悬浮底栏预留给内部滚动列表的底部安全距离，使内容滑入底栏下方仍能自然透色。
+ */
+val LocalDockBottomPadding = compositionLocalOf { 0.dp }
+
+// 预缓存只读 Shape 与静态玻璃渐变画笔，保障 120Hz 滚动零额外对象分配与零重绘失效
 private val Shape26 = RoundedCornerShape(26.dp)
 private val Shape24 = RoundedCornerShape(24.dp)
 private val Shape20 = RoundedCornerShape(20.dp)
@@ -96,29 +102,60 @@ private fun cachedShape(cornerRadius: Dp): RoundedCornerShape = when (cornerRadi
     else -> RoundedCornerShape(cornerRadius)
 }
 
-private val CardBgLight = Color(0xFFFFFFFF)
-private val CardBgDark = Color(0xFF151B26)
-private val CardBorderLight = Color(0xFFE3E9F3)
-private val CardBorderDark = Color(0xFF242E40)
+private val LightCardGlassBrush = Brush.verticalGradient(
+    colors = listOf(Color(0xD6FFFFFF), Color(0xB8F5F9FF))
+)
+private val DarkCardGlassBrush = Brush.verticalGradient(
+    colors = listOf(Color(0xCE1C2537), Color(0xBA111725))
+)
 
-private val WellBgLight = Color(0xFFF3F6FB)
-private val WellBgDark = Color(0xFF0E1420)
+private val LightGlassRimBrush = Brush.verticalGradient(
+    colors = listOf(
+        Color(0xF5FFFFFF),
+        Color(0x96FFFFFF),
+        Color(0x220F172A)
+    )
+)
+private val DarkGlassRimBrush = Brush.verticalGradient(
+    colors = listOf(
+        Color(0x3DFFFFFF),
+        Color(0x1CFFFFFF),
+        Color(0x45000000)
+    )
+)
 
-private val TileBgLight = Color(0xFFEEF3FA)
-private val TileBgDark = Color(0xFF1C2434)
+private val WellBgLight = Color(0x0D0F172A)
+private val WellBgDark = Color(0x40050810)
+private val WellBorderLight = Color(0x120F172A)
+private val WellBorderDark = Color(0x14FFFFFF)
 
-private val DockBgLight = Color(0xFFFDFEFF)
-private val DockBgDark = Color(0xFF121824)
-private val DockBorderLight = Color(0xFFDFE6F2)
-private val DockBorderDark = Color(0xFF263144)
-private val DockPillBgLight = Color(0x1C0071E3)
-private val DockPillBgDark = Color(0x2E3B96FF)
+private val TileBgLight = Color(0xB8FFFFFF)
+private val TileBgDark = Color(0x18FFFFFF)
+private val TileBorderLight = Color(0x180F172A)
+private val TileBorderDark = Color(0x1FFFFFFF)
+
+private val LightDockGlassBrush = Brush.verticalGradient(
+    colors = listOf(Color(0xE8FFFFFF), Color(0xD6F4F8FF))
+)
+private val DarkDockGlassBrush = Brush.verticalGradient(
+    colors = listOf(Color(0xE2182032), Color(0xD4101624))
+)
+private val DockRimLight = Brush.verticalGradient(
+    colors = listOf(Color(0xFFFFFFFF), Color(0x300F172A))
+)
+private val DockRimDark = Brush.verticalGradient(
+    colors = listOf(Color(0x38FFFFFF), Color(0x18FFFFFF))
+)
+private val DockPillBgLight = Color(0x1F0071E3)
+private val DockPillBgDark = Color(0x333B96FF)
+private val DockPillBorderLight = Color(0x330071E3)
+private val DockPillBorderDark = Color(0x474DA3FF)
 private val DockBadgeAmber = Color(0xFFF59E0B)
 
 private val ProgressActiveLight = Color(0xFF16A34A)
 private val ProgressActiveDark = Color(0xFF39D353)
-private val ProgressTrackLight = Color(0xFFE1E7F0)
-private val ProgressTrackDark = Color(0xFF252E3F)
+private val ProgressTrackLight = Color(0x180F172A)
+private val ProgressTrackDark = Color(0x20FFFFFF)
 
 private var cachedLightBackdrop: ImageBitmap? = null
 private var cachedDarkBackdrop: ImageBitmap? = null
@@ -130,78 +167,112 @@ private fun getOrBakeBackdrop(isDark: Boolean): ImageBitmap {
         cachedLightBackdrop?.let { return it }
     }
 
-    val width = 240
-    val height = 534
-    val w = width.toFloat()
-    val h = height.toFloat()
-    val bitmap = ImageBitmap(width, height)
+    val sw = 360
+    val sh = 800
+    val w = sw.toFloat()
+    val h = sh.toFloat()
+    val bitmap = ImageBitmap(sw, sh)
     val canvas = Canvas(bitmap)
     val drawScope = CanvasDrawScope()
 
     drawScope.draw(
-        density = Density(density = 0.6f, fontScale = 1f),
+        density = Density(density = 0.8f, fontScale = 1f),
         layoutDirection = LayoutDirection.Ltr,
         canvas = canvas,
         size = Size(w, h)
     ) {
         val baseBrush = Brush.linearGradient(
             colors = if (isDark) {
-                listOf(Color(0xFF06080E), Color(0xFF0A0F1A), Color(0xFF070A12))
+                listOf(Color(0xFF05070D), Color(0xFF0A101D), Color(0xFF060911))
             } else {
-                listOf(Color(0xFFE0E7F3), Color(0xFFEEF2F8), Color(0xFFDDE4F1))
+                listOf(Color(0xFFDCE6F6), Color(0xFFEEF3FA), Color(0xFFD9E3F4))
             },
             start = Offset.Zero,
             end = Offset(w, h)
         )
-        val topGlow = Brush.radialGradient(
+        val topLeftSapphire = Brush.radialGradient(
             colors = if (isDark) {
-                listOf(Color(0xFF1F448B).copy(alpha = 0.34f), Color.Transparent)
+                listOf(Color(0xFF1F54B8).copy(alpha = 0.48f), Color.Transparent)
             } else {
-                listOf(Color(0xFF8CB9F8).copy(alpha = 0.34f), Color.Transparent)
+                listOf(Color(0xFF5A9EFF).copy(alpha = 0.44f), Color.Transparent)
             },
-            center = Offset(w * 0.16f, h * 0.12f),
+            center = Offset(w * 0.14f, h * 0.12f),
             radius = maxOf(w, h) * 0.62f
         )
-        val warmOrTealGlow = Brush.radialGradient(
+        val topRightAccent = Brush.radialGradient(
             colors = if (isDark) {
-                listOf(Color(0xFF124A4D).copy(alpha = 0.24f), Color.Transparent)
+                listOf(Color(0xFF0E6166).copy(alpha = 0.34f), Color.Transparent)
             } else {
-                listOf(Color(0xFFE6CEB4).copy(alpha = 0.28f), Color.Transparent)
+                listOf(Color(0xFFE7C49F).copy(alpha = 0.38f), Color.Transparent)
             },
-            center = Offset(w * 0.88f, h * 0.28f),
-            radius = maxOf(w, h) * 0.55f
+            center = Offset(w * 0.90f, h * 0.27f),
+            radius = maxOf(w, h) * 0.56f
         )
-        val lowerGlow = Brush.radialGradient(
+        val lowerSapphire = Brush.radialGradient(
             colors = if (isDark) {
-                listOf(Color(0xFF27225A).copy(alpha = 0.24f), Color.Transparent)
+                listOf(Color(0xFF33297A).copy(alpha = 0.34f), Color.Transparent)
             } else {
-                listOf(Color(0xFF9EB5E3).copy(alpha = 0.24f), Color.Transparent)
+                listOf(Color(0xFF6B8CE8).copy(alpha = 0.36f), Color.Transparent)
             },
-            center = Offset(w * 0.35f, h * 0.88f),
+            center = Offset(w * 0.28f, h * 0.86f),
             radius = maxOf(w, h) * 0.58f
         )
-        val contourPath1 = Path().apply {
-            moveTo(-w * 0.1f, h * 0.22f)
-            cubicTo(w * 0.25f, h * 0.12f, w * 0.62f, h * 0.32f, w * 1.12f, h * 0.15f)
-        }
-        val contourPath2 = Path().apply {
-            moveTo(-w * 0.1f, h * 0.78f)
-            cubicTo(w * 0.30f, h * 0.66f, w * 0.68f, h * 0.86f, w * 1.12f, h * 0.72f)
-        }
+        val midCyan = Brush.radialGradient(
+            colors = if (isDark) {
+                listOf(Color(0xFF184478).copy(alpha = 0.26f), Color.Transparent)
+            } else {
+                listOf(Color(0xFF7BC8E8).copy(alpha = 0.26f), Color.Transparent)
+            },
+            center = Offset(w * 0.78f, h * 0.62f),
+            radius = maxOf(w, h) * 0.52f
+        )
 
         drawRect(brush = baseBrush)
-        drawRect(brush = topGlow)
-        drawRect(brush = warmOrTealGlow)
-        drawRect(brush = lowerGlow)
+        drawRect(brush = topLeftSapphire)
+        drawRect(brush = topRightAccent)
+        drawRect(brush = lowerSapphire)
+        drawRect(brush = midCyan)
+
+        val gridColor = if (isDark) Color(0xFFFFFFFF).copy(alpha = 0.025f) else Color(0xFF0F172A).copy(alpha = 0.028f)
+        val step = w / 6f
+        var gx = step
+        while (gx < w) {
+            drawLine(gridColor, Offset(gx, 0f), Offset(gx, h), strokeWidth = 0.6f)
+            gx += step
+        }
+        var gy = step
+        while (gy < h) {
+            drawLine(gridColor, Offset(0f, gy), Offset(w, gy), strokeWidth = 0.6f)
+            gy += step
+        }
+
+        val contourPath1 = Path().apply {
+            moveTo(-w * 0.1f, h * 0.22f)
+            cubicTo(w * 0.25f, h * 0.11f, w * 0.62f, h * 0.33f, w * 1.12f, h * 0.14f)
+        }
+        val contourPath2 = Path().apply {
+            moveTo(-w * 0.1f, h * 0.54f)
+            cubicTo(w * 0.34f, h * 0.44f, w * 0.66f, h * 0.63f, w * 1.12f, h * 0.48f)
+        }
+        val contourPath3 = Path().apply {
+            moveTo(-w * 0.1f, h * 0.80f)
+            cubicTo(w * 0.30f, h * 0.67f, w * 0.68f, h * 0.88f, w * 1.12f, h * 0.73f)
+        }
+
         drawPath(
             path = contourPath1,
-            color = if (isDark) Color(0xFF82B4FF).copy(alpha = 0.10f) else Color(0xFF2C5394).copy(alpha = 0.10f),
-            style = Stroke(width = 0.8f, cap = StrokeCap.Round)
+            color = if (isDark) Color(0xFF82B4FF).copy(alpha = 0.16f) else Color(0xFF2B569E).copy(alpha = 0.13f),
+            style = Stroke(width = 1.1f, cap = StrokeCap.Round)
         )
         drawPath(
             path = contourPath2,
-            color = if (isDark) Color(0xFF5CD8C2).copy(alpha = 0.08f) else Color(0xFF7C5F43).copy(alpha = 0.08f),
-            style = Stroke(width = 0.7f, cap = StrokeCap.Round)
+            color = if (isDark) Color(0xFF5CD8C2).copy(alpha = 0.11f) else Color(0xFF4374B8).copy(alpha = 0.09f),
+            style = Stroke(width = 0.9f, cap = StrokeCap.Round)
+        )
+        drawPath(
+            path = contourPath3,
+            color = if (isDark) Color(0xFF82B4FF).copy(alpha = 0.12f) else Color(0xFF856547).copy(alpha = 0.10f),
+            style = Stroke(width = 1.0f, cap = StrokeCap.Round)
         )
     }
 
@@ -214,9 +285,8 @@ private fun getOrBakeBackdrop(isDark: Boolean): ImageBitmap {
 }
 
 /**
- * 预烘焙静态光学建筑背景：
- * 将渐变与弧线一次性离线烘焙到低分辨率缓存纹理中，运行期仅 1 次 drawImage 贴图 (<0.1ms GPU)，
- * 消除全屏多重径向渐变过绘，保障 120Hz 满帧流畅。
+ * 光学建筑背景：一次烘焙缓存纹理 + 单次 GPU drawImage 铺底 (<0.1ms)，
+ * 其柔和光晕与曲线通过上方半透明层压玻璃卡片自然透出。
  */
 @Composable
 fun OIBoardAmbientBackdrop(
@@ -224,14 +294,14 @@ fun OIBoardAmbientBackdrop(
     content: @Composable BoxScope.() -> Unit
 ) {
     val isDark = LocalIsDarkTheme.current
-    val bitmap = remember(isDark) { getOrBakeBackdrop(isDark) }
+    val backdrop = remember(isDark) { getOrBakeBackdrop(isDark) }
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .drawBehind {
                 drawImage(
-                    image = bitmap,
+                    image = backdrop,
                     dstSize = IntSize(
                         width = size.width.roundToInt().coerceAtLeast(1),
                         height = size.height.roundToInt().coerceAtLeast(1)
@@ -244,7 +314,7 @@ fun OIBoardAmbientBackdrop(
 }
 
 /**
- * 轻量按压微缩放（仅用于单点主操作按钮，不应用于高频滚动列表卡片）。
+ * 轻量按压微缩放（仅用于单点主操作按钮）。
  */
 @Composable
 fun Modifier.tactilePressScale(
@@ -277,8 +347,10 @@ fun Modifier.tactilePressScale(
 }
 
 /**
- * 120Hz 零外圈/零阴影极简瓷白 & 黑曜石卡片：
- * 干净单层不透明面板 + 0.5dp 细描边，彻底消除半透明阴影透底造成的"外圈双层"视觉干扰。
+ * Web 同款 macOS 15 层压光学玻璃卡片（静态 RenderNode，零滚动失效、零阴影灰圈）：
+ * - 半透明渐变乳白 / 熏黑玻璃面板，让底层柔和光晕自然穿透；
+ * - 顶部光学高光 + 0.85dp 镜面高光描边；
+ * - 零 onGloballyPositioned 与零 RenderNode 重录，保证 120Hz 满帧。
  */
 @Composable
 fun TactileGlassCard(
@@ -290,29 +362,41 @@ fun TactileGlassCard(
 ) {
     val isDark = LocalIsDarkTheme.current
     val shape = cachedShape(cornerRadius)
-    val bgColor = if (isDark) CardBgDark else CardBgLight
-    val borderColor = accentBorderColor ?: if (isDark) CardBorderDark else CardBorderLight
+    val fillBrush = if (isDark) DarkCardGlassBrush else LightCardGlassBrush
+    val rimBrush = if (isDark) DarkGlassRimBrush else LightGlassRimBrush
 
-    val cardModifier = if (onClick != null) {
+    val styledModifier = if (onClick != null) {
         modifier
             .clip(shape)
-            .background(bgColor, shape)
-            .border(0.5.dp, borderColor, shape)
+            .background(fillBrush, shape)
+            .let { m ->
+                if (accentBorderColor != null) {
+                    m.border(0.85.dp, accentBorderColor, shape)
+                } else {
+                    m.border(0.85.dp, rimBrush, shape)
+                }
+            }
             .clickable(onClick = onClick)
     } else {
         modifier
-            .background(bgColor, shape)
-            .border(0.5.dp, borderColor, shape)
+            .background(fillBrush, shape)
+            .let { m ->
+                if (accentBorderColor != null) {
+                    m.border(0.85.dp, accentBorderColor, shape)
+                } else {
+                    m.border(0.85.dp, rimBrush, shape)
+                }
+            }
     }
 
     Box(
-        modifier = cardModifier,
+        modifier = styledModifier,
         content = content
     )
 }
 
 /**
- * 极简色调内凹槽（Tier 2 / Tier 2.5）：无外描边，仅靠纯净色调明度区分层次。
+ * 磨砂玻璃内部精工凹槽（Tier 2 / Tier 2.5）：半透明微凹陷，透出上层卡片玻璃色阶。
  */
 @Composable
 fun TactileRecessedWell(
@@ -324,9 +408,12 @@ fun TactileRecessedWell(
     val isDark = LocalIsDarkTheme.current
     val shape = cachedShape(cornerRadius)
     val bgColor = if (isDark) WellBgDark else WellBgLight
+    val borderColor = if (isDark) WellBorderDark else WellBorderLight
 
     Box(
-        modifier = modifier.background(bgColor, shape)
+        modifier = modifier
+            .background(bgColor, shape)
+            .border(0.5.dp, borderColor, shape)
     ) {
         if (accentBarColor != null) {
             Box(
@@ -343,7 +430,7 @@ fun TactileRecessedWell(
 }
 
 /**
- * 与 Web 端 .ui-icon-box 一致的纯净色调圆角图标磁贴（无多余外描边）。
+ * 半透明瓷白/熏黑精密圆角图标磁贴。
  */
 @Composable
 fun TactileIconBadge(
@@ -355,11 +442,13 @@ fun TactileIconBadge(
 ) {
     val isDark = LocalIsDarkTheme.current
     val bg = if (isDark) TileBgDark else TileBgLight
+    val border = if (isDark) TileBorderDark else TileBorderLight
 
     Box(
         modifier = modifier
             .size(size)
-            .background(bg, Shape9),
+            .background(bg, Shape9)
+            .border(0.5.dp, border, Shape9),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -372,7 +461,7 @@ fun TactileIconBadge(
 }
 
 /**
- * 与 Web 端 .platform-badge 一致的中性底 + 语义圆点徽标（纯色调底，无多余外描边）。
+ * 半透明磨砂质感平台微标。
  */
 @Composable
 fun TactilePlatformBadge(
@@ -383,10 +472,12 @@ fun TactilePlatformBadge(
     val dotColor = PlatformColorTokens.colorFor(platform, isDark)
     val label = PlatformColorTokens.labelFor(platform)
     val bg = if (isDark) TileBgDark else TileBgLight
+    val border = if (isDark) TileBorderDark else TileBorderLight
 
     Row(
         modifier = modifier
             .background(bg, Shape7)
+            .border(0.5.dp, border, Shape7)
             .padding(horizontal = 7.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp)
@@ -407,7 +498,7 @@ fun TactilePlatformBadge(
 }
 
 /**
- * 6 段复习进度条（单节点 drawBehind 绘制，避免每张错题卡片创建 6 个 Box + 6 个 clip）。
+ * 6 段复习进度条（单节点 drawBehind 绘制）。
  */
 @Composable
 fun ReviewStepProgressBar(
@@ -467,8 +558,9 @@ fun AnimatedMetricNumber(
 }
 
 /**
- * 极轻悬浮胶囊底栏（Floating Tactile Dock）：
- * - 单一动画驱动胶囊滑块（drawBehind 直接绘制，零 Shadow / 零多重嵌套边框）
+ * 轻盈悬浮玻璃胶囊底栏（Floating Frosted Dock）：
+ * - 半透明层压渐变底 + 0.85dp 镜面高光框 + 单一弹簧滑块；
+ * - 零全屏 RenderNode 重录与零阴影，兼顾通透玻璃感与 120Hz 满帧率。
  */
 @Composable
 fun FloatingTactileDock(
@@ -483,9 +575,10 @@ fun FloatingTactileDock(
     val haptic = LocalHapticFeedback.current
     val selectedIndex = items.indexOfFirst { it.route == selectedRoute }.coerceAtLeast(0)
 
-    val dockBg = if (isDark) DockBgDark else DockBgLight
-    val dockBorder = if (isDark) DockBorderDark else DockBorderLight
+    val dockBrush = if (isDark) DarkDockGlassBrush else LightDockGlassBrush
+    val dockRim = if (isDark) DockRimDark else DockRimLight
     val pillBg = if (isDark) DockPillBgDark else DockPillBgLight
+    val pillBorder = if (isDark) DockPillBorderDark else DockPillBorderLight
 
     val animatedIndex by animateFloatAsState(
         targetValue = selectedIndex.toFloat(),
@@ -508,24 +601,33 @@ fun FloatingTactileDock(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(66.dp)
-                .background(dockBg, Shape26)
-                .border(0.5.dp, dockBorder, Shape26)
-                .padding(horizontal = 6.dp, vertical = 6.dp)
+                .background(dockBrush, Shape26)
+                .border(0.85.dp, dockRim, Shape26)
                 .drawBehind {
+                    val inset = 6.dp.toPx()
+                    val innerW = (size.width - inset * 2f).coerceAtLeast(0f)
+                    val innerH = (size.height - inset * 2f).coerceAtLeast(0f)
                     val count = items.size.coerceAtLeast(1)
-                    val stepW = size.width / count
-                    val insetX = 2.dp.toPx()
-                    val pillW = (stepW - insetX * 2f).coerceAtLeast(0f)
-                    val pillLeft = stepW * activeIdx + insetX
-                    val r = 20.dp.toPx()
-                    val corner = CornerRadius(r, r)
+                    val stepW = innerW / count
+                    val pillInsetX = 2.dp.toPx()
+                    val pillW = (stepW - pillInsetX * 2f).coerceAtLeast(0f)
+                    val pillLeft = inset + stepW * activeIdx + pillInsetX
+                    val pillCorner = CornerRadius(20.dp.toPx(), 20.dp.toPx())
                     drawRoundRect(
                         color = pillBg,
-                        topLeft = Offset(pillLeft, 0f),
-                        size = Size(pillW, size.height),
-                        cornerRadius = corner
+                        topLeft = Offset(pillLeft, inset),
+                        size = Size(pillW, innerH),
+                        cornerRadius = pillCorner
                     )
-                },
+                    drawRoundRect(
+                        color = pillBorder,
+                        topLeft = Offset(pillLeft, inset),
+                        size = Size(pillW, innerH),
+                        cornerRadius = pillCorner,
+                        style = Stroke(width = 0.7.dp.toPx())
+                    )
+                }
+                .padding(horizontal = 6.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             items.forEach { screen ->
@@ -568,7 +670,6 @@ fun FloatingTactileDock(
                                         .offset(x = 5.dp, y = (-2).dp)
                                         .size(7.dp)
                                         .background(DockBadgeAmber, CircleShape)
-                                        .border(1.dp, dockBg, CircleShape)
                                 )
                             }
                         }
