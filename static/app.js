@@ -19,11 +19,13 @@ createApp({
     const authForm = ref({ username: "", password: "", confirmPassword: "", captcha_code: "" });
     const authError = ref("");
     const isAuthLoading = ref(false);
+    const showAuthPwd = ref(false);
     const captchaId = ref("");
     const captchaImage = ref("");
 
     const pwdForm = ref({ oldPassword: "", newPassword: "", confirmNewPassword: "" });
     const isChangingPwd = ref(false);
+    const showChangePwd = ref(false);
 
     // --- Dashboard & Platform State ---
     const overview = ref({
@@ -895,10 +897,11 @@ createApp({
       }
     };
 
-    // 切换登录/注册模式时，自动刷新验证码
+    // 切换登录/注册模式时，自动刷新验证码并隐藏密码明文
     watch(authMode, () => {
       authError.value = "";
       authForm.value.captcha_code = "";
+      showAuthPwd.value = false;
       fetchCaptcha();
     });
 
@@ -934,6 +937,7 @@ createApp({
           isAuthChecking.value = false;
           showToast(`欢迎回来，${data.user.username}！`, "success");
           authForm.value = { username: "", password: "", confirmPassword: "", captcha_code: "" };
+          showAuthPwd.value = false;
           await reloadAllData();
           triggerStartupNotification();
           connectEventStream();
@@ -1001,6 +1005,7 @@ createApp({
           isAuthChecking.value = false;
           showToast("账户注册成功！", "success");
           authForm.value = { username: "", password: "", confirmPassword: "", captcha_code: "" };
+          showAuthPwd.value = false;
           await reloadAllData();
           triggerStartupNotification();
           connectEventStream();
@@ -1564,7 +1569,7 @@ createApp({
 
     const openAddToMistakesModal = (subOrItem, fromMistakesList = false) => {
       isMistakeEditing.value = fromMistakesList;
-      mistakeFormTab.value = "write";
+      mistakeFormTab.value = window.innerWidth >= 900 ? "split" : "write";
       subOrItem = subOrItem || {};
       
       let tagsStr = "";
@@ -1732,16 +1737,203 @@ createApp({
       }
     };
 
+    const copyPlainText = async (text) => {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    };
+
+    const enhanceCodeBlocks = (containerSelector) => {
+      const root = document.querySelector(containerSelector);
+      if (!root) return;
+      root.querySelectorAll("pre").forEach((preEl) => {
+        if (preEl.closest(".md-code-wrap") || preEl.dataset.enhanced === "1") return;
+        const codeEl = preEl.querySelector("code");
+        if (!codeEl) return;
+        preEl.dataset.enhanced = "1";
+
+        if (window.hljs && !codeEl.classList.contains("hljs")) {
+          try { window.hljs.highlightElement(codeEl); } catch (e) {}
+        }
+
+        const langMatch = (codeEl.className || "").match(/language-([a-zA-Z0-9_+-]+)/);
+        const langLabel = langMatch ? langMatch[1].toUpperCase() : "CODE";
+        const rawCode = codeEl.textContent || "";
+
+        const wrap = document.createElement("div");
+        wrap.className = "md-code-wrap";
+
+        const header = document.createElement("div");
+        header.className = "md-code-header";
+
+        const left = document.createElement("div");
+        left.className = "md-code-header-left";
+        const dots = document.createElement("span");
+        dots.className = "md-code-dots";
+        dots.innerHTML = "<span></span><span></span><span></span>";
+        const langSpan = document.createElement("span");
+        langSpan.className = "md-code-lang";
+        langSpan.textContent = langLabel;
+        left.appendChild(dots);
+        left.appendChild(langSpan);
+
+        const copyBtn = document.createElement("button");
+        copyBtn.type = "button";
+        copyBtn.className = "md-code-copy-btn";
+        copyBtn.textContent = "复制";
+        copyBtn.addEventListener("click", async () => {
+          try {
+            await copyPlainText(rawCode);
+            copyBtn.textContent = "已复制 ✓";
+            copyBtn.classList.add("is-copied");
+            setTimeout(() => {
+              copyBtn.textContent = "复制";
+              copyBtn.classList.remove("is-copied");
+            }, 1600);
+          } catch (e) {
+            showToast("复制失败", "error");
+          }
+        });
+
+        header.appendChild(left);
+        header.appendChild(copyBtn);
+
+        const parent = preEl.parentNode;
+        if (parent) {
+          parent.insertBefore(wrap, preEl);
+          wrap.appendChild(header);
+          wrap.appendChild(preEl);
+        }
+      });
+    };
+
     const openViewNoteModal = (item) => {
       activeMistake.value = item;
       viewNoteModalOpen.value = true;
       nextTick(() => {
-        if (window.hljs) {
-          document.querySelectorAll("#mistake-markdown-content pre code").forEach(el => {
-            window.hljs.highlightElement(el);
-          });
+        enhanceCodeBlocks("#mistake-markdown-content");
+      });
+    };
+
+    const mistakeNotesStats = computed(() => {
+      const text = mistakeForm.value?.notes || "";
+      return {
+        lines: text ? text.split(/\r?\n/).length : 0,
+        chars: text.length
+      };
+    });
+
+    const replaceEditorRange = (beforeText, afterText, defaultInner = "", cursorOffset = null) => {
+      const ta = document.getElementById("mistake-notes-textarea");
+      const current = mistakeForm.value.notes || "";
+      if (!ta) {
+        mistakeForm.value.notes = current + beforeText + defaultInner + afterText;
+        return;
+      }
+      const start = ta.selectionStart ?? current.length;
+      const end = ta.selectionEnd ?? start;
+      const selected = current.slice(start, end) || defaultInner;
+      const updated = current.slice(0, start) + beforeText + selected + afterText + current.slice(end);
+      mistakeForm.value.notes = updated;
+      const targetPos = cursorOffset !== null
+        ? start + cursorOffset
+        : start + beforeText.length + selected.length;
+      nextTick(() => {
+        const el = document.getElementById("mistake-notes-textarea");
+        if (el) {
+          el.focus();
+          el.setSelectionRange(targetPos, targetPos);
         }
       });
+    };
+
+    const insertMdSyntax = (action) => {
+      switch (action) {
+        case "h2":
+          replaceEditorRange("\n## ", "\n", "核心思路");
+          break;
+        case "h3":
+          replaceEditorRange("\n### ", "\n", "关键细节");
+          break;
+        case "bold":
+          replaceEditorRange("**", "**", "重点");
+          break;
+        case "inlineCode":
+          replaceEditorRange("`", "`", "code");
+          break;
+        case "cpp":
+          replaceEditorRange("\n```cpp\n", "\n```\n", "// 在此粘贴 AC 代码");
+          break;
+        case "python":
+          replaceEditorRange("\n```python\n", "\n```\n", "# 在此粘贴 Python 代码");
+          break;
+        case "quote":
+          replaceEditorRange("\n> ", "\n", "边界条件或关键结论");
+          break;
+        case "checklist":
+          replaceEditorRange("\n- [ ] ", "\n", "需要复查的边界");
+          break;
+        case "complexity":
+          replaceEditorRange("\n> **复杂度**：时间 `O(N log N)` · 空间 `O(N)`\n", "");
+          break;
+      }
+    };
+
+    const insertOiTemplate = () => {
+      const scaffold = "## 核心思路\n\n\n## 复杂度分析\n- 时间复杂度：`O(...)`\n- 空间复杂度：`O(...)`\n\n## 易错点与边界\n- [ ] \n\n## AC 代码\n```cpp\n\n```\n";
+      const cur = (mistakeForm.value.notes || "").trim();
+      mistakeForm.value.notes = cur ? `${mistakeForm.value.notes.trimEnd()}\n\n---\n\n${scaffold}` : scaffold;
+      nextTick(() => {
+        const el = document.getElementById("mistake-notes-textarea");
+        if (el) {
+          el.focus();
+          const pos = (mistakeForm.value.notes || "").indexOf("## 核心思路") + 8;
+          el.setSelectionRange(pos, pos);
+        }
+      });
+    };
+
+    const handleMdKeydown = (e) => {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        const ta = e.target;
+        const val = mistakeForm.value.notes || "";
+        const start = ta.selectionStart ?? 0;
+        const end = ta.selectionEnd ?? start;
+        if (e.shiftKey) {
+          const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+          if (val.slice(lineStart, lineStart + 2) === "  ") {
+            mistakeForm.value.notes = val.slice(0, lineStart) + val.slice(lineStart + 2);
+            nextTick(() => ta.setSelectionRange(Math.max(lineStart, start - 2), Math.max(lineStart, end - 2)));
+          }
+        } else {
+          mistakeForm.value.notes = val.slice(0, start) + "  " + val.slice(end);
+          nextTick(() => ta.setSelectionRange(start + 2, start + 2));
+        }
+        return;
+      }
+      if (e.metaKey || e.ctrlKey) {
+        const k = e.key.toLowerCase();
+        if (k === "b") {
+          e.preventDefault();
+          insertMdSyntax("bold");
+        } else if (k === "e") {
+          e.preventDefault();
+          insertMdSyntax("inlineCode");
+        } else if (k === "k") {
+          e.preventDefault();
+          replaceEditorRange("[", "](https://)", "链接文本");
+        }
+      }
     };
 
     const renderMarkdown = (content) => {
@@ -1988,7 +2180,30 @@ createApp({
       }
     };
 
-    // --- ECharts 渲染系统 (Apple Pro 调色 + 1:1 自适应纯正方形热力图) ---
+    // --- ECharts 渲染系统 (Apple Pro 调色 + macOS 15 磨砂 Tooltip + 1:1 自适应纯正方形热力图) ---
+    const prefersReducedMotion = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+    const getGlassTooltipStyle = (dark) => ({
+      padding: [9, 14],
+      backgroundColor: dark
+        ? (glassMode.value ? "rgba(20, 26, 39, 0.80)" : "rgba(20, 22, 28, 0.96)")
+        : (glassMode.value ? "rgba(255, 255, 255, 0.84)" : "rgba(255, 255, 255, 0.96)"),
+      borderColor: dark
+        ? (glassMode.value ? "rgba(255, 255, 255, 0.16)" : "rgba(255, 255, 255, 0.12)")
+        : (glassMode.value ? "rgba(15, 23, 42, 0.10)" : "rgba(15, 23, 42, 0.09)"),
+      borderWidth: 1,
+      textStyle: {
+        color: dark ? "#f4f6fb" : "#0f172a",
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", sans-serif',
+        fontSize: getChartFontSize(12)
+      },
+      extraCssText: glassMode.value
+        ? (dark
+          ? "border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 14px 34px rgba(0, 0, 0, 0.45); backdrop-filter: blur(16px) saturate(170%); -webkit-backdrop-filter: blur(16px) saturate(170%); z-index: 99999;"
+          : "border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 12px 30px rgba(15, 23, 42, 0.16); backdrop-filter: blur(16px) saturate(170%); -webkit-backdrop-filter: blur(16px) saturate(170%); z-index: 99999;")
+        : "border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;"
+    });
+
     const renderHeatmap = (force = false) => {
       const chartDom = document.getElementById("heatmap-chart");
       if (!chartDom) return;
@@ -2125,18 +2340,7 @@ createApp({
             const top = Math.max(-boxH, y - boxH / 2);
             return [left, top];
           },
-          padding: [9, 14],
-          backgroundColor: dark ? (glassMode.value ? "rgba(22, 27, 38, 0.80)" : "rgba(22, 27, 34, 0.96)") : (glassMode.value ? "rgba(255, 255, 255, 0.82)" : "rgba(255, 255, 255, 0.96)"),
-          borderColor: dark ? "rgba(255, 255, 255, 0.14)" : "rgba(15, 23, 42, 0.09)",
-          borderWidth: 1,
-          textStyle: {
-            color: dark ? "#e6edf3" : "#1f2328",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", sans-serif',
-            fontSize: getChartFontSize(12)
-          },
-          extraCssText: glassMode.value
-            ? "border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); z-index: 99999;"
-            : "border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
+          ...getGlassTooltipStyle(dark),
           formatter: function (p) {
             if (!p || !Array.isArray(p.value)) return "";
             const date = p.value[0];
@@ -2273,7 +2477,7 @@ createApp({
       const dark = isDark.value;
       const rawCurve = overview.value.climbing_curve || [];
       const currentDataStr = JSON.stringify(rawCurve);
-      const displayKey = `climbing_${dark ? 'dark' : 'light'}_${isCurveSmooth.value}_${getChartFontSize(12)}`;
+      const displayKey = `climbing_${dark ? 'dark' : 'light'}_${glassMode.value ? 'g1' : 'g0'}_${isCurveSmooth.value}_${getChartFontSize(12)}`;
       const currentKey = `${displayKey}##${currentDataStr}`;
 
       if (!force && chart && currentKey === lastClimbingKey) {
@@ -2372,36 +2576,28 @@ createApp({
       const displayValues = isCurveSmooth.value ? gaussianSmooth(values, 4, 2.0) : values;
 
       const option = {
+        animation: !prefersReducedMotion(),
+        animationDuration: 420,
         tooltip: {
           trigger: "axis",
           axisPointer: {
             type: "line",
             lineStyle: {
-              color: dark ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.15)",
+              color: dark ? "rgba(255, 255, 255, 0.22)" : "rgba(15, 23, 42, 0.16)",
               width: 1,
               type: "dashed"
             }
           },
-          padding: [8, 14],
-          backgroundColor: dark ? (glassMode.value ? "rgba(22, 27, 38, 0.80)" : "rgba(20, 20, 22, 0.95)") : (glassMode.value ? "rgba(255, 255, 255, 0.82)" : "rgba(255, 255, 255, 0.95)"),
-          borderColor: dark ? "rgba(255, 255, 255, 0.14)" : "rgba(15, 23, 42, 0.09)",
-          textStyle: {
-            color: dark ? "#f5f5f7" : "#1d1d1f",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-            fontSize: getChartFontSize(12)
-          },
-          extraCssText: glassMode.value
-            ? "border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); z-index: 99999;"
-            : "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
+          ...getGlassTooltipStyle(dark),
           formatter: function (params) {
             const p = params[0];
             const idx = p.dataIndex;
             const realVal = values[idx]; // 始终显示真实的整数累计通过量
             const newCount = newAcs[idx] || 0;
-            let html = `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div>`;
-            html += `<div class="text-xs font-bold mt-1 font-sans" style="color:${dark ? '#2997ff' : '#0071e3'}">累计 AC: ${realVal} 题</div>`;
+            let html = `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#b0b8c9' : '#596377'}">${p.name}</div>`;
+            html += `<div class="text-xs font-bold mt-1 font-sans" style="color:${dark ? '#4da3ff' : '#0071e3'}">累计 AC: ${realVal} 题</div>`;
             if (newCount > 0) {
-              html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color:${dark ? '#30d158' : '#34c759'}">当日新过: +${newCount} 题</div>`;
+              html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color:${dark ? '#39d353' : '#15803d'}">当日新过: +${newCount} 题</div>`;
             }
             return html;
           }
@@ -2417,9 +2613,9 @@ createApp({
           type: "category",
           data: dates,
           boundaryGap: false,
-          axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)" } },
+          axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(15, 23, 42, 0.08)" } },
           axisLabel: { 
-            color: dark ? "#86868b" : "#86868b", 
+            color: dark ? "#98a1b2" : "#596377", 
             fontSize: getChartFontSize(10), 
             fontFamily: "JetBrains Mono",
             formatter: (val) => val.slice(2) // YY-MM-DD
@@ -2430,8 +2626,8 @@ createApp({
           min: yMin,
           ...(yMax !== undefined ? { max: yMax } : {}),
           minInterval: 1,
-          splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)" } },
-          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
+          splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.06)" : "rgba(15, 23, 42, 0.05)" } },
+          axisLabel: { color: dark ? "#98a1b2" : "#596377", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
         },
         series: [{
           name: "累计 AC",
@@ -2473,7 +2669,7 @@ createApp({
       const dark = isDark.value;
       const rawDaily = overview.value.daily_effort || [];
       const currentDataStr = JSON.stringify(rawDaily);
-      const displayKey = `daily_${dark ? 'dark' : 'light'}_${getChartFontSize(12)}`;
+      const displayKey = `daily_${dark ? 'dark' : 'light'}_${glassMode.value ? 'g1' : 'g0'}_${getChartFontSize(12)}`;
       const currentKey = `${displayKey}##${currentDataStr}`;
 
       if (!force && chart && currentKey === lastDailyKey) {
@@ -2508,31 +2704,23 @@ createApp({
       }
 
       const option = {
+        animation: !prefersReducedMotion(),
+        animationDuration: 420,
         tooltip: {
           trigger: "axis",
           axisPointer: { type: "shadow" },
-          padding: [8, 14],
-          backgroundColor: dark ? (glassMode.value ? "rgba(22, 27, 38, 0.80)" : "rgba(20, 20, 22, 0.95)") : (glassMode.value ? "rgba(255, 255, 255, 0.82)" : "rgba(255, 255, 255, 0.95)"),
-          borderColor: dark ? "rgba(255, 255, 255, 0.14)" : "rgba(15, 23, 42, 0.09)",
-          textStyle: {
-            color: dark ? "#f5f5f7" : "#1d1d1f",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-            fontSize: getChartFontSize(12)
-          },
-          extraCssText: glassMode.value
-            ? "border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); z-index: 99999;"
-            : "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
+          ...getGlassTooltipStyle(dark),
           formatter: function (params) {
             const idx = params[0]?.dataIndex ?? 0;
             const date = fullDates[idx] || "";
             const ac = acList[idx] || 0;
             const total = totalList[idx] || 0;
-            let html = `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${date}</div>`;
-            html += `<div class="text-xs font-bold mt-1 font-sans" style="color: ${dark ? '#2997ff' : '#0071e3'}">过题 (AC): ${ac} 题</div>`;
-            html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">总提交: ${total} 发</div>`;
+            let html = `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#b0b8c9' : '#596377'}">${date}</div>`;
+            html += `<div class="text-xs font-bold mt-1 font-sans" style="color: ${dark ? '#4da3ff' : '#0071e3'}">过题 (AC): ${ac} 题</div>`;
+            html += `<div class="text-xs font-medium mt-0.5 font-sans" style="color: ${dark ? '#b0b8c9' : '#596377'}">总提交: ${total} 发</div>`;
             if (total > 0) {
               const rate = Math.round((ac / total) * 100);
-              html += `<div class="text-[11px] font-mono mt-0.5" style="color: ${dark ? '#30d158' : '#34c759'}">过题率: ${rate}%</div>`;
+              html += `<div class="text-[11px] font-mono mt-0.5" style="color: ${dark ? '#39d353' : '#15803d'}">过题率: ${rate}%</div>`;
             }
             return html;
           }
@@ -2540,10 +2728,13 @@ createApp({
         legend: {
           top: 8,
           right: 20,
+          icon: "roundRect",
+          itemWidth: 10,
+          itemHeight: 10,
           textStyle: {
-            color: dark ? "#a1a1a6" : "#6e6e73",
+            color: dark ? "#b0b8c9" : "#3f4859",
             fontSize: getChartFontSize(11),
-            fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif'
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", sans-serif'
           },
           data: ["AC 过题", "非 AC 提交"]
         },
@@ -2557,13 +2748,13 @@ createApp({
         xAxis: {
           type: "category",
           data: dates,
-          axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)" } },
-          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
+          axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(15, 23, 42, 0.08)" } },
+          axisLabel: { color: dark ? "#98a1b2" : "#596377", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
         },
         yAxis: {
           type: "value",
-          splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)" } },
-          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
+          splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.06)" : "rgba(15, 23, 42, 0.05)" } },
+          axisLabel: { color: dark ? "#98a1b2" : "#596377", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
         },
         series: [
           {
@@ -2573,7 +2764,7 @@ createApp({
             barMaxWidth: 16,
             itemStyle: {
               borderRadius: [0, 0, 0, 0],
-              color: dark ? "#2997ff" : "#0071e3"
+              color: dark ? "#3b96ff" : "#0071e3"
             },
             data: acList
           },
@@ -2584,7 +2775,7 @@ createApp({
             barMaxWidth: 16,
             itemStyle: {
               borderRadius: [3, 3, 0, 0],
-              color: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.12)"
+              color: dark ? "rgba(148, 163, 184, 0.24)" : "rgba(15, 23, 42, 0.12)"
             },
             data: nonAcList
           }
@@ -2609,7 +2800,7 @@ createApp({
       const dark = isDark.value;
       const topTags = (tagStats.value || []).slice(0, 10).reverse();
       const currentDataStr = JSON.stringify(topTags);
-      const displayKey = `tags_${dark ? 'dark' : 'light'}_${getChartFontSize(12)}`;
+      const displayKey = `tags_${dark ? 'dark' : 'light'}_${glassMode.value ? 'g1' : 'g0'}_${getChartFontSize(12)}`;
       const currentKey = `${displayKey}##${currentDataStr}`;
 
       if (!force && chart && currentKey === lastTagChartKey) {
@@ -2622,53 +2813,55 @@ createApp({
       const acData = topTags.map(t => t.ac_count);
 
       const option = {
+        animation: !prefersReducedMotion(),
+        animationDuration: 420,
         tooltip: {
           trigger: "axis",
           axisPointer: { type: "shadow" },
-          padding: [8, 14],
-          backgroundColor: dark ? (glassMode.value ? "rgba(22, 27, 38, 0.80)" : "rgba(20, 20, 22, 0.95)") : (glassMode.value ? "rgba(255, 255, 255, 0.82)" : "rgba(255, 255, 255, 0.95)"),
-          borderColor: dark ? "rgba(255, 255, 255, 0.14)" : "rgba(15, 23, 42, 0.09)",
-          textStyle: {
-            color: dark ? "#f5f5f7" : "#1d1d1f",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-            fontSize: getChartFontSize(12)
-          },
-          extraCssText: glassMode.value
-            ? "border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); z-index: 99999;"
-            : "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;",
+          ...getGlassTooltipStyle(dark),
           formatter: function (params) {
             const p = params[0];
-            const col = dark ? '#2997ff' : '#0071e3';
-            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#a1a1a6' : '#6e6e73'}">${p.name}</div><div class="text-xs font-bold mt-1 font-sans" style="color:${col}">AC 题数: ${p.value} 题</div>`;
+            const col = dark ? '#4da3ff' : '#0071e3';
+            return `<div class="font-sans text-xs font-semibold" style="color: ${dark ? '#b0b8c9' : '#596377'}">${p.name}</div><div class="text-xs font-bold mt-1 font-sans" style="color:${col}">AC 题数: ${p.value} 题</div>`;
           }
         },
         grid: {
           left: "3%",
-          right: "6%",
+          right: "10%",
           bottom: "8%",
           top: "6%",
           containLabel: true
         },
         xAxis: {
           type: "value",
-          splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)" } },
-          axisLabel: { color: dark ? "#86868b" : "#86868b", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
+          splitLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.06)" : "rgba(15, 23, 42, 0.05)" } },
+          axisLabel: { color: dark ? "#98a1b2" : "#596377", fontSize: getChartFontSize(10), fontFamily: "JetBrains Mono" }
         },
         yAxis: {
           type: "category",
           data: categories,
-          axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)" } },
-          axisLabel: { color: dark ? "#f5f5f7" : "#1d1d1f", fontSize: getChartFontSize(11), fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }
+          axisLine: { lineStyle: { color: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(15, 23, 42, 0.08)" } },
+          axisLabel: { color: dark ? "#f4f6fb" : "#0f172a", fontSize: getChartFontSize(11), fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", sans-serif' }
         },
         series: [{
           name: "AC 题数",
           type: "bar",
+          barMaxWidth: 20,
           data: acData,
+          label: {
+            show: true,
+            position: "right",
+            distance: 6,
+            color: dark ? "#b0b8c9" : "#3f4859",
+            fontFamily: "JetBrains Mono, ui-monospace, monospace",
+            fontSize: getChartFontSize(11),
+            fontWeight: 600
+          },
           itemStyle: {
             borderRadius: [0, 6, 6, 0],
             color: new echarts.graphic.LinearGradient(0, 0, 1, 0, dark ? [
-              { offset: 0, color: "rgba(41, 151, 255, 0.25)" },
-              { offset: 1, color: "#2997ff" }
+              { offset: 0, color: "rgba(59, 150, 255, 0.30)" },
+              { offset: 1, color: "#3b96ff" }
             ] : [
               { offset: 0, color: "rgba(0, 113, 227, 0.35)" },
               { offset: 1, color: "#0071e3" }
@@ -2695,7 +2888,7 @@ createApp({
       const dark = isDark.value;
       const pData = overview.value.stats?.platforms || {};
       const currentDataStr = JSON.stringify(pData);
-      const displayKey = `platforms_${dark ? 'dark' : 'light'}_${getChartFontSize(12)}`;
+      const displayKey = `platforms_${dark ? 'dark' : 'light'}_${glassMode.value ? 'g1' : 'g0'}_${getChartFontSize(12)}`;
       const currentKey = `${displayKey}##${currentDataStr}`;
 
       if (!force && chart && currentKey === lastPieKey) {
@@ -2705,30 +2898,30 @@ createApp({
       lastPieKey = currentKey;
       chart.clear();
       const data = [
-        { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: dark ? "#2997ff" : "#0071e3" } },
-        { value: pData.atcoder?.ac || 0, name: "AtCoder", itemStyle: { color: dark ? "#bf5af2" : "#af52de" } },
-        { value: pData.luogu?.ac || 0, name: "洛谷", itemStyle: { color: dark ? "#30d158" : "#34c759" } },
-        { value: pData.acwing?.ac || 0, name: "AcWing", itemStyle: { color: dark ? "#ff9f0a" : "#ff9500" } },
-        { value: (pData.leetcode?.ac || 0) + (pData.leetcode_cn?.ac || 0), name: "力扣", itemStyle: { color: dark ? "#ffd60a" : "#f59e0b" } }
+        { value: pData.codeforces?.ac || 0, name: "Codeforces", itemStyle: { color: dark ? "#4da3ff" : "#0071e3" } },
+        { value: pData.atcoder?.ac || 0, name: "AtCoder", itemStyle: { color: dark ? "#b197fc" : "#7c3aed" } },
+        { value: pData.luogu?.ac || 0, name: "洛谷", itemStyle: { color: dark ? "#39d353" : "#15803d" } },
+        { value: pData.acwing?.ac || 0, name: "AcWing", itemStyle: { color: dark ? "#818cf8" : "#4f46e5" } },
+        { value: (pData.leetcode?.ac || 0) + (pData.leetcode_cn?.ac || 0), name: "力扣", itemStyle: { color: dark ? "#f59e0b" : "#d97706" } }
       ].filter(d => d.value > 0);
 
       const option = {
+        animation: !prefersReducedMotion(),
+        animationDuration: 420,
         tooltip: {
           trigger: "item",
-          formatter: "{b}: {c} 题 ({d}%)",
-          backgroundColor: dark ? "rgba(20, 20, 22, 0.95)" : "rgba(255, 255, 255, 0.95)",
-          borderColor: dark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
-          textStyle: {
-            color: dark ? "#f5f5f7" : "#1d1d1f",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-            fontSize: getChartFontSize(12)
-          },
-          extraCssText: "border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;"
+          ...getGlassTooltipStyle(dark),
+          formatter: function (p) {
+            return `<div class="font-sans text-xs font-semibold">${p.name}</div><div class="font-mono text-xs font-bold mt-1">${p.value} 题 (${p.percent}%)</div>`;
+          }
         },
         legend: {
           bottom: "6%",
           left: "center",
-          textStyle: { color: dark ? "#a1a1a6" : "#6e6e73", fontSize: getChartFontSize(11), fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif' }
+          icon: "circle",
+          itemWidth: 8,
+          itemHeight: 8,
+          textStyle: { color: dark ? "#b0b8c9" : "#3f4859", fontSize: getChartFontSize(11), fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", sans-serif' }
         },
         series: [{
           name: "各平台 AC 分布",
@@ -2738,7 +2931,7 @@ createApp({
           avoidLabelOverlap: false,
           itemStyle: {
             borderRadius: 8,
-            borderColor: dark ? "#000000" : "#ffffff",
+            borderColor: dark ? "rgba(17, 21, 31, 0.85)" : "rgba(255, 255, 255, 0.88)",
             borderWidth: 3
           },
           label: { show: false },
@@ -2747,7 +2940,7 @@ createApp({
               show: true,
               fontSize: getChartFontSize(15),
               fontWeight: "bold",
-              color: dark ? "#fff" : "#1d1d1f"
+              color: dark ? "#f4f6fb" : "#0f172a"
             }
           },
           data: data.length ? data : [{ value: 0, name: "暂无数据", itemStyle: { color: dark ? "#2c2c2e" : "#e2e8f0" } }]
@@ -3775,6 +3968,10 @@ createApp({
       if (e.key === "Escape") {
         if (viewNoteModalOpen.value) {
           viewNoteModalOpen.value = false;
+        } else if (mistakeModalOpen.value) {
+          mistakeModalOpen.value = false;
+        } else if (accountModalOpen.value) {
+          accountModalOpen.value = false;
         } else if (notifyState.value === "detail") {
           collapseNotifyToOrb();
         }
@@ -3879,6 +4076,7 @@ createApp({
       if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
       if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
       if (mistakeSearchDebounceTimer) clearTimeout(mistakeSearchDebounceTimer);
+      if (mdPreviewEnhanceTimer) clearTimeout(mdPreviewEnhanceTimer);
       disconnectEventStream();
       clearNotifyAutoHide();
 
@@ -3921,10 +4119,24 @@ createApp({
     watch(mistakeSearch, () => {
       if (isResettingMistakeFilters) return;
       if (mistakeSearchDebounceTimer) clearTimeout(mistakeSearchDebounceTimer);
+      if (mdPreviewEnhanceTimer) clearTimeout(mdPreviewEnhanceTimer);
       mistakeSearchDebounceTimer = setTimeout(() => {
         mistakePage.value = 1;
         loadMistakes().catch(e => console.error("错题搜索失败:", e));
       }, 220);
+    });
+
+    let mdPreviewEnhanceTimer = null;
+    watch([mistakeModalOpen, mistakeFormTab, () => mistakeForm.value.notes], ([open, tab]) => {
+      if (open) {
+        nextTick(syncSegmentedThumbs);
+      }
+      if (open && (tab === "preview" || tab === "split")) {
+        if (mdPreviewEnhanceTimer) clearTimeout(mdPreviewEnhanceTimer);
+        mdPreviewEnhanceTimer = setTimeout(() => {
+          enhanceCodeBlocks("#mistake-editor-preview");
+        }, 120);
+      }
     });
 
     // 标签页切换自动静默拉取最新数据 + Hydro 顶部细进度条与定向平滑入场动效
@@ -3970,11 +4182,13 @@ createApp({
       authForm,
       authError,
       isAuthLoading,
+      showAuthPwd,
       captchaId,
       captchaImage,
       fetchCaptcha,
       pwdForm,
       isChangingPwd,
+      showChangePwd,
       handleLogin,
       handleRegister,
       handleLogout,
@@ -4134,6 +4348,10 @@ createApp({
       startNoteModalResize,
       openViewNoteModal,
       renderMarkdown,
+      mistakeNotesStats,
+      insertMdSyntax,
+      insertOiTemplate,
+      handleMdKeydown,
       // Local Agent Token exports
       isTokenCopied,
       copySyncToken

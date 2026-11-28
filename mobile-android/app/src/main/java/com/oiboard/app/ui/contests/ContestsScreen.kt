@@ -2,6 +2,7 @@ package com.oiboard.app.ui.contests
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,13 +24,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -57,6 +58,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.oiboard.app.data.model.ContestDto
+import com.oiboard.app.ui.components.TactileGlassCard
+import com.oiboard.app.ui.components.TactilePlatformBadge
+import com.oiboard.app.ui.theme.LocalIsDarkTheme
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -98,47 +102,11 @@ fun ContestsScreen(
     }
     val currentTimeProvider = remember { { currentTimeSecondsState.longValue } }
 
-    LaunchedEffect(uiState.syncMessage) {
-        uiState.syncMessage?.let { msg ->
-            snackbarHostState.showSnackbar(msg)
-            viewModel.clearSyncMessage()
-        }
-    }
-
-    if (uiState.showSyncDialog) {
-        AlertDialog(
-            onDismissRequest = { viewModel.showSyncDialog(false) },
-            title = {
-                Text(
-                    text = "同步比赛",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = "是否从各平台重新抓取最新赛事日程？该操作通常耗时数秒至数分钟。",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { viewModel.confirmSync() }) {
-                    Text("同步", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.showSyncDialog(false) }) {
-                    Text("取消", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        )
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             // 顶栏：标题与操作
@@ -149,37 +117,30 @@ fun ContestsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "比赛日历",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (uiState.isSyncing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    } else {
-                        IconButton(onClick = { viewModel.showSyncDialog(true) }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Sync,
-                                contentDescription = "同步",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-
-                    IconButton(onClick = { viewModel.loadContests(isRefresh = true) }) {
+                    Text(
+                        text = "比赛日历",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    if (uiState.isOffline) {
+                        Spacer(modifier = Modifier.width(6.dp))
                         Icon(
-                            imageVector = Icons.Outlined.Refresh,
-                            contentDescription = "刷新",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            imageVector = Icons.Outlined.CloudOff,
+                            contentDescription = "离线缓存",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.tertiary
                         )
                     }
+                }
+
+                IconButton(onClick = { viewModel.loadContests(isRefresh = true) }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Refresh,
+                        contentDescription = "刷新",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
@@ -359,32 +320,16 @@ private fun ContestCard(
     currentTimeProvider: () -> Long,
     onClick: () -> Unit
 ) {
-    val platformColor = when (contest.platform.lowercase()) {
-        "codeforces" -> Color(0xFF1E88E5)
-        "atcoder" -> Color(0xFF43A047)
-        "luogu" -> Color(0xFFE53935)
-        else -> MaterialTheme.colorScheme.primary
-    }
-
-    val platformName = when (contest.platform.lowercase()) {
-        "codeforces" -> "CF"
-        "atcoder" -> "AtCoder"
-        "luogu" -> "洛谷"
-        else -> contest.platform
-    }
-
+    val isDark = LocalIsDarkTheme.current
     val isRunning = contest.phase.equals("CODING", ignoreCase = true) ||
             contest.phase.equals("RUNNING", ignoreCase = true) ||
             contest.status_text.contains("进行中")
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    TactileGlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 18.dp,
+        accentBorderColor = if (isRunning) MaterialTheme.colorScheme.primary.copy(alpha = 0.40f) else null,
+        onClick = onClick
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -395,33 +340,27 @@ private fun ContestCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = platformColor.copy(alpha = 0.12f)
-                ) {
-                    Text(
-                        text = platformName,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = platformColor,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
-                }
+                TactilePlatformBadge(platform = contest.platform)
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = if (isRunning) {
-                        MaterialTheme.colorScheme.primaryContainer
+                        MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.22f else 0.12f)
                     } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                    }
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                    },
+                    border = BorderStroke(
+                        1.dp,
+                        if (isRunning) MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
+                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+                    )
                 ) {
                     if (isRunning) {
                         Text(
                             text = "进行中",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     } else {

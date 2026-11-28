@@ -4,6 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,7 +27,9 @@ import com.oiboard.app.data.local.AppThemeMode
 import com.oiboard.app.data.repository.AuthState
 import com.oiboard.app.ui.auth.AuthViewModel
 import com.oiboard.app.ui.auth.LoginScreen
+import com.oiboard.app.ui.components.OIBoardAmbientBackdrop
 import com.oiboard.app.ui.navigation.MainScreen
+import com.oiboard.app.ui.theme.LocalAnimationsEnabled
 import com.oiboard.app.ui.theme.OIBoardTheme
 import kotlinx.coroutines.launch
 
@@ -59,69 +67,82 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeMode by container.userPreferencesRepository.themeModeFlow
                 .collectAsStateWithLifecycle(initialValue = AppThemeMode.SYSTEM)
+            val animPref by container.userPreferencesRepository.animationEnabledFlow
+                .collectAsStateWithLifecycle(initialValue = true)
+            val animationsEnabled = animPref && !container.userPreferencesRepository.isSystemAnimationDisabled()
 
-            OIBoardTheme(themeMode = themeMode) {
+            OIBoardTheme(themeMode = themeMode, animationsEnabled = animationsEnabled) {
                 val coroutineScope = rememberCoroutineScope()
                 val authState by container.authRepository.authState.collectAsStateWithLifecycle()
+                val animDuration = if (LocalAnimationsEnabled.current) 220 else 0
 
-                when (val state = authState) {
-                    is AuthState.Loading -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.background),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(32.dp),
-                                strokeWidth = 3.dp,
-                                color = MaterialTheme.colorScheme.primary
+                AnimatedContent(
+                    targetState = authState,
+                    contentKey = { it::class },
+                    transitionSpec = {
+                        (fadeIn(tween(animDuration)) + scaleIn(
+                            initialScale = if (animDuration > 0) 0.985f else 1f,
+                            animationSpec = tween(animDuration)
+                        )) togetherWith fadeOut(tween(animDuration))
+                    },
+                    label = "AuthStateTransition"
+                ) { state ->
+                    when (state) {
+                        is AuthState.Loading -> {
+                            OIBoardAmbientBackdrop {
+                                CircularProgressIndicator(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .align(Alignment.Center),
+                                    strokeWidth = 3.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        is AuthState.LoggedOut -> {
+                            val authViewModel: AuthViewModel = viewModel(
+                                factory = AuthViewModel.provideFactory(
+                                    container.authRepository,
+                                    container.userPreferencesRepository
+                                )
+                            )
+                            LoginScreen(
+                                viewModel = authViewModel,
+                                currentThemeMode = themeMode,
+                                onThemeToggle = {
+                                    val nextMode = if (themeMode == AppThemeMode.DARK) AppThemeMode.LIGHT else AppThemeMode.DARK
+                                    coroutineScope.launch {
+                                        container.userPreferencesRepository.saveThemeMode(nextMode)
+                                    }
+                                }
                             )
                         }
-                    }
-                    is AuthState.LoggedOut -> {
-                        val authViewModel: AuthViewModel = viewModel(
-                            factory = AuthViewModel.provideFactory(
-                                container.authRepository,
-                                container.userPreferencesRepository
+                        is AuthState.LoggedIn -> {
+                            MainScreen(
+                                statsRepository = container.statsRepository,
+                                contestsRepository = container.contestsRepository,
+                                submissionsRepository = container.submissionsRepository,
+                                mistakesRepository = container.mistakesRepository,
+                                settingsRepository = container.settingsRepository,
+                                userPreferencesRepository = container.userPreferencesRepository,
+                                currentUser = state.user,
+                                currentServerUrl = state.serverUrl,
+                                currentThemeMode = themeMode,
+                                onThemeChange = { newMode ->
+                                    coroutineScope.launch {
+                                        container.userPreferencesRepository.saveThemeMode(newMode)
+                                    }
+                                },
+                                onSaveServerUrl = { newUrl ->
+                                    coroutineScope.launch {
+                                        container.userPreferencesRepository.saveServerUrl(newUrl)
+                                    }
+                                },
+                                onLogout = { clearPassword ->
+                                    container.authRepository.logout(clearPassword)
+                                }
                             )
-                        )
-                        LoginScreen(
-                            viewModel = authViewModel,
-                            currentThemeMode = themeMode,
-                            onThemeToggle = {
-                                val nextMode = if (themeMode == AppThemeMode.DARK) AppThemeMode.LIGHT else AppThemeMode.DARK
-                                coroutineScope.launch {
-                                    container.userPreferencesRepository.saveThemeMode(nextMode)
-                                }
-                            }
-                        )
-                    }
-                    is AuthState.LoggedIn -> {
-                        MainScreen(
-                            statsRepository = container.statsRepository,
-                            contestsRepository = container.contestsRepository,
-                            submissionsRepository = container.submissionsRepository,
-                            mistakesRepository = container.mistakesRepository,
-                            settingsRepository = container.settingsRepository,
-                            userPreferencesRepository = container.userPreferencesRepository,
-                            currentUser = state.user,
-                            currentServerUrl = state.serverUrl,
-                            currentThemeMode = themeMode,
-                            onThemeChange = { newMode ->
-                                coroutineScope.launch {
-                                    container.userPreferencesRepository.saveThemeMode(newMode)
-                                }
-                            },
-                            onSaveServerUrl = { newUrl ->
-                                coroutineScope.launch {
-                                    container.userPreferencesRepository.saveServerUrl(newUrl)
-                                }
-                            },
-                            onLogout = { clearPassword ->
-                                container.authRepository.logout(clearPassword)
-                            }
-                        )
+                        }
                     }
                 }
             }

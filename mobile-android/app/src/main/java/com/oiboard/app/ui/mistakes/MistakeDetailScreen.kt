@@ -3,6 +3,7 @@ package com.oiboard.app.ui.mistakes
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,8 +28,6 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -57,7 +56,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oiboard.app.data.model.MistakeItemDto
 import com.oiboard.app.ui.components.MarkdownBlockItem
+import com.oiboard.app.ui.components.OIBoardAmbientBackdrop
+import com.oiboard.app.ui.components.ReviewStepProgressBar
+import com.oiboard.app.ui.components.TactileGlassCard
+import com.oiboard.app.ui.components.TactilePlatformBadge
+import com.oiboard.app.ui.components.TactileRecessedWell
 import com.oiboard.app.ui.components.rememberMarkdownBlocks
+import com.oiboard.app.ui.theme.LocalIsDarkTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,7 +92,7 @@ fun MistakeDetailScreen(
         AlertDialog(
             onDismissRequest = { showReviewConfirm = false },
             title = { Text("记录复习", fontWeight = FontWeight.Bold) },
-            text = { Text("确定记录本次复习打卡？状态将推进至下一轮复习周期。") },
+            text = { Text("确定完成本次复习？状态将推进至下一轮复习周期。") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -156,187 +161,200 @@ fun MistakeDetailScreen(
         )
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "${mistake.problem_id} 笔记详情",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                },
-                actions = {
-                    if (onEdit != null) {
-                        IconButton(onClick = { onEdit(mistake) }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Edit,
-                                contentDescription = "编辑",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    if (onDelete != null) {
-                        IconButton(onClick = { showDeleteConfirm = true }) {
-                            Icon(
-                                imageVector = Icons.Outlined.DeleteOutline,
-                                contentDescription = "删除",
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
-                )
-            )
-        }
-    ) { innerPadding ->
-        // 单个 LazyColumn 垂直滚动，严禁嵌套垂直滚动容器，无固定高度
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            item {
-                Spacer(modifier = Modifier.height(6.dp))
-            }
+    val isDark = LocalIsDarkTheme.current
+    val masteredColor = if (isDark) Color(0xFF34D399) else Color(0xFF059669)
 
-            // 1. 题目信息头部卡片
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer
-                            ) {
-                                Text(
-                                    text = mistake.platform.uppercase(),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
-
-                            if (isMastered) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = Color(0xFF2E7D32).copy(alpha = 0.15f)
-                                ) {
-                                    Text(
-                                        text = "已掌握",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF2E7D32),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                    )
-                                }
-                            } else {
-                                Text(
-                                    text = "第 ${mistake.review_count}/6 轮复习",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
+    OIBoardAmbientBackdrop(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = {
                         Text(
-                            text = "${mistake.problem_id} ${mistake.problem_title}",
-                            fontSize = 18.sp,
+                            text = "${mistake.problem_id} 笔记详情",
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-
-                        if (!mistake.next_review_at.isNullOrBlank() && !isMastered) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            val dateStr = mistake.next_review_at.take(10)
-                            Text(
-                                text = "下次复习：$dateStr",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "返回",
+                                tint = MaterialTheme.colorScheme.onBackground
                             )
                         }
-
-                        if (!mistake.problem_url.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            OutlinedButton(
-                                onClick = {
-                                    try {
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(mistake.problem_url))
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {}
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
+                    },
+                    actions = {
+                        if (onEdit != null) {
+                            IconButton(onClick = { onEdit(mistake) }) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(15.dp)
+                                    imageVector = Icons.Outlined.Edit,
+                                    contentDescription = "编辑",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("打开官方原题", fontSize = 12.sp)
                             }
                         }
-                    }
-                }
+                        if (onDelete != null) {
+                            IconButton(onClick = { showDeleteConfirm = true }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.DeleteOutline,
+                                    contentDescription = "删除",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = if (isDark) 0.84f else 0.88f),
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
             }
-
-            // 2. 考点与错因分析
-            if (!mistake.key_point.isNullOrBlank()) {
+        ) { innerPadding ->
+            // 单个 LazyColumn 垂直滚动，严禁嵌套垂直滚动容器，无固定高度
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 item {
-                    Card(
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+
+                // 1. 题目信息头部卡片
+                item {
+                    TactileGlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        cornerRadius = 20.dp
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                TactilePlatformBadge(platform = mistake.platform)
+
+                                if (isMastered) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = masteredColor.copy(alpha = if (isDark) 0.18f else 0.12f),
+                                        border = BorderStroke(1.dp, masteredColor.copy(alpha = 0.30f))
+                                    ) {
+                                        Text(
+                                            text = "已掌握",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = masteredColor,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                } else {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.18f else 0.10f),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.28f))
+                                    ) {
+                                        Text(
+                                            text = "第 ${mistake.review_count}/6 轮复习",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
                             Text(
-                                text = "核心考点与错因",
-                                fontSize = 14.sp,
+                                text = "${mistake.problem_id} ${mistake.problem_title}",
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = mistake.key_point,
-                                fontSize = 13.sp,
-                                lineHeight = 19.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            ReviewStepProgressBar(
+                                reviewCount = if (isMastered) 6 else mistake.review_count,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            if (!mistake.next_review_at.isNullOrBlank() && !isMastered) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                val dateStr = mistake.next_review_at.take(10)
+                                Text(
+                                    text = "下次复习：$dateStr",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            if (!mistake.problem_url.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(mistake.problem_url))
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {}
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("打开官方原题", fontSize = 12.sp)
+                                }
+                            }
                         }
                     }
                 }
-            }
+
+                // 2. 考点与错因分析
+                if (!mistake.key_point.isNullOrBlank()) {
+                    item {
+                        TactileGlassCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            cornerRadius = 18.dp
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "核心考点与错因",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                TactileRecessedWell(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    cornerRadius = 12.dp,
+                                    accentBarColor = MaterialTheme.colorScheme.primary
+                                ) {
+                                    Text(
+                                        text = mistake.key_point,
+                                        fontSize = 13.sp,
+                                        lineHeight = 19.sp,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
 
             // 3. 标签列表
             if (mistake.tags.isNotEmpty()) {
@@ -413,7 +431,7 @@ fun MistakeDetailScreen(
                 }
             }
 
-            // 6. 底部操作栏（复习打卡 / 掌握切换）
+            // 6. 底部操作栏（完成复习 / 掌握切换）
             if (onReview != null || onToggleMaster != null) {
                 item {
                     Spacer(modifier = Modifier.height(10.dp))
@@ -464,6 +482,7 @@ fun MistakeDetailScreen(
                     Spacer(modifier = Modifier.height(24.dp))
                 }
             }
+        }
         }
     }
 }

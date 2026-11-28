@@ -42,17 +42,31 @@ class UserPreferencesRepository(
         val KEY_SAVED_USERNAME = stringPreferencesKey("saved_username")
         val KEY_ENCRYPTED_PASSWORD = stringPreferencesKey("enc_password")
         val KEY_REMEMBER_PASSWORD = booleanPreferencesKey("remember_password")
+        val KEY_ANIMATION_ENABLED = booleanPreferencesKey("animation_enabled")
+        val KEY_LOCAL_CODE_PLAN = stringPreferencesKey("local_code_plan")
 
         const val DEFAULT_SERVER_URL = "http://10.0.2.2:8888"
     }
 
-    // 内存同步缓存，供 OkHttp 拦截器读取
+    // 内存同步缓存，供 OkHttp 拦截器与缓存 Key 快速读取
     @Volatile
     var currentServerUrl: String = DEFAULT_SERVER_URL
         private set
 
     @Volatile
     var currentToken: String? = null
+        private set
+
+    @Volatile
+    var currentUserId: Long = 0L
+        private set
+
+    @Volatile
+    var currentUsername: String = ""
+        private set
+
+    @Volatile
+    var isAnimationEnabled: Boolean = true
         private set
 
     private val prefsFlow: Flow<Preferences> = context.dataStore.data
@@ -78,12 +92,40 @@ class UserPreferencesRepository(
         }
     }.distinctUntilChanged()
 
+    val userIdFlow: Flow<Long> = prefsFlow.map { prefs ->
+        prefs[KEY_USER_ID] ?: 0L
+    }.distinctUntilChanged()
+
     val usernameFlow: Flow<String?> = prefsFlow.map { prefs ->
         prefs[KEY_USERNAME]
     }.distinctUntilChanged()
 
     val rememberPasswordFlow: Flow<Boolean> = prefsFlow.map { prefs ->
         prefs[KEY_REMEMBER_PASSWORD] ?: true
+    }.distinctUntilChanged()
+
+    val animationEnabledFlow: Flow<Boolean> = prefsFlow.map { prefs ->
+        prefs[KEY_ANIMATION_ENABLED] ?: true
+    }.distinctUntilChanged()
+
+    fun isSystemAnimationDisabled(): Boolean {
+        return try {
+            val scale = android.provider.Settings.Global.getFloat(
+                context.contentResolver,
+                android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+                1.0f
+            )
+            scale <= 0.05f
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    val effectiveAnimationEnabled: Boolean
+        get() = isAnimationEnabled && !isSystemAnimationDisabled()
+
+    val localCodePlanFlow: Flow<String> = prefsFlow.map { prefs ->
+        prefs[KEY_LOCAL_CODE_PLAN] ?: "PLAN_A"
     }.distinctUntilChanged()
 
     val themeModeFlow: Flow<AppThemeMode> = prefsFlow.map { prefs ->
@@ -101,6 +143,15 @@ class UserPreferencesRepository(
         }
         scope.launch(Dispatchers.IO) {
             tokenFlow.collect { currentToken = it }
+        }
+        scope.launch(Dispatchers.IO) {
+            userIdFlow.collect { currentUserId = it }
+        }
+        scope.launch(Dispatchers.IO) {
+            usernameFlow.collect { currentUsername = it ?: "" }
+        }
+        scope.launch(Dispatchers.IO) {
+            animationEnabledFlow.collect { isAnimationEnabled = it }
         }
     }
 
@@ -121,6 +172,9 @@ class UserPreferencesRepository(
 
     suspend fun saveServerUrl(url: String) {
         val cleanUrl = url.trim().trimEnd('/')
+        if (cleanUrl != currentServerUrl) {
+            AppDiskCache.clearAllCache(context)
+        }
         currentServerUrl = cleanUrl
         context.dataStore.edit { prefs ->
             prefs[KEY_SERVER_URL] = cleanUrl
@@ -129,12 +183,27 @@ class UserPreferencesRepository(
 
     suspend fun saveSession(token: String, userId: Long, username: String) {
         currentToken = token
+        currentUserId = userId
+        currentUsername = username
         val encToken = CryptoManager.encrypt(token) ?: ""
         context.dataStore.edit { prefs ->
             prefs[KEY_ENCRYPTED_TOKEN] = encToken
             prefs.remove(KEY_LEGACY_TOKEN)
             prefs[KEY_USER_ID] = userId
             prefs[KEY_USERNAME] = username
+        }
+    }
+
+    suspend fun saveAnimationEnabled(enabled: Boolean) {
+        isAnimationEnabled = enabled
+        context.dataStore.edit { prefs ->
+            prefs[KEY_ANIMATION_ENABLED] = enabled
+        }
+    }
+
+    suspend fun saveLocalCodePlan(plan: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_LOCAL_CODE_PLAN] = plan
         }
     }
 
@@ -185,6 +254,9 @@ class UserPreferencesRepository(
 
     suspend fun clearSession() {
         currentToken = null
+        currentUserId = 0L
+        currentUsername = ""
+        AppDiskCache.clearAllCache(context)
         context.dataStore.edit { prefs ->
             prefs.remove(KEY_ENCRYPTED_TOKEN)
             prefs.remove(KEY_LEGACY_TOKEN)

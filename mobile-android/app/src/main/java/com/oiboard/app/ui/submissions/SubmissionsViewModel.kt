@@ -1,15 +1,20 @@
 package com.oiboard.app.ui.submissions
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.oiboard.app.data.local.AppCacheManager
+import com.oiboard.app.data.local.AppDiskCache
 import com.oiboard.app.data.local.CacheTarget
+import com.oiboard.app.data.local.SubmissionsCacheDto
+import com.oiboard.app.data.local.UserPreferencesRepository
 import com.oiboard.app.data.model.ApiResult
 import com.oiboard.app.data.model.MistakeCreateRequest
 import com.oiboard.app.data.model.MistakeItemDto
 import com.oiboard.app.data.model.SubmissionDto
 import com.oiboard.app.data.repository.SubmissionsRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +28,7 @@ import java.util.Locale
 data class SubmissionsUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
+    val isOffline: Boolean = false,
     val allSubmissions: List<SubmissionDto> = emptyList(),
     val filteredSubmissions: List<SubmissionDto> = emptyList(),
     val visibleSubmissions: List<SubmissionDto> = emptyList(),
@@ -46,7 +52,9 @@ data class SubmissionsUiState(
 )
 
 class SubmissionsViewModel(
-    private val repository: SubmissionsRepository
+    private val repository: SubmissionsRepository,
+    private val context: Context,
+    private val prefs: UserPreferencesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SubmissionsUiState())
@@ -59,18 +67,42 @@ class SubmissionsViewModel(
         const val MAX_SUBMISSIONS = 150
         const val CACHE_TTL_MS = 30_000L // 提交页 30 秒时效缓存
 
-        fun provideFactory(repository: SubmissionsRepository): ViewModelProvider.Factory =
+        fun provideFactory(
+            repository: SubmissionsRepository,
+            context: Context,
+            prefs: UserPreferencesRepository
+        ): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return SubmissionsViewModel(repository) as T
+                    return SubmissionsViewModel(repository, context.applicationContext, prefs) as T
                 }
             }
     }
 
     init {
-        loadSubmissions()
+        loadWithLocalCache()
         observeCacheInvalidation()
+    }
+
+    private fun loadWithLocalCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val key = AppDiskCache.computeCacheKey(prefs.currentUserId, prefs.currentServerUrl)
+            val cached = AppDiskCache.readSubmissions(context, key)
+            if (cached != null && cached.submissions.isNotEmpty()) {
+                _uiState.update {
+                    it.copy(
+                        allSubmissions = cached.submissions,
+                        filteredSubmissions = cached.submissions,
+                        visibleSubmissions = cached.submissions.take(it.visiblePageSize),
+                        isLoading = false,
+                        isOffline = false
+                    )
+                }
+                onFilterConditionChanged()
+            }
+            loadSubmissions(isRefresh = false, isSilent = (cached != null && cached.submissions.isNotEmpty()))
+        }
     }
 
     private fun observeCacheInvalidation() {
@@ -296,11 +328,16 @@ class SubmissionsViewModel(
                     val (items, tags) = streamResult.data
                     val bounded = items.take(MAX_SUBMISSIONS)
 
+                    // 仅缓存第一页前 20 条，不占空间，覆盖写入
+                    val key = AppDiskCache.computeCacheKey(prefs.currentUserId, prefs.currentServerUrl)
+                    AppDiskCache.writeSubmissions(context, key, SubmissionsCacheDto(bounded.take(20)))
+
                     _uiState.update {
                         val mergedTags = if (it.availableTags.isNotEmpty() && tags.isEmpty()) it.availableTags else tags
                         it.copy(
                             isLoading = false,
                             isRefreshing = false,
+                            isOffline = false,
                             allSubmissions = bounded,
                             filteredSubmissions = bounded,
                             visibleSubmissions = bounded.take(it.visiblePageSize),
@@ -311,21 +348,45 @@ class SubmissionsViewModel(
                     }
                 }
                 is ApiResult.Error -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            isRefreshing = false,
-                            errorMessage = streamResult.message
-                        )
+                    if (_uiState.value.allSubmissions.isNotEmpty()) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isRefreshing = false,
+                                isOffline = true,
+                                errorMessage = null
+                            )
+                        }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isRefreshing = false,
+                                isOffline = false,
+                                errorMessage = streamResult.message
+                            )
+                        }
                     }
                 }
                 is ApiResult.NetworkError -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            isRefreshing = false,
-                            errorMessage = "网络连接失败"
-                        )
+                    if (_uiState.value.allSubmissions.isNotEmpty()) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isRefreshing = false,
+                                isOffline = true,
+                                errorMessage = null
+                            )
+                        }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isRefreshing = false,
+                                isOffline = false,
+                                errorMessage = "网络连接失败"
+                            )
+                        }
                     }
                 }
             }

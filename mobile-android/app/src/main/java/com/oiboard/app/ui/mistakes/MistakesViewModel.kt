@@ -1,16 +1,21 @@
 package com.oiboard.app.ui.mistakes
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.oiboard.app.data.local.AppCacheManager
+import com.oiboard.app.data.local.AppDiskCache
 import com.oiboard.app.data.local.CacheTarget
+import com.oiboard.app.data.local.MistakesCacheDto
+import com.oiboard.app.data.local.UserPreferencesRepository
 import com.oiboard.app.data.model.ApiResult
 import com.oiboard.app.data.model.MistakeCountsDto
 import com.oiboard.app.data.model.MistakeCreateRequest
 import com.oiboard.app.data.model.MistakeItemDto
 import com.oiboard.app.data.model.MistakeUpdateRequest
 import com.oiboard.app.data.repository.MistakesRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +25,7 @@ import kotlinx.coroutines.launch
 data class MistakesUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
+    val isOffline: Boolean = false,
     val isLoadingNextPage: Boolean = false,
     val mistakes: List<MistakeItemDto> = emptyList(),
     val counts: MistakeCountsDto = MistakeCountsDto(),
@@ -40,7 +46,9 @@ data class MistakesUiState(
 )
 
 class MistakesViewModel(
-    private val repository: MistakesRepository
+    private val repository: MistakesRepository,
+    private val context: Context,
+    private val prefs: UserPreferencesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MistakesUiState())
@@ -53,18 +61,40 @@ class MistakesViewModel(
         const val PAGE_SIZE = 50
         const val CACHE_TTL_MS = 30_000L // 错题页 30 秒时效缓存
 
-        fun provideFactory(repository: MistakesRepository): ViewModelProvider.Factory =
+        fun provideFactory(
+            repository: MistakesRepository,
+            context: Context,
+            prefs: UserPreferencesRepository
+        ): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return MistakesViewModel(repository) as T
+                    return MistakesViewModel(repository, context.applicationContext, prefs) as T
                 }
             }
     }
 
     init {
-        loadMistakes()
+        loadWithLocalCache()
         observeCacheInvalidation()
+    }
+
+    private fun loadWithLocalCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val key = AppDiskCache.computeCacheKey(prefs.currentUserId, prefs.currentServerUrl)
+            val cached = AppDiskCache.readMistakes(context, key)
+            if (cached != null && cached.items.isNotEmpty()) {
+                _uiState.update {
+                    it.copy(
+                        mistakes = cached.items,
+                        counts = cached.counts ?: MistakeCountsDto(),
+                        isLoading = false,
+                        isOffline = false
+                    )
+                }
+            }
+            loadMistakes(isRefresh = false, isSilent = (cached != null && cached.items.isNotEmpty()))
+        }
     }
 
     private fun observeCacheInvalidation() {
@@ -121,10 +151,16 @@ class MistakesViewModel(
                 is ApiResult.Success -> {
                     lastFetchTime = System.currentTimeMillis()
                     val items = res.data.items
+
+                    // 仅缓存第一页前 20 条，不占空间，覆盖写入
+                    val key = AppDiskCache.computeCacheKey(prefs.currentUserId, prefs.currentServerUrl)
+                    AppDiskCache.writeMistakes(context, key, MistakesCacheDto(items.take(20), res.data.counts))
+
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             isRefreshing = false,
+                            isOffline = false,
                             mistakes = items.take(MAX_MISTAKES),
                             counts = res.data.counts,
                             currentPage = 1,
@@ -134,21 +170,45 @@ class MistakesViewModel(
                     }
                 }
                 is ApiResult.Error -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            isRefreshing = false,
-                            errorMessage = res.message
-                        )
+                    if (_uiState.value.mistakes.isNotEmpty()) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isRefreshing = false,
+                                isOffline = true,
+                                errorMessage = null
+                            )
+                        }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isRefreshing = false,
+                                isOffline = false,
+                                errorMessage = res.message
+                            )
+                        }
                     }
                 }
                 is ApiResult.NetworkError -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            isRefreshing = false,
-                            errorMessage = "网络连接失败"
-                        )
+                    if (_uiState.value.mistakes.isNotEmpty()) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isRefreshing = false,
+                                isOffline = true,
+                                errorMessage = null
+                            )
+                        }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isRefreshing = false,
+                                isOffline = false,
+                                errorMessage = "网络连接失败"
+                            )
+                        }
                     }
                 }
             }

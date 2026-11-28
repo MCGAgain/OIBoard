@@ -2,6 +2,7 @@ package com.oiboard.app.ui.submissions
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,13 +29,12 @@ import androidx.compose.material.icons.outlined.AssignmentLate
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.BookmarkAdded
 import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -55,6 +56,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import com.oiboard.app.ui.components.TactileGlassCard
+import com.oiboard.app.ui.components.TactilePlatformBadge
+import com.oiboard.app.ui.components.TactileRecessedWell
+import com.oiboard.app.ui.theme.LocalIsDarkTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import androidx.compose.ui.Alignment
@@ -186,6 +191,7 @@ fun SubmissionsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             // 顶栏：标题、重置与刷新
@@ -196,12 +202,23 @@ fun SubmissionsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "提交记录",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "提交记录",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    if (uiState.isOffline) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Outlined.CloudOff,
+                            contentDescription = "离线缓存",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { viewModel.resetFilters() }) {
@@ -501,40 +518,20 @@ private fun SubmissionCard(
     onViewMistakeNote: () -> Unit,
     onClickUrl: () -> Unit
 ) {
-    val platformColor = when (submission.platform.lowercase()) {
-        "codeforces" -> Color(0xFF1E88E5)
-        "atcoder" -> Color(0xFF43A047)
-        "luogu" -> Color(0xFFE53935)
-        "acwing" -> Color(0xFF00ACC1)
-        "leetcode", "leetcode_cn" -> Color(0xFFFFA000)
-        else -> MaterialTheme.colorScheme.primary
-    }
-
-    val platformName = when (submission.platform.lowercase()) {
-        "codeforces" -> "CF"
-        "atcoder" -> "AtCoder"
-        "luogu" -> "洛谷"
-        "acwing" -> "AcWing"
-        "leetcode", "leetcode_cn" -> "力扣"
-        else -> submission.platform
-    }
-
+    val isDark = LocalIsDarkTheme.current
     val isAc = submission.verdict.equals("AC", ignoreCase = true)
     val verdictColor = if (isAc) {
-        Color(0xFF2E7D32)
+        if (isDark) Color(0xFF34D399) else Color(0xFF059669)
     } else when (submission.verdict.uppercase()) {
-        "WA", "RE" -> Color(0xFFC62828)
-        "TLE", "MLE" -> Color(0xFFEF6C00)
-        else -> Color(0xFF757575)
+        "WA", "RE" -> if (isDark) Color(0xFFF87171) else Color(0xFFDC2626)
+        "TLE", "MLE" -> if (isDark) Color(0xFFFBBF24) else Color(0xFFD97706)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp)),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    TactileGlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 18.dp,
+        onClick = if (!submission.submission_url.isNullOrBlank()) onClickUrl else null
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             // 顶行：平台徽标 + 题号标题 + 评测结果
@@ -542,18 +539,7 @@ private fun SubmissionCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = platformColor.copy(alpha = 0.12f)
-                ) {
-                    Text(
-                        text = platformName,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = platformColor,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
+                TactilePlatformBadge(platform = submission.platform)
 
                 Spacer(modifier = Modifier.width(8.dp))
 
@@ -570,8 +556,9 @@ private fun SubmissionCard(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = verdictColor.copy(alpha = 0.12f)
+                    shape = RoundedCornerShape(8.dp),
+                    color = verdictColor.copy(alpha = if (isDark) 0.18f else 0.11f),
+                    border = BorderStroke(1.dp, verdictColor.copy(alpha = 0.28f))
                 ) {
                     Text(
                         text = submission.verdict.ifBlank { "PENDING" },
@@ -585,41 +572,55 @@ private fun SubmissionCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 中间：语言、难度、标签
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (!submission.code_language.isNullOrBlank()) {
-                    Text(
-                        text = submission.code_language,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            // 中间：语言、难度、标签（内嵌凹槽条）
+            val diff = submission.difficulty ?: submission.difficulty_score?.toString()
+            val hasMeta = !submission.code_language.isNullOrBlank() ||
+                (!diff.isNullOrBlank() && diff != "0") ||
+                submission.tags.isNotEmpty()
+            if (hasMeta) {
+                TactileRecessedWell(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 10.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (!submission.code_language.isNullOrBlank()) {
+                            Text(
+                                text = submission.code_language,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
 
-                val diff = submission.difficulty ?: submission.difficulty_score?.toString()
-                if (!diff.isNullOrBlank() && diff != "0") {
-                    Text(
-                        text = "· 难度 $diff",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                        if (!diff.isNullOrBlank() && diff != "0") {
+                            Text(
+                                text = "· 难度 $diff",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
 
-                if (submission.tags.isNotEmpty()) {
-                    Text(
-                        text = "· ${submission.tags.take(2).joinToString(", ")}",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                        if (submission.tags.isNotEmpty()) {
+                            Text(
+                                text = "· ${submission.tags.take(2).joinToString(", ")}",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
+                Spacer(modifier = Modifier.height(10.dp))
+            } else {
+                Spacer(modifier = Modifier.height(4.dp))
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
 
             // 底行：提交时间 + 入错题按钮/已入笔记按钮 + 外链图标
             Row(

@@ -1,14 +1,21 @@
 package com.oiboard.app.ui.overview
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.oiboard.app.data.local.AppCacheManager
+import com.oiboard.app.data.local.AppDiskCache
+import com.oiboard.app.data.local.CacheTarget
+import com.oiboard.app.data.local.OverviewCacheDto
+import com.oiboard.app.data.local.UserPreferencesRepository
 import com.oiboard.app.data.model.ApiResult
 import com.oiboard.app.data.model.ContestDto
 import com.oiboard.app.data.model.HeatmapResponse
 import com.oiboard.app.data.model.StatsOverviewResponse
 import com.oiboard.app.data.model.TagStatDto
 import com.oiboard.app.data.repository.StatsRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,9 +23,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-
-import com.oiboard.app.data.local.AppCacheManager
-import com.oiboard.app.data.local.CacheTarget
 
 enum class ChartTab(val label: String) {
     CLIMBING_CURVE("累计通过"),
@@ -30,6 +34,7 @@ enum class ChartTab(val label: String) {
 data class OverviewUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
+    val isOffline: Boolean = false,
     val errorMessage: String? = null,
     val overview: StatsOverviewResponse? = null,
     val heatmap: HeatmapResponse? = null,
@@ -42,7 +47,9 @@ data class OverviewUiState(
 )
 
 class OverviewViewModel(
-    private val statsRepository: StatsRepository
+    private val statsRepository: StatsRepository,
+    private val context: Context,
+    private val prefs: UserPreferencesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OverviewUiState(isLoading = true))
@@ -53,18 +60,52 @@ class OverviewViewModel(
     companion object {
         const val CACHE_TTL_MS = 60_000L // 总览页 60 秒时效缓存
 
-        fun provideFactory(statsRepository: StatsRepository): ViewModelProvider.Factory =
+        fun provideFactory(
+            statsRepository: StatsRepository,
+            context: Context,
+            prefs: UserPreferencesRepository
+        ): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return OverviewViewModel(statsRepository) as T
+                    return OverviewViewModel(statsRepository, context.applicationContext, prefs) as T
                 }
             }
     }
 
     init {
-        loadInitialData()
+        loadWithLocalCache()
         observeCacheInvalidation()
+    }
+
+    private fun loadWithLocalCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val key = AppDiskCache.computeCacheKey(prefs.currentUserId, prefs.currentServerUrl)
+            val cached = AppDiskCache.readOverview(context, key)
+            if (cached != null) {
+                val curYear = LocalDate.now().year
+                val years = mutableListOf<Int>()
+                if (cached.heatmap != null && cached.heatmap.available_years.isNotEmpty()) {
+                    years.addAll(cached.heatmap.available_years)
+                }
+                if (!years.contains(curYear)) {
+                    years.add(curYear)
+                }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        overview = cached.overview,
+                        heatmap = cached.heatmap,
+                        availableYears = years.distinct().sortedDescending(),
+                        upcomingContests = cached.upcomingContests,
+                        tags = cached.tags,
+                        isOffline = false
+                    )
+                }
+            }
+            // 后台静默刷新，若已有缓存则无白屏/无转圈感
+            loadInitialData(isSilent = (cached != null))
+        }
     }
 
     private fun observeCacheInvalidation() {
@@ -96,7 +137,7 @@ class OverviewViewModel(
 
     fun loadInitialData(isSilent: Boolean = false) {
         viewModelScope.launch {
-            if (!isSilent) {
+            if (!isSilent && _uiState.value.overview == null) {
                 _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             }
 
@@ -133,17 +174,55 @@ class OverviewViewModel(
                 years.add(curYear)
             }
 
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    isRefreshing = false,
-                    errorMessage = error,
-                    overview = overview,
-                    heatmap = heatmap,
-                    availableYears = years.distinct().sortedDescending(),
-                    upcomingContests = contests,
-                    tags = tags
+            val key = AppDiskCache.computeCacheKey(prefs.currentUserId, prefs.currentServerUrl)
+
+            if (overview != null) {
+                // 覆盖写入本地轻量磁盘缓存（在 IO 线程写入，不占主线程）
+                AppDiskCache.writeOverview(
+                    context,
+                    key,
+                    OverviewCacheDto(
+                        overview = overview,
+                        heatmap = heatmap,
+                        upcomingContests = contests,
+                        tags = tags
+                    )
                 )
+
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        isOffline = false,
+                        errorMessage = null,
+                        overview = overview,
+                        heatmap = heatmap,
+                        availableYears = years.distinct().sortedDescending(),
+                        upcomingContests = contests,
+                        tags = tags
+                    )
+                }
+            } else {
+                // 网络失败：若已有本地旧缓存，保留展示并显示小离线图标，不弹打扰性错误
+                if (_uiState.value.overview != null) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isRefreshing = false,
+                            isOffline = true,
+                            errorMessage = null
+                        )
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isRefreshing = false,
+                            isOffline = false,
+                            errorMessage = error
+                        )
+                    }
+                }
             }
         }
     }

@@ -2,6 +2,7 @@ package com.oiboard.app.ui.mistakes
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Refresh
@@ -35,8 +38,6 @@ import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -73,6 +74,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.oiboard.app.data.model.MistakeCreateRequest
 import com.oiboard.app.data.model.MistakeItemDto
 import com.oiboard.app.data.model.MistakeUpdateRequest
+import com.oiboard.app.ui.components.ReviewStepProgressBar
+import com.oiboard.app.ui.components.TactileGlassCard
+import com.oiboard.app.ui.components.TactilePlatformBadge
+import com.oiboard.app.ui.components.TactileRecessedWell
+import com.oiboard.app.ui.theme.LocalIsDarkTheme
 
 private data class StatusFilter(val id: String, val label: String)
 
@@ -238,6 +244,7 @@ fun MistakesScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             // 顶栏：标题、新增与刷新
@@ -248,12 +255,23 @@ fun MistakesScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "错题集",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "错题集",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    if (uiState.isOffline) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Outlined.CloudOff,
+                            contentDescription = "离线缓存",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { viewModel.showAddForm(true) }) {
@@ -492,34 +510,21 @@ private fun MistakeCard(
     onDelete: () -> Unit,
     onClickUrl: () -> Unit
 ) {
-    val platformColor = when (mistake.platform.lowercase()) {
-        "codeforces" -> Color(0xFF1E88E5)
-        "atcoder" -> Color(0xFF43A047)
-        "luogu" -> Color(0xFFE53935)
-        "acwing" -> Color(0xFF00ACC1)
-        "leetcode", "leetcode_cn" -> Color(0xFFFFA000)
-        else -> MaterialTheme.colorScheme.primary
-    }
-
-    val platformName = when (mistake.platform.lowercase()) {
-        "codeforces" -> "CF"
-        "atcoder" -> "AtCoder"
-        "luogu" -> "洛谷"
-        "acwing" -> "AcWing"
-        "leetcode", "leetcode_cn" -> "力扣"
-        else -> mistake.platform
-    }
-
+    val isDark = LocalIsDarkTheme.current
     val isMastered = mistake.status == "mastered"
+    val statusAccentColor = when {
+        isMastered -> if (isDark) Color(0xFF34D399) else Color(0xFF059669)
+        mistake.is_due -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    TactileGlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 18.dp,
+        accentBorderColor = if (mistake.is_due && !isMastered) {
+            MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
+        } else null,
+        onClick = onClick
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             // 顶行：平台徽标 + 题号标题 + 掌握状态
@@ -527,18 +532,7 @@ private fun MistakeCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = platformColor.copy(alpha = 0.12f)
-                ) {
-                    Text(
-                        text = platformName,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = platformColor,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
+                TactilePlatformBadge(platform = mistake.platform)
 
                 Spacer(modifier = Modifier.width(8.dp))
 
@@ -555,39 +549,50 @@ private fun MistakeCard(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = if (isMastered) {
-                        Color(0xFF2E7D32).copy(alpha = 0.12f)
-                    } else if (mistake.is_due) {
-                        MaterialTheme.colorScheme.errorContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                    }
+                    shape = RoundedCornerShape(8.dp),
+                    color = when {
+                        isMastered -> statusAccentColor.copy(alpha = if (isDark) 0.18f else 0.11f)
+                        mistake.is_due -> MaterialTheme.colorScheme.errorContainer
+                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                    },
+                    border = BorderStroke(
+                        1.dp,
+                        when {
+                            isMastered -> statusAccentColor.copy(alpha = 0.30f)
+                            mistake.is_due -> MaterialTheme.colorScheme.error.copy(alpha = 0.32f)
+                            else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+                        }
+                    )
                 ) {
                     Text(
                         text = if (isMastered) "已掌握" else if (mistake.is_due) "今日到期" else "第 ${mistake.review_count}/6 轮",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isMastered) {
-                            Color(0xFF2E7D32)
-                        } else if (mistake.is_due) {
+                        color = if (mistake.is_due && !isMastered) {
                             MaterialTheme.colorScheme.onErrorContainer
                         } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                            statusAccentColor
                         },
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 复习阶段阶梯进度条
+            ReviewStepProgressBar(
+                reviewCount = if (isMastered) 6 else mistake.review_count,
+                modifier = Modifier.fillMaxWidth()
+            )
 
             // 考点或笔记预览
             val previewText = mistake.key_point?.ifBlank { null } ?: mistake.notes?.ifBlank { null }
             if (!previewText.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    modifier = Modifier.fillMaxWidth()
+                TactileRecessedWell(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 10.dp
                 ) {
                     Text(
                         text = previewText,
@@ -595,7 +600,7 @@ private fun MistakeCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
                     )
                 }
             }
@@ -814,14 +819,55 @@ private fun MistakeFormDialog(
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("解题思路与笔记") },
-                    maxLines = 4,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val snippets = listOf(
+                        "## 思路" to "## 解题思路\n",
+                        "## 复杂度" to "## 复杂度\n- 时间：O()\n- 空间：O()",
+                        "C++" to "```cpp\n// code\n```",
+                        "[ ]" to "- [ ] ",
+                        "OI模板" to "## 错因与洞察\n\n## 核心思路\n\n## 复杂度\n- 时间：O()\n- 空间：O()\n\n```cpp\n\n```"
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        snippets.forEach { (chipLabel, snippet) ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.09f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        notes = if (notes.isBlank()) {
+                                            snippet
+                                        } else {
+                                            notes.trimEnd() + "\n\n" + snippet
+                                        }
+                                    }
+                            ) {
+                                Text(
+                                    text = chipLabel,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        label = { Text("解题思路与笔记 (支持 Markdown)") },
+                        minLines = 3,
+                        maxLines = 6,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 OutlinedTextField(
                     value = tagsStr,
                     onValueChange = { tagsStr = it },

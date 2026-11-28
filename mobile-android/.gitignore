@@ -10,3 +10,6 @@
 .cxx
 local.properties
 .kotlin
+*.apk
+dist/
+/dist

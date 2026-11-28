@@ -46,13 +46,16 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
   <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
   <!-- Marked Markdown Parser & Highlight.js -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="/static/style.css?v=3.8.8">
+  <link rel="stylesheet" href="/static/style.css?v=5.0.0">
 </head>
-<body :class="[isDark ? 'dark text-[#e5e7eb]' : 'text-[#1f2937]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-hidden selection:bg-blue-500 selection:text-white">
+<body :class="[isDark ? 'dark text-[#e5e7eb]' : 'text-[#1f2937]']" style="background-color: var(--bg-canvas);" class="min-h-screen antialiased flex overflow-x-clip selection:bg-blue-500 selection:text-white">
   <div id="app" v-cloak class="flex w-full min-h-screen">
     <!-- Hydro 顶部 2px 路由/加载进度条 -->
     <div :class="['hydro-progress-bar', routeProgress]"></div>
@@ -71,23 +74,23 @@
     <div v-else-if="!isLoggedIn" class="min-h-screen w-full flex flex-col items-center justify-center p-4 relative">
       <!-- 登录页顶角昼夜外观切换器 -->
       <div class="absolute top-6 right-6">
-        <div class="segmented-control" title="外观">
-          <button @click="setThemePref('auto')" :class="['segmented-item text-xs', themePref === 'auto' ? 'active' : '']">
-            <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <div class="segmented-control" title="外观" role="group" aria-label="外观模式">
+          <button type="button" @click="setThemePref('auto')" :class="['segmented-item text-xs', themePref === 'auto' ? 'active' : '']" aria-label="外观：自动">
+            <svg class="w-3.5 h-3.5 mr-1" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
               <path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor"></path>
             </svg>
             <span>自动</span>
           </button>
-          <button @click="setThemePref('light')" :class="['segmented-item text-xs', themePref === 'light' ? 'active' : '']">
-            <svg class="w-3.5 h-3.5 mr-1 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button type="button" @click="setThemePref('light')" :class="['segmented-item text-xs', themePref === 'light' ? 'active' : '']" aria-label="外观：浅色">
+            <svg class="w-3.5 h-3.5 mr-1 text-amber-500" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="5"></circle>
               <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
             </svg>
             <span>浅色</span>
           </button>
-          <button @click="setThemePref('dark')" :class="['segmented-item text-xs', themePref === 'dark' ? 'active' : '']">
-            <svg class="w-3.5 h-3.5 mr-1 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button type="button" @click="setThemePref('dark')" :class="['segmented-item text-xs', themePref === 'dark' ? 'active' : '']" aria-label="外观：深色">
+            <svg class="w-3.5 h-3.5 mr-1 text-sky-400" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
             </svg>
             <span>深色</span>
@@ -97,9 +100,9 @@
 
       <div class="ui-card glass-modal w-full max-w-md p-8 space-y-6 relative border border-[var(--border-subtle)] shadow-2xl rounded-3xl">
         <!-- Logo & 系统名称 -->
-        <div class="text-center space-y-2.5">
+        <div class="text-center space-y-3">
           <div class="ui-icon-box w-14 h-14 mx-auto rounded-2xl text-[var(--primary)] shadow-sm">
-            <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg class="w-7 h-7" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M6 16v4m6-10v10m6-7v7"></path>
             </svg>
           </div>
@@ -110,20 +113,20 @@
         </div>
 
         <!-- 登录 / 注册 Tab 切换 (Apple Segmented Control) -->
-        <div class="segmented-control w-full p-1">
-          <button @click="authMode = 'login'; authError = ''" 
+        <div class="segmented-control w-full p-1" role="tablist" aria-label="登录或注册">
+          <button type="button" role="tab" :aria-selected="authMode === 'login'" @click="authMode = 'login'; authError = ''" 
                   :class="['segmented-item flex-1 py-2 text-xs font-sans font-medium', authMode === 'login' ? 'active' : '']">
             登录
           </button>
-          <button @click="authMode = 'register'; authError = ''" 
+          <button type="button" role="tab" :aria-selected="authMode === 'register'" @click="authMode = 'register'; authError = ''" 
                   :class="['segmented-item flex-1 py-2 text-xs font-sans font-medium', authMode === 'register' ? 'active' : '']">
             注册
           </button>
         </div>
 
         <!-- 错误提示 -->
-        <div v-if="authError" class="hydro-error-inline font-sans">
-          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div v-if="authError" role="alert" aria-live="assertive" class="hydro-error-inline font-sans">
+          <svg class="w-4 h-4 flex-shrink-0" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
           <span>{{ authError }}</span>
@@ -132,37 +135,54 @@
         <!-- 表单区域 -->
         <form @submit.prevent="authMode === 'login' ? handleLogin() : handleRegister()" class="space-y-4 text-xs font-sans">
           <div>
-            <label class="block text-[var(--text-secondary)] mb-1.5 font-medium">用户名</label>
-            <input v-model="authForm.username" type="text" required placeholder="用户名"
+            <label for="auth-username" class="block text-[var(--text-secondary)] mb-1.5 font-medium">用户名</label>
+            <input id="auth-username" v-model="authForm.username" type="text" required autocomplete="username" placeholder="用户名"
                    class="ui-input font-mono">
           </div>
 
           <div>
-            <label class="block text-[var(--text-secondary)] mb-1.5 font-medium">密码</label>
-            <input v-model="authForm.password" type="password" required placeholder="密码"
-                   class="ui-input font-mono">
+            <label for="auth-password" class="block text-[var(--text-secondary)] mb-1.5 font-medium">密码</label>
+            <div class="password-input-wrap">
+              <input id="auth-password" v-model="authForm.password" :type="showAuthPwd ? 'text' : 'password'" required
+                     :autocomplete="authMode === 'login' ? 'current-password' : 'new-password'" placeholder="密码"
+                     class="ui-input font-mono">
+              <button type="button" @click="showAuthPwd = !showAuthPwd"
+                      class="password-toggle-btn"
+                      :aria-label="showAuthPwd ? '隐藏密码' : '显示密码'"
+                      :title="showAuthPwd ? '隐藏密码' : '显示密码'">
+                <svg v-if="showAuthPwd" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+                <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div v-if="authMode === 'register'">
-            <label class="block text-[var(--text-secondary)] mb-1.5 font-medium">确认密码</label>
-            <input v-model="authForm.confirmPassword" type="password" required placeholder="确认密码"
+            <label for="auth-confirm-password" class="block text-[var(--text-secondary)] mb-1.5 font-medium">确认密码</label>
+            <input id="auth-confirm-password" v-model="authForm.confirmPassword" :type="showAuthPwd ? 'text' : 'password'" required
+                   autocomplete="new-password" placeholder="确认密码"
                    class="ui-input font-mono">
           </div>
 
           <div>
-            <label class="block text-[var(--text-secondary)] mb-1.5 font-medium">验证码</label>
+            <label for="auth-captcha" class="block text-[var(--text-secondary)] mb-1.5 font-medium">验证码</label>
             <div class="flex items-center space-x-2">
-              <input v-model="authForm.captcha_code" type="text" maxlength="6" required placeholder="验证码"
+              <input id="auth-captcha" v-model="authForm.captcha_code" type="text" maxlength="6" required autocomplete="off" placeholder="验证码"
                      class="ui-input font-mono uppercase tracking-widest text-center flex-1">
-              <div @click="fetchCaptcha" class="relative group cursor-pointer flex-shrink-0 h-[38px] w-[130px] rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-canvas)] flex items-center justify-center select-none shadow-sm transition-all hover:border-[var(--border-strong)]" title="点击刷新验证码">
+              <button type="button" @click="fetchCaptcha" aria-label="刷新验证码" class="relative group cursor-pointer flex-shrink-0 h-[38px] w-[130px] rounded-xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-canvas)] flex items-center justify-center select-none shadow-sm transition-all hover:border-[var(--border-strong)]" title="点击刷新验证码">
                 <img v-if="captchaImage" :src="captchaImage" alt="验证码" class="w-full h-full object-cover">
                 <span v-else class="text-[10px] text-[var(--text-muted)] font-mono">加载中...</span>
                 <div class="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <svg class="w-4 h-4" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
                   </svg>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -185,75 +205,83 @@
         
         <!-- 顶部 Logo 与系统名 (64px 内 36px 图标左右各 14px 严格居中) -->
         <div>
-          <div class="h-14 flex items-center px-[14px] border-b border-[var(--border-subtle)] overflow-hidden cursor-pointer" @click="currentTab = 'overview'">
+          <button type="button" class="w-full h-14 flex items-center px-[14px] border-b border-[var(--border-subtle)] overflow-hidden cursor-pointer text-left" @click="currentTab = 'overview'" aria-label="返回数据总览">
             <div class="ui-icon-box w-9 h-9 rounded-lg text-[var(--primary)]">
-              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="w-5 h-5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M6 16v4m6-10v10m6-7v7"></path>
               </svg>
             </div>
-            <div class="ml-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap overflow-hidden">
+            <div class="ml-3 sidebar-label whitespace-nowrap overflow-hidden">
               <span class="text-sm font-bold font-mono tracking-tight text-[var(--text-primary)]">OIBoard</span>
               <p class="text-[9.5px] font-mono tracking-[0.1em] text-[var(--text-tertiary)]">build or be built</p>
             </div>
-          </div>
+          </button>
 
           <!-- 侧边栏主菜单项 (Hydro 物理滑动竖条指示器) -->
-          <nav class="hydro-nav-list mt-1">
+          <nav class="hydro-nav-list mt-1" aria-label="主导航">
             <div class="hydro-nav-indicator" :style="{ transform: 'translateY(' + (activeTabIndex * 44) + 'px)' }"></div>
 
             <!-- 1. 数据总览 -->
-            <button @click="currentTab = 'overview'" 
+            <button type="button" @click="currentTab = 'overview'" 
+                    :aria-current="currentTab === 'overview' ? 'page' : null"
+                    aria-label="数据总览" title="数据总览"
                     :class="['hydro-nav-item font-sans', currentTab === 'overview' ? 'active' : '']">
-              <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="w-5 h-5 flex-shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="4" y="4" width="6" height="6" rx="1.5"></rect>
                 <rect x="14" y="4" width="6" height="6" rx="1.5"></rect>
                 <rect x="4" y="14" width="6" height="6" rx="1.5"></rect>
                 <rect x="14" y="14" width="6" height="6" rx="1.5"></rect>
               </svg>
-              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">数据总览</span>
+              <span class="ml-3.5 sidebar-label whitespace-nowrap">数据总览</span>
             </button>
 
             <!-- 2. 比赛日历 -->
-            <button @click="currentTab = 'contests'" 
+            <button type="button" @click="currentTab = 'contests'" 
+                    :aria-current="currentTab === 'contests' ? 'page' : null"
+                    aria-label="比赛日历" title="比赛日历"
                     :class="['hydro-nav-item font-sans', currentTab === 'contests' ? 'active' : '']">
-              <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="w-5 h-5 flex-shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                 <line x1="16" y1="2" x2="16" y2="6"></line>
                 <line x1="8" y1="2" x2="8" y2="6"></line>
                 <line x1="3" y1="10" x2="21" y2="10"></line>
               </svg>
               <span v-if="upcomingContestsCount > 0" class="hydro-nav-dot font-mono" style="background: var(--primary);">{{ upcomingContestsCount > 9 ? '9+' : upcomingContestsCount }}</span>
-              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap flex items-center justify-between flex-1">
+              <span class="ml-3.5 sidebar-label whitespace-nowrap flex items-center justify-between flex-1">
                 <span>比赛日历</span>
                 <span v-if="upcomingContestsCount > 0" class="ui-badge ui-badge-dot dot-blue !text-[10px] !py-0 !px-1.5 font-mono">{{ upcomingContestsCount }}</span>
               </span>
             </button>
 
             <!-- 3. 提交记录 -->
-            <button @click="currentTab = 'submissions'" 
+            <button type="button" @click="currentTab = 'submissions'" 
+                    :aria-current="currentTab === 'submissions' ? 'page' : null"
+                    aria-label="提交记录" title="提交记录"
                     :class="['hydro-nav-item font-sans', currentTab === 'submissions' ? 'active' : '']">
-              <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="w-5 h-5 flex-shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
                 <line x1="9" y1="12" x2="9.01" y2="12"></line>
                 <line x1="13" y1="12" x2="16" y2="12"></line>
                 <line x1="9" y1="16" x2="9.01" y2="16"></line>
                 <line x1="13" y1="16" x2="16" y2="16"></line>
               </svg>
-              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap flex items-center justify-between flex-1">
+              <span class="ml-3.5 sidebar-label whitespace-nowrap flex items-center justify-between flex-1">
                 <span>提交记录</span>
                 <span class="px-1.5 py-0.5 rounded text-[10px] bg-[var(--bg-subtle)] text-[var(--text-tertiary)] font-mono">{{ overview.stats.total_subs || 0 }}</span>
               </span>
             </button>
 
             <!-- 4. 错题集 -->
-            <button @click="currentTab = 'mistakes'" 
+            <button type="button" @click="currentTab = 'mistakes'" 
+                    :aria-current="currentTab === 'mistakes' ? 'page' : null"
+                    aria-label="错题集" title="错题集"
                     :class="['hydro-nav-item font-sans', currentTab === 'mistakes' ? 'active' : '']">
-              <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="w-5 h-5 flex-shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
               </svg>
               <span v-if="mistakesCounts.due > 0" class="hydro-nav-dot font-mono" style="background: var(--apple-orange);">{{ mistakesCounts.due > 9 ? '9+' : mistakesCounts.due }}</span>
-              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap flex items-center justify-between flex-1">
+              <span class="ml-3.5 sidebar-label whitespace-nowrap flex items-center justify-between flex-1">
                 <span>错题集</span>
                 <span v-if="mistakesCounts.due > 0" class="ui-badge ui-badge-dot dot-amber !text-[10px] !py-0 !px-1.5 font-mono" :title="mistakesCounts.due + ' 题待补刷'">{{ mistakesCounts.due }}</span>
                 <span v-else-if="mistakesCounts.total > 0" class="px-1.5 py-0.5 rounded text-[10px] bg-[var(--bg-subtle)] text-[var(--text-tertiary)] font-mono">{{ mistakesCounts.total }}</span>
@@ -261,9 +289,11 @@
             </button>
 
             <!-- 5. 系统设置 -->
-            <button @click="currentTab = 'settings'" 
+            <button type="button" @click="currentTab = 'settings'" 
+                    :aria-current="currentTab === 'settings' ? 'page' : null"
+                    aria-label="系统设置" title="系统设置"
                     :class="['hydro-nav-item font-sans', currentTab === 'settings' ? 'active' : '']">
-              <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="w-5 h-5 flex-shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="4" y1="21" x2="4" y2="14"></line>
                 <line x1="4" y1="10" x2="4" y2="3"></line>
                 <line x1="12" y1="21" x2="12" y2="12"></line>
@@ -274,27 +304,29 @@
                 <line x1="9" y1="8" x2="15" y2="8"></line>
                 <line x1="17" y1="16" x2="23" y2="16"></line>
               </svg>
-              <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">系统设置</span>
+              <span class="ml-3.5 sidebar-label whitespace-nowrap">系统设置</span>
             </button>
           </nav>
         </div>
 
         <!-- 底部快捷操作 -->
         <div class="p-2 border-t border-[var(--border-subtle)] space-y-1 overflow-hidden">
-          <button @click="syncNow('all')" :disabled="isSyncing"
+          <button type="button" @click="syncNow('all')" :disabled="isSyncing"
+                  aria-label="同步全部平台" title="同步全部平台"
                   class="hydro-nav-item text-[var(--primary)] disabled:opacity-50 font-sans">
-            <svg :class="['w-5 h-5 flex-shrink-0', isSyncing ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg :class="['w-5 h-5 flex-shrink-0', isSyncing ? 'animate-spin' : '']" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
-            <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap overflow-hidden">{{ isSyncing ? '同步中...' : '同步全部' }}</span>
+            <span class="ml-3.5 sidebar-label whitespace-nowrap overflow-hidden">{{ isSyncing ? '同步中...' : '同步全部' }}</span>
           </button>
 
-          <button @click="handleLogout" 
-                  class="hydro-nav-item font-sans">
-            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button type="button" @click="handleLogout" 
+                  aria-label="退出登录" title="退出登录"
+                  class="hydro-nav-item is-logout font-sans">
+            <svg class="w-5 h-5 flex-shrink-0" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
             </svg>
-            <span class="ml-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap overflow-hidden">退出登录</span>
+            <span class="ml-3.5 sidebar-label whitespace-nowrap overflow-hidden">退出登录</span>
           </button>
         </div>
       </aside>
@@ -303,10 +335,10 @@
       <div class="workspace-shell">
       <main class="main-content-container p-4 sm:p-6 lg:p-7 2xl:p-8 space-y-5">
 
-        <!-- 顶栏 (所有控件严格统一 32px 高度与 8px 圆角；移动端精简为紧凑单行) -->
-        <header class="ui-card px-3.5 py-2.5 sm:px-4 sm:py-3 flex flex-wrap items-center justify-between gap-2.5">
+        <!-- 顶栏 (所有控件严格统一 32px 高度与 8px 圆角；桌面端玻璃粘性吸顶；移动端精简为紧凑单行) -->
+        <header class="ui-card glass-topbar px-3.5 py-2.5 sm:px-4 sm:py-3 flex flex-wrap items-center justify-between gap-2.5">
           <div class="flex items-center space-x-3 min-w-0">
-            <h1 class="text-sm sm:text-base font-bold tracking-tight font-sans text-[var(--text-primary)] truncate">
+            <h1 class="text-[15px] sm:text-[17px] font-bold tracking-[-0.02em] font-sans text-[var(--text-primary)] truncate">
               {{ currentTab === 'overview' ? '数据总览' : 
                  currentTab === 'contests' ? '比赛日历' : 
                  currentTab === 'submissions' ? '提交记录' : 
@@ -319,23 +351,23 @@
           <!-- 右侧控制与状态区 -->
           <div class="flex items-center gap-2 shrink-0">
             <!-- 外观切换分段按钮 (小屏竖屏仅显示图标保持单行整洁) -->
-            <div class="segmented-control" title="外观">
-              <button @click="setThemePref('auto')" :class="['segmented-item !px-2 sm:!px-2.5', themePref === 'auto' ? 'active' : '']" title="自动">
-                <svg class="w-3.5 h-3.5 sm:mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <div class="segmented-control" title="外观" role="group" aria-label="外观模式">
+              <button type="button" @click="setThemePref('auto')" :class="['segmented-item !px-2 sm:!px-2.5', themePref === 'auto' ? 'active' : '']" title="自动" aria-label="外观：自动">
+                <svg class="w-3.5 h-3.5 sm:mr-1" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="12" cy="12" r="10"></circle>
                   <path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor"></path>
                 </svg>
                 <span class="hidden sm:inline">自动</span>
               </button>
-              <button @click="setThemePref('light')" :class="['segmented-item !px-2 sm:!px-2.5', themePref === 'light' ? 'active' : '']" title="浅色">
-                <svg class="w-3.5 h-3.5 sm:mr-1 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <button type="button" @click="setThemePref('light')" :class="['segmented-item !px-2 sm:!px-2.5', themePref === 'light' ? 'active' : '']" title="浅色" aria-label="外观：浅色">
+                <svg class="w-3.5 h-3.5 sm:mr-1 text-amber-500" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="12" cy="12" r="5"></circle>
                   <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
                 </svg>
                 <span class="hidden sm:inline">浅色</span>
               </button>
-              <button @click="setThemePref('dark')" :class="['segmented-item !px-2 sm:!px-2.5', themePref === 'dark' ? 'active' : '']" title="深色">
-                <svg class="w-3.5 h-3.5 sm:mr-1 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <button type="button" @click="setThemePref('dark')" :class="['segmented-item !px-2 sm:!px-2.5', themePref === 'dark' ? 'active' : '']" title="深色" aria-label="外观：深色">
+                <svg class="w-3.5 h-3.5 sm:mr-1 text-sky-400" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                 </svg>
                 <span class="hidden sm:inline">深色</span>
@@ -350,7 +382,7 @@
             </div>
 
             <!-- 平台健康状态 (桌面端显示，避免手机竖屏溢出) -->
-            <div class="topbar-chip hidden lg:inline-flex space-x-2.5">
+            <div class="topbar-chip hidden lg:inline-flex space-x-2.5 tabular-nums">
               <div class="flex items-center space-x-1.5" title="Codeforces">
                 <span :class="['pulse-dot', getStatusClass('codeforces')]"></span>
                 <span class="font-mono text-[11px]">CF:{{ overview.stats.platforms?.codeforces?.ac || 0 }}</span>
@@ -378,20 +410,21 @@
             </div>
 
             <!-- 校正/冲刺开关 -->
-            <button @click="toggleSprintMode" 
-                    :class="['topbar-btn hidden sm:inline-flex font-sans shrink-0', 
+            <button type="button" @click="toggleSprintMode" 
+                    :aria-pressed="configs.sprint_mode === 'true'"
+                    :class="['topbar-btn hidden sm:inline-flex font-sans shrink-0 tabular-nums', 
                              configs.sprint_mode === 'true' ? 'is-sprint-active' : '']"
                     title="切换冲刺 / 日常校正">
-              <svg class="w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-3.5 h-3.5 text-amber-500 shrink-0" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
               </svg>
               <span>{{ configs.sprint_mode === 'true' ? '5分钟' : formatPollInterval(configs.poll_interval_minutes || 1440) }}</span>
             </button>
 
             <!-- 立即同步按钮 -->
-            <button @click="syncNow('all')" :disabled="isSyncing"
+            <button type="button" @click="syncNow('all')" :disabled="isSyncing"
                     class="topbar-btn-primary font-sans shrink-0">
-              <svg :class="['w-3.5 h-3.5 shrink-0', isSyncing ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg :class="['w-3.5 h-3.5 shrink-0', isSyncing ? 'animate-spin' : '']" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
               </svg>
               <span>{{ isSyncing ? '同步中' : '同步' }}</span>
@@ -415,53 +448,57 @@
           <!-- Row 1: KPI 5 模块 (手机竖屏 2 列，第 5 卡跨满 2 列不留孤洞) -->
           <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
             <!-- 总 AC 题数 -->
-            <div class="ui-card kpi-lift p-3.5 sm:p-5 flex flex-col justify-between">
-              <div class="flex items-center justify-between text-xs font-sans text-[var(--text-secondary)]">
-                <span class="flex items-center space-x-1.5 font-medium">
-                  <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                  </svg>
-                  <span>累计 AC</span>
+            <div class="ui-card kpi-lift p-3 sm:p-5 flex flex-col justify-between">
+              <div class="flex items-center justify-between gap-1 text-[11px] sm:text-xs font-sans text-[var(--text-secondary)]">
+                <span class="flex items-center space-x-1.5 sm:space-x-2 font-medium min-w-0">
+                  <span class="ui-icon-box w-6 h-6 sm:w-7 sm:h-7 rounded-lg text-[var(--primary)]">
+                    <svg class="w-3.5 h-3.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                  </span>
+                  <span class="whitespace-nowrap truncate">累计 AC</span>
                 </span>
-                <span class="status-pill status-ok">全平台</span>
+                <span class="status-pill status-ok shrink-0">全平台</span>
               </div>
               <div class="mt-3 flex items-baseline space-x-2">
-                <span class="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[var(--text-primary)] tabular-nums mono">{{ overview.stats.total_ac || 0 }}</span>
+                <span class="kpi-metric-value text-2xl sm:text-3xl lg:text-[2.1rem] font-extrabold text-[var(--text-primary)] tabular-nums mono">{{ overview.stats.total_ac || 0 }}</span>
                 <span class="text-xs text-[var(--text-tertiary)] font-sans">题</span>
               </div>
-              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
-                <span class="text-blue-600 dark:text-blue-400 font-semibold">CF:{{ overview.stats.platforms?.codeforces?.ac || 0 }}</span>
+              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] font-mono tabular-nums">
+                <span class="font-semibold" style="color: var(--plat-cf)">CF:{{ overview.stats.platforms?.codeforces?.ac || 0 }}</span>
                 <span class="opacity-20">/</span>
-                <span class="text-purple-600 dark:text-purple-400 font-semibold">AT:{{ overview.stats.platforms?.atcoder?.ac || 0 }}</span>
+                <span class="font-semibold" style="color: var(--plat-at)">AT:{{ overview.stats.platforms?.atcoder?.ac || 0 }}</span>
                 <span class="opacity-20">/</span>
-                <span class="text-emerald-600 dark:text-emerald-400 font-semibold">LG:{{ overview.stats.platforms?.luogu?.ac || 0 }}</span>
+                <span class="font-semibold" style="color: var(--plat-lg)">LG:{{ overview.stats.platforms?.luogu?.ac || 0 }}</span>
                 <span class="opacity-20">/</span>
-                <span class="text-amber-600 dark:text-amber-400 font-semibold">AW:{{ overview.stats.platforms?.acwing?.ac || 0 }}</span>
+                <span class="font-semibold" style="color: var(--plat-aw)">AW:{{ overview.stats.platforms?.acwing?.ac || 0 }}</span>
                 <span class="opacity-20">/</span>
-                <span class="text-yellow-600 dark:text-yellow-400 font-semibold">LC:{{ (overview.stats.platforms?.leetcode?.ac || 0) + (overview.stats.platforms?.leetcode_cn?.ac || 0) }}</span>
+                <span class="font-semibold" style="color: var(--plat-lc)">LC:{{ (overview.stats.platforms?.leetcode?.ac || 0) + (overview.stats.platforms?.leetcode_cn?.ac || 0) }}</span>
               </div>
             </div>
 
             <!-- 今日 AC -->
-            <div class="ui-card kpi-lift p-3.5 sm:p-5 flex flex-col justify-between">
-              <div class="flex items-center justify-between text-xs font-sans text-[var(--text-secondary)]">
-                <span class="flex items-center space-x-1.5 font-medium">
-                  <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                  </svg>
-                  <span>今日 AC</span>
+            <div class="ui-card kpi-lift p-3 sm:p-5 flex flex-col justify-between">
+              <div class="flex items-center justify-between gap-1 text-[11px] sm:text-xs font-sans text-[var(--text-secondary)]">
+                <span class="flex items-center space-x-1.5 sm:space-x-2 font-medium min-w-0">
+                  <span class="ui-icon-box w-6 h-6 sm:w-7 sm:h-7 rounded-lg text-[var(--apple-green)]">
+                    <svg class="w-3.5 h-3.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                  </span>
+                  <span class="whitespace-nowrap truncate">今日 AC</span>
                 </span>
-                <span class="status-pill status-ok">今日</span>
+                <span class="status-pill status-ok shrink-0">今日</span>
               </div>
-              <div class="mt-3 flex items-center justify-between">
+              <div class="mt-3 flex items-center justify-between gap-2">
                 <div class="flex items-baseline space-x-1.5 flex-wrap">
-                  <span class="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums mono">{{ overview.stats.today_ac || 0 }}</span>
+                  <span class="kpi-metric-value text-2xl sm:text-3xl lg:text-[2.1rem] font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums mono">{{ overview.stats.today_ac || 0 }}</span>
                   <span class="text-xs text-[var(--text-tertiary)] font-sans">题</span>
-                  <span class="text-xs text-[var(--text-muted)] font-mono pl-1">/ {{ overview.stats.today_subs || 0 }} 发</span>
+                  <span class="text-xs text-[var(--text-muted)] font-mono pl-1 tabular-nums">/ {{ overview.stats.today_subs || 0 }} 发</span>
                 </div>
                 <!-- 今日提交正确率圆环指示器 -->
                 <div class="relative flex items-center justify-center shrink-0" :title="'今日正确率: ' + todayAcRate + '% (AC ' + (overview.stats.today_ac_subs ?? overview.stats.today_ac ?? 0) + ' / ' + (overview.stats.today_subs || 0) + ' 发)'">
-                  <svg class="w-10 h-10 transform -rotate-90" viewBox="0 0 36 36">
+                  <svg class="w-10 h-10 transform -rotate-90" aria-hidden="true" viewBox="0 0 36 36">
                     <circle
                       cx="18" cy="18" r="15.9155"
                       fill="none"
@@ -479,129 +516,147 @@
                       stroke-linecap="round"
                     />
                   </svg>
-                  <span class="absolute text-[9px] font-mono font-bold text-[var(--text-secondary)]">
+                  <span class="absolute text-[9px] font-mono font-bold text-[var(--text-secondary)] tabular-nums">
                     {{ todayAcRate }}%
                   </span>
                 </div>
               </div>
-              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] font-sans text-[var(--text-muted)] flex items-center justify-between">
+              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] font-sans text-[var(--text-muted)] flex items-center justify-between tabular-nums">
                 <span>AC {{ overview.stats.today_ac_subs ?? overview.stats.today_ac ?? 0 }} / {{ overview.stats.today_subs || 0 }} 发</span>
-                <span class="font-mono text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">{{ todayAcRate }}% 正确率</span>
+                <span class="font-mono text-[10.5px] text-emerald-600 dark:text-emerald-400 font-semibold">{{ todayAcRate }}% 正确率</span>
               </div>
             </div>
 
             <!-- 连续刷题天数 -->
-            <div class="ui-card kpi-lift p-3.5 sm:p-5 flex flex-col justify-between">
-              <div class="flex items-center justify-between text-xs font-sans text-[var(--text-secondary)]">
-                <span class="flex items-center space-x-1.5 font-medium">
-                  <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"></path>
-                  </svg>
-                  <span>连续刷题</span>
+            <div class="ui-card kpi-lift p-3 sm:p-5 flex flex-col justify-between">
+              <div class="flex items-center justify-between gap-1 text-[11px] sm:text-xs font-sans text-[var(--text-secondary)]">
+                <span class="flex items-center space-x-1.5 sm:space-x-2 font-medium min-w-0">
+                  <span class="ui-icon-box w-6 h-6 sm:w-7 sm:h-7 rounded-lg text-[var(--apple-orange)]">
+                    <svg class="w-3.5 h-3.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"></path>
+                    </svg>
+                  </span>
+                  <span class="whitespace-nowrap truncate">连续刷题</span>
                 </span>
-                <span class="status-pill status-warning">连刷</span>
+                <span class="status-pill status-warning shrink-0">连刷</span>
               </div>
               <div class="mt-3 flex items-baseline space-x-2">
-                <span class="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-amber-600 dark:text-amber-400 tabular-nums mono">{{ overview.stats.streak || 0 }}</span>
+                <span class="kpi-metric-value text-2xl sm:text-3xl lg:text-[2.1rem] font-extrabold text-amber-600 dark:text-amber-400 tabular-nums mono">{{ overview.stats.streak || 0 }}</span>
                 <span class="text-xs text-[var(--text-tertiary)] font-sans">天</span>
               </div>
               <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] font-sans text-[var(--text-muted)]">
-                <span>连续 AC</span>
+                <span>连续 AC 打卡</span>
               </div>
             </div>
 
             <!-- 总提交记录 -->
-            <div class="ui-card kpi-lift p-3.5 sm:p-5 flex flex-col justify-between">
-              <div class="flex items-center justify-between text-xs font-sans text-[var(--text-secondary)]">
-                <span class="flex items-center space-x-1.5 font-medium">
-                  <svg class="w-3.5 h-3.5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
-                  </svg>
-                  <span>累计提交</span>
+            <div class="ui-card kpi-lift p-3 sm:p-5 flex flex-col justify-between">
+              <div class="flex items-center justify-between gap-1 text-[11px] sm:text-xs font-sans text-[var(--text-secondary)]">
+                <span class="flex items-center space-x-1.5 sm:space-x-2 font-medium min-w-0">
+                  <span class="ui-icon-box w-6 h-6 sm:w-7 sm:h-7 rounded-lg text-[var(--apple-purple)]">
+                    <svg class="w-3.5 h-3.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+                    </svg>
+                  </span>
+                  <span class="whitespace-nowrap truncate">累计提交</span>
                 </span>
-                <span class="status-pill status-unconfigured">全量</span>
+                <span class="status-pill status-unconfigured shrink-0">全量</span>
               </div>
               <div class="mt-3 flex items-baseline space-x-2">
-                <span class="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-purple-600 dark:text-purple-400 tabular-nums mono">{{ overview.stats.total_subs || 0 }}</span>
+                <span class="kpi-metric-value text-2xl sm:text-3xl lg:text-[2.1rem] font-extrabold text-purple-600 dark:text-purple-400 tabular-nums mono">{{ overview.stats.total_subs || 0 }}</span>
                 <span class="text-xs text-[var(--text-tertiary)] font-sans">发</span>
               </div>
-              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] font-sans text-[var(--text-muted)] truncate" :title="overview.last_sync_time">
+              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] text-[11px] font-sans text-[var(--text-muted)] truncate tabular-nums" :title="overview.last_sync_time">
                 更新: {{ overview.last_sync_time || '-' }}
               </div>
             </div>
 
             <!-- 本地代码量统计 (手机竖屏跨 2 列铺满) -->
-            <div class="ui-card kpi-lift col-span-2 md:col-span-1 p-3.5 sm:p-5 flex flex-col justify-between">
-              <div class="flex items-center justify-between text-xs font-sans text-[var(--text-secondary)]">
-                <span class="flex items-center space-x-1.5 font-medium">
-                  <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
-                  </svg>
-                  <span>本地代码</span>
+            <div class="ui-card kpi-lift col-span-2 md:col-span-1 p-3 sm:p-5 flex flex-col justify-between">
+              <div class="flex items-center justify-between gap-1 text-[11px] sm:text-xs font-sans text-[var(--text-secondary)]">
+                <span class="flex items-center space-x-1.5 sm:space-x-2 font-medium min-w-0">
+                  <span class="ui-icon-box w-6 h-6 sm:w-7 sm:h-7 rounded-lg text-[var(--apple-cyan)]">
+                    <svg class="w-3.5 h-3.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                    </svg>
+                  </span>
+                  <span class="whitespace-nowrap truncate">本地代码</span>
                 </span>
-                <span :class="['status-pill', overview.local_code?.has_data ? 'status-ok' : 'status-unconfigured']">
+                <span :class="['status-pill shrink-0', overview.local_code?.has_data ? 'status-ok' : 'status-unconfigured']">
                   {{ overview.local_code?.has_data ? '已同步' : '待连接' }}
                 </span>
               </div>
-              <div class="mt-3 flex items-baseline space-x-2">
-                <span class="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-cyan-600 dark:text-cyan-400 tabular-nums mono">{{ (overview.local_code?.total_lines || 0).toLocaleString() }}</span>
-                <span class="text-xs text-[var(--text-tertiary)] font-sans">行</span>
+              <div class="mt-3 flex items-baseline justify-between gap-2 flex-wrap">
+                <div class="flex items-baseline space-x-2">
+                  <span class="kpi-metric-value text-2xl sm:text-3xl lg:text-[2.1rem] font-extrabold text-cyan-600 dark:text-cyan-400 tabular-nums mono">{{ (overview.local_code?.total_lines || 0).toLocaleString() }}</span>
+                  <span class="text-xs text-[var(--text-tertiary)] font-sans">行</span>
+                </div>
+                <span class="text-[11px] font-mono tabular-nums" :class="(overview.local_code?.today_lines || 0) > 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-[var(--text-muted)]'">
+                  今日 +{{ (overview.local_code?.today_lines || 0).toLocaleString() }}
+                </span>
               </div>
-              <div class="mt-1 text-[11px] font-mono flex items-center justify-between" :class="(overview.local_code?.today_lines || 0) > 0 ? 'text-emerald-500 font-semibold' : 'text-[var(--text-muted)]'">
-                <span>今日: +{{ (overview.local_code?.today_lines || 0).toLocaleString() }} 行</span>
-                <span class="text-[10px] text-[var(--text-muted)]">{{ overview.local_code?.today_files || 0 }} 个文件</span>
-              </div>
-              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
-                <span class="text-sky-500 font-semibold" title="C 代码行数">C:{{ (overview.local_code?.c_lines || 0).toLocaleString() }}</span>
-                <span class="opacity-20">/</span>
-                <span class="text-indigo-500 font-semibold" title="C++ 代码行数">C++:{{ (overview.local_code?.cpp_lines || 0).toLocaleString() }}</span>
-                <span class="opacity-20">/</span>
-                <span class="text-amber-500 font-semibold" title="Java 代码行数">Java:{{ (overview.local_code?.java_lines || 0).toLocaleString() }}</span>
+              <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-1.5 text-[10.5px] font-mono tabular-nums">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="font-semibold" style="color: var(--plat-cf)" title="C 代码行数">C:{{ (overview.local_code?.c_lines || 0).toLocaleString() }}</span>
+                  <span class="opacity-20">/</span>
+                  <span class="font-semibold" style="color: var(--plat-aw)" title="C++ 代码行数">C++:{{ (overview.local_code?.cpp_lines || 0).toLocaleString() }}</span>
+                  <span class="opacity-20">/</span>
+                  <span class="font-semibold" style="color: var(--plat-lc)" title="Java 代码行数">Java:{{ (overview.local_code?.java_lines || 0).toLocaleString() }}</span>
+                </div>
+                <span class="text-[10px] text-[var(--text-muted)]">{{ overview.local_code?.today_files || 0 }} 文件</span>
               </div>
             </div>
           </div>
 
           <!-- 近期比赛 -->
-          <div v-if="topUpcomingContests.length > 0" class="ui-card p-5 space-y-3">
+          <div v-if="topUpcomingContests.length > 0" class="ui-card p-5 space-y-3.5">
             <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
-              <div class="flex items-center space-x-2">
-                <span class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.6)]"></span>
-                <h3 class="text-xs font-bold font-sans tracking-tight flex items-center space-x-1.5 text-[var(--text-primary)]">
+              <div class="flex items-center space-x-2.5">
+                <div class="ui-icon-box w-8 h-8 rounded-lg text-[var(--primary)]">
+                  <svg class="w-4 h-4" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                </div>
+                <h2 class="section-heading font-sans flex items-center space-x-2">
                   <span>近期比赛</span>
                   <span class="ui-badge ui-badge-dot dot-blue !text-[10px] font-sans">{{ upcomingContestsCount }} 场待打</span>
-                </h3>
+                </h2>
               </div>
-              <button @click="currentTab = 'contests'" class="text-xs text-blue-600 dark:text-blue-400 hover:opacity-80 font-sans flex items-center space-x-1 hover:underline">
+              <button type="button" @click="currentTab = 'contests'" class="text-xs text-[var(--primary)] hover:opacity-80 font-sans font-medium flex items-center space-x-1 hover:underline">
                 <span>全部比赛</span>
-                <span>→</span>
+                <span aria-hidden="true">→</span>
               </button>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
               <a v-for="c in topUpcomingContests" :key="c.id" 
                  :href="c.url" target="_blank" rel="noopener noreferrer"
-                 class="glass-subcard p-3.5 rounded-xl hover:border-[var(--border-hover)] hover:shadow-md transition-all flex flex-col justify-between space-y-3 group block cursor-pointer">
+                 class="glass-subcard contest-card p-3.5 rounded-xl flex flex-col justify-between space-y-3 group block cursor-pointer">
                 <div>
                   <div class="flex items-center justify-between text-[11px] font-mono mb-1.5">
                     <span :class="['platform-badge', 'plat-' + c.platform]">
                       {{ c.platform }}
                     </span>
-                    <div class="flex items-center space-x-1 text-[var(--text-muted)] group-hover:text-blue-500 transition-colors">
+                    <div class="flex items-center space-x-1 text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
                       <span v-if="c.rule_type" class="text-[10px] truncate max-w-[100px]">{{ c.rule_type }}</span>
-                      <svg class="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <svg class="w-3 h-3 ml-0.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                         <polyline points="15 3 21 3 21 9"></polyline>
                         <line x1="10" y1="14" x2="21" y2="3"></line>
                       </svg>
                     </div>
                   </div>
-                  <h4 class="text-xs font-semibold text-[var(--text-primary)] group-hover:text-blue-500 transition-colors line-clamp-2" :title="c.name">
+                  <h3 class="text-xs font-semibold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors line-clamp-2 wrap-anywhere" :title="c.name">
                     {{ c.name }}
-                  </h4>
+                  </h3>
                 </div>
-                <div class="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between text-[11px] font-mono">
+                <div class="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between text-[11px] font-mono tabular-nums">
                   <span class="text-[var(--text-secondary)] text-[10px]">{{ c.start_time.slice(5, 16) }}</span>
-                  <span :class="['font-bold text-[11px]', getContestStatus(c) === 'CODING' ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--primary)]']">
-                    {{ formatContestCountdown(c) }}
+                  <span :class="['font-bold text-[11px] inline-flex items-center gap-1.5', getContestStatus(c) === 'CODING' ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--primary)]']">
+                    <span v-if="getContestStatus(c) === 'CODING'" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>{{ formatContestCountdown(c) }}</span>
                   </span>
                 </div>
               </a>
@@ -613,13 +668,13 @@
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
               <div class="flex items-center space-x-2.5">
                 <div class="ui-icon-box w-8 h-8 rounded-lg text-emerald-600 dark:text-emerald-400">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                   </svg>
                 </div>
                 <div>
                   <div class="flex items-center space-x-2">
-                    <h2 class="text-xs font-bold text-[var(--text-primary)] font-sans">提交热力图</h2>
+                    <h2 class="section-heading font-sans">提交热力图</h2>
                   </div>
                 </div>
               </div>
@@ -677,11 +732,11 @@
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
               <div class="flex items-center space-x-2.5">
                 <div class="ui-icon-box w-8 h-8 rounded-lg text-[var(--primary)]">
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg class="w-4 h-4" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                   </svg>
                 </div>
-                <h2 class="text-xs font-bold text-[var(--text-primary)] font-sans">统计分析</h2>
+                <h2 class="section-heading font-sans">统计分析</h2>
               </div>
 
               <!-- 切换控制器 -->
@@ -741,22 +796,22 @@
           <!-- 顶部工具栏: 标题、平台过滤、状态过滤、搜索框与一键刷新 -->
           <div class="ui-card p-5 space-y-4 font-sans">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
-              <div>
-                <h2 class="text-sm font-bold text-[var(--text-primary)] flex items-center space-x-2">
-                  <svg class="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <div class="flex items-center space-x-2.5">
+                <div class="ui-icon-box w-8 h-8 rounded-lg text-[var(--primary)]">
+                  <svg class="w-4 h-4" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                     <line x1="16" y1="2" x2="16" y2="6"></line>
                     <line x1="8" y1="2" x2="8" y2="6"></line>
                     <line x1="3" y1="10" x2="21" y2="10"></line>
                   </svg>
-                  <span>比赛日历</span>
-                </h2>
+                </div>
+                <h2 class="section-heading">比赛日历</h2>
               </div>
 
               <!-- 刷新比赛按钮 -->
-              <button @click="syncContestsNow" :disabled="isSyncingContests"
+              <button type="button" @click="syncContestsNow" :disabled="isSyncingContests"
                       class="btn-primary flex items-center space-x-1.5 disabled:opacity-50 text-xs self-start md:self-auto font-sans">
-                <svg :class="['w-3.5 h-3.5', isSyncingContests ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg :class="['w-3.5 h-3.5', isSyncingContests ? 'animate-spin' : '']" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                 </svg>
                 <span>{{ isSyncingContests ? '正在刷新...' : '刷新比赛' }}</span>
@@ -767,27 +822,27 @@
             <div class="flex flex-wrap items-center justify-between gap-2.5 pt-1 text-xs font-sans">
               <!-- 平台过滤 -->
               <div class="segmented-control">
-                <button @click="contestFilter = 'all'" :class="['segmented-item', contestFilter === 'all' ? 'active' : '']">全部</button>
-                <button @click="contestFilter = 'codeforces'" :class="['segmented-item', contestFilter === 'codeforces' ? 'active' : '']">Codeforces</button>
-                <button @click="contestFilter = 'atcoder'" :class="['segmented-item', contestFilter === 'atcoder' ? 'active' : '']">AtCoder</button>
-                <button @click="contestFilter = 'luogu'" :class="['segmented-item', contestFilter === 'luogu' ? 'active' : '']">洛谷</button>
+                <button type="button" @click="contestFilter = 'all'" :class="['segmented-item', contestFilter === 'all' ? 'active' : '']">全部</button>
+                <button type="button" @click="contestFilter = 'codeforces'" :class="['segmented-item', contestFilter === 'codeforces' ? 'active' : '']">Codeforces</button>
+                <button type="button" @click="contestFilter = 'atcoder'" :class="['segmented-item', contestFilter === 'atcoder' ? 'active' : '']">AtCoder</button>
+                <button type="button" @click="contestFilter = 'luogu'" :class="['segmented-item', contestFilter === 'luogu' ? 'active' : '']">洛谷</button>
               </div>
 
               <!-- 状态过滤 -->
               <div class="segmented-control">
-                <button @click="contestStatusFilter = 'all'" :class="['segmented-item', contestStatusFilter === 'all' ? 'active' : '']">全部</button>
-                <button @click="contestStatusFilter = 'CODING'" :class="['segmented-item', contestStatusFilter === 'CODING' ? 'active' : '']">
+                <button type="button" @click="contestStatusFilter = 'all'" :class="['segmented-item', contestStatusFilter === 'all' ? 'active' : '']">全部</button>
+                <button type="button" @click="contestStatusFilter = 'CODING'" :class="['segmented-item', contestStatusFilter === 'CODING' ? 'active' : '']">
                   <span class="inline-flex items-center">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 shadow-[0_0_4px_rgba(16,185,129,0.6)]"></span>
                     <span>进行中</span>
                   </span>
                 </button>
-                <button @click="contestStatusFilter = 'BEFORE'" :class="['segmented-item', contestStatusFilter === 'BEFORE' ? 'active' : '']">未开始</button>
+                <button type="button" @click="contestStatusFilter = 'BEFORE'" :class="['segmented-item', contestStatusFilter === 'BEFORE' ? 'active' : '']">未开始</button>
               </div>
 
               <!-- 搜索框 -->
               <div class="flex-1 min-w-[160px] max-w-xs">
-                <input v-model="contestSearch" type="text" placeholder="搜索比赛..."
+                <input v-model="contestSearch" type="text" aria-label="搜索比赛" placeholder="搜索比赛..."
                        class="ui-input font-sans py-1 text-xs">
               </div>
             </div>
@@ -797,31 +852,36 @@
           <div class="md:hidden space-y-2.5 font-sans">
             <a v-for="c in filteredContests" :key="'mc-' + c.id"
                :href="c.url" target="_blank" rel="noopener noreferrer"
-               :class="['ui-card p-3.5 block space-y-2', getContestStatus(c) === 'CODING' ? 'border-l-[3px] border-l-emerald-500' : '']">
+               :class="['ui-card contest-card p-3.5 block space-y-2', getContestStatus(c) === 'CODING' ? 'border-l-[3px] border-l-emerald-500' : '']">
               <div class="flex items-center justify-between gap-2 text-[10px] font-mono">
                 <div class="flex items-center gap-1.5">
                   <span :class="['platform-badge', 'plat-' + c.platform]">{{ c.platform }}</span>
                   <span v-if="c.rule_type" class="text-[var(--text-muted)]">{{ c.rule_type }}</span>
                 </div>
-                <span :class="getContestStatus(c) === 'CODING' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : getContestStatus(c) === 'BEFORE' ? 'text-[var(--primary)] font-semibold' : 'text-[var(--text-muted)]'">
+                <span :class="['tabular-nums', getContestStatus(c) === 'CODING' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : getContestStatus(c) === 'BEFORE' ? 'text-[var(--primary)] font-semibold' : 'text-[var(--text-muted)]']">
                   {{ getContestStatus(c) === 'FINISHED' ? '已结束' : formatContestCountdown(c) }}
                 </span>
               </div>
-              <div class="text-xs font-semibold text-[var(--text-primary)] leading-snug">{{ c.name }}</div>
-              <div class="flex items-center justify-between text-[11px] font-mono text-[var(--text-tertiary)]">
+              <div class="text-xs font-semibold text-[var(--text-primary)] leading-snug wrap-anywhere">{{ c.name }}</div>
+              <div class="flex items-center justify-between text-[11px] font-mono tabular-nums text-[var(--text-tertiary)]">
                 <span>{{ c.start_time.slice(0, 16) }}</span>
                 <span>{{ c.duration_str }}</span>
               </div>
             </a>
-            <div v-if="filteredContests.length === 0" class="ui-card py-10 text-center text-xs text-[var(--text-muted)]">
-              暂无匹配比赛
+            <div v-if="filteredContests.length === 0" class="ui-card py-10 text-center space-y-2.5 text-xs text-[var(--text-muted)]">
+              <div>暂无匹配比赛</div>
+              <button v-if="contestFilter !== 'all' || contestStatusFilter !== 'all' || contestSearch" type="button"
+                      @click="contestFilter = 'all'; contestStatusFilter = 'all'; contestSearch = ''"
+                      class="btn-secondary btn-sm">
+                重置筛选
+              </button>
             </div>
           </div>
 
           <!-- 比赛列表：桌面端表格视图 -->
           <div class="hidden md:block overflow-x-auto ui-card p-0">
-            <table class="w-full text-left text-xs text-[var(--text-secondary)]">
-              <thead class="bg-[var(--bg-subtle)] text-[var(--text-secondary)] uppercase border-b border-[var(--border-subtle)] font-sans text-[11px]">
+            <table class="ui-table w-full text-left text-xs text-[var(--text-secondary)]">
+              <thead class="bg-[var(--bg-subtle)] text-[var(--text-secondary)] uppercase border-b border-[var(--border-subtle)] font-sans">
                 <tr>
                   <th class="px-4 py-3.5 w-28">平台</th>
                   <th class="px-4 py-3.5">比赛名称</th>
@@ -834,7 +894,7 @@
               </thead>
               <tbody class="divide-y divide-[var(--border-subtle)]">
                 <tr v-for="c in filteredContests" :key="c.id" 
-                    :class="['hover:bg-[var(--bg-hover)] transition-colors', getContestStatus(c) === 'CODING' ? 'bg-emerald-500/[0.04]' : '']">
+                    :class="[getContestStatus(c) === 'CODING' ? 'bg-emerald-500/[0.04]' : '']">
                   <!-- 平台徽标 -->
                   <td class="px-4 py-3.5 font-mono">
                     <span :class="['platform-badge', 'plat-' + c.platform]">
@@ -844,9 +904,9 @@
 
                   <!-- 比赛名称与直达链接 -->
                   <td class="px-4 py-3.5 font-medium text-[var(--text-primary)]">
-                    <a :href="c.url" target="_blank" class="hover:text-blue-500 transition-colors flex items-center space-x-1.5 group">
-                      <span class="font-semibold font-sans">{{ c.name }}</span>
-                      <svg class="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a :href="c.url" target="_blank" rel="noopener noreferrer" class="hover:text-[var(--primary)] transition-colors flex items-center space-x-1.5 group">
+                      <span class="font-semibold font-sans wrap-anywhere">{{ c.name }}</span>
+                      <svg class="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--primary)] opacity-0 group-hover:opacity-100 transition-all flex-shrink-0" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
                       </svg>
                     </a>
@@ -854,30 +914,30 @@
 
                   <!-- 规则 / Rated -->
                   <td class="px-4 py-3.5 font-mono text-[var(--text-secondary)] text-[11px]">
-                    <span v-if="c.rule_type" class="px-2 py-0.5 rounded bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)]">
+                    <span v-if="c.rule_type" class="ui-tag font-mono">
                       {{ c.rule_type }}
                     </span>
                     <span v-else class="text-[var(--text-muted)]">-</span>
                   </td>
 
                   <!-- 开始时间 (北京时间) -->
-                  <td class="px-4 py-3.5 font-mono text-[var(--text-primary)]">
+                  <td class="px-4 py-3.5 font-mono tabular-nums text-[var(--text-primary)]">
                     <div>{{ c.start_time.slice(0, 16) }}</div>
                   </td>
 
                   <!-- 比赛时长 -->
-                  <td class="px-4 py-3.5 font-mono text-[var(--text-secondary)]">
+                  <td class="px-4 py-3.5 font-mono tabular-nums text-[var(--text-secondary)]">
                     {{ c.duration_str }}
                   </td>
 
                   <!-- 实时倒计时 -->
-                  <td class="px-4 py-3.5 font-mono font-bold">
+                  <td class="px-4 py-3.5 font-mono tabular-nums font-bold">
                     <div v-if="getContestStatus(c) === 'CODING'" class="flex items-center space-x-1.5 text-emerald-600 dark:text-emerald-400">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                       <span>{{ formatContestCountdown(c) }}</span>
                     </div>
-                    <div v-else-if="getContestStatus(c) === 'BEFORE'" class="flex items-center space-x-1.5 text-blue-600 dark:text-blue-400">
-                      <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                    <div v-else-if="getContestStatus(c) === 'BEFORE'" class="flex items-center space-x-1.5 text-[var(--primary)]">
+                      <span class="w-1.5 h-1.5 rounded-full bg-[var(--primary)]"></span>
                       <span>{{ formatContestCountdown(c) }}</span>
                     </div>
                     <div v-else class="text-[var(--text-muted)] font-sans">
@@ -887,9 +947,9 @@
 
                   <!-- 快速操作 -->
                   <td class="px-4 py-3.5 text-right font-sans">
-                    <a :href="c.url" target="_blank" class="btn-tinted-blue">
+                    <a :href="c.url" target="_blank" rel="noopener noreferrer" class="btn-tinted-blue">
                        <span>前往</span>
-                       <svg class="w-3 h-3 opacity-75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                       <svg class="w-3 h-3 opacity-75" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                          <polyline points="15 3 21 3 21 9"></polyline>
                          <line x1="10" y1="14" x2="21" y2="3"></line>
@@ -901,14 +961,21 @@
                 <!-- 空数据提示 -->
                 <tr v-if="filteredContests.length === 0">
                   <td colspan="7" class="px-4 py-12 text-center text-[var(--text-muted)] font-sans">
-                    <div class="flex flex-col items-center justify-center space-y-2">
-                      <svg class="w-8 h-8 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="16" y1="2" x2="16" y2="6"></line>
-                        <line x1="8" y1="2" x2="8" y2="6"></line>
-                        <line x1="3" y1="10" x2="21" y2="10"></line>
-                      </svg>
+                    <div class="flex flex-col items-center justify-center space-y-2.5">
+                      <div class="ui-icon-box w-10 h-10 rounded-xl text-[var(--text-muted)]">
+                        <svg class="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                          <line x1="16" y1="2" x2="16" y2="6"></line>
+                          <line x1="8" y1="2" x2="8" y2="6"></line>
+                          <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                      </div>
                       <span>暂无匹配比赛</span>
+                      <button v-if="contestFilter !== 'all' || contestStatusFilter !== 'all' || contestSearch" type="button"
+                              @click="contestFilter = 'all'; contestStatusFilter = 'all'; contestSearch = ''"
+                              class="btn-secondary btn-sm">
+                        重置筛选
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -921,18 +988,20 @@
         <div id="tab-panel-submissions" v-show="currentTab === 'submissions'" class="ui-card p-4 sm:p-6 space-y-4 font-sans">
           <!-- 顶部标题与快速重置 -->
           <div class="flex items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
-            <div class="flex items-center space-x-2">
-              <h2 class="text-xs font-bold text-[var(--text-primary)] flex items-center space-x-2">
-                <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex items-center space-x-2.5">
+              <div class="ui-icon-box w-8 h-8 rounded-lg text-[var(--primary)]">
+                <svg class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
                 </svg>
-                <span>提交记录</span>
-              </h2>
-              <span class="text-[10px] text-[var(--text-muted)] font-mono">({{ submissionsTotal }})</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <h2 class="section-heading">提交记录</h2>
+                <span class="ui-badge font-mono tabular-nums">{{ submissionsTotal }}</span>
+              </div>
             </div>
             
-            <button @click="resetFilters" class="btn-secondary btn-sm">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" @click="resetFilters" class="btn-secondary btn-sm">
+              <svg class="w-3.5 h-3.5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
               </svg>
               <span>重置</span>
@@ -1008,8 +1077,15 @@
           </div>
 
           <!-- 提交记录：移动端竖屏卡片视图 -->
-          <div class="md:hidden space-y-2.5">
-            <div v-for="sub in paginatedSubmissions" :key="'ms-' + sub.id" class="glass-subcard p-3 rounded-xl space-y-2">
+          <div class="md:hidden space-y-2.5" :class="{ 'opacity-65 transition-opacity': isSubmissionsLoading && paginatedSubmissions.length > 0 }">
+            <template v-if="isSubmissionsLoading && paginatedSubmissions.length === 0">
+              <div v-for="n in 4" :key="'ms-sk-' + n" class="glass-subcard p-3 rounded-xl space-y-2.5">
+                <div class="flex justify-between"><div class="skeleton-shimmer h-4 w-24"></div><div class="skeleton-shimmer h-4 w-12"></div></div>
+                <div class="skeleton-shimmer h-4 w-3/4"></div>
+                <div class="skeleton-shimmer h-3 w-1/3"></div>
+              </div>
+            </template>
+            <div v-else v-for="sub in paginatedSubmissions" :key="'ms-' + sub.id" class="glass-subcard p-3 rounded-xl space-y-2">
               <div class="flex items-center justify-between gap-2 text-[10px] font-mono">
                 <div class="flex items-center gap-1.5 min-w-0">
                   <span :class="['platform-badge', 'plat-' + sub.platform]">
@@ -1022,30 +1098,31 @@
                   {{ sub.verdict }}
                 </span>
               </div>
-              <div class="text-xs font-semibold text-[var(--text-primary)] leading-snug">{{ sub.problem_title }}</div>
+              <div class="text-xs font-semibold text-[var(--text-primary)] leading-snug wrap-anywhere">{{ sub.problem_title }}</div>
               <div class="flex items-center justify-between gap-2 pt-1.5 border-t border-[var(--border-subtle)] text-[11px]">
-                <span class="text-[var(--text-muted)] font-mono truncate">{{ formatTimeAgo(sub.submitted_at) }}</span>
+                <span class="text-[var(--text-muted)] font-mono tabular-nums truncate">{{ formatTimeAgo(sub.submitted_at) }}</span>
                 <div class="flex items-center gap-1.5 shrink-0">
                   <button @click="handleSubmissionMistakeClick(sub)" type="button"
                           :class="mistakeKeySet.has(sub.platform + ':' + sub.problem_id) ? 'btn-tinted-amber' : 'btn-secondary btn-sm'">
-                    <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <svg class="w-3 h-3" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                     <span>{{ mistakeKeySet.has(sub.platform + ':' + sub.problem_id) ? '已入错题' : '入错题' }}</span>
                   </button>
-                  <a v-if="sub.submission_url" :href="sub.submission_url" target="_blank" class="btn-tinted-blue">
+                  <a v-if="sub.submission_url" :href="sub.submission_url" target="_blank" rel="noopener noreferrer" class="btn-tinted-blue">
                     <span>查看</span>
-                    <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                    <svg class="w-3 h-3" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                   </a>
                 </div>
               </div>
             </div>
-            <div v-if="paginatedSubmissions.length === 0" class="py-10 text-center text-xs text-[var(--text-muted)]">
-              暂无匹配记录
+            <div v-if="!isSubmissionsLoading && paginatedSubmissions.length === 0" class="py-10 text-center space-y-2.5 text-xs text-[var(--text-muted)]">
+              <div>暂无匹配记录</div>
+              <button type="button" @click="resetFilters" class="btn-secondary btn-sm">清除全部筛选</button>
             </div>
           </div>
 
           <!-- 提交记录：桌面端表格视图 -->
-          <div class="hidden md:block overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
-            <table class="w-full text-left text-xs text-[var(--text-secondary)]">
+          <div class="hidden md:block overflow-x-auto rounded-xl border border-[var(--border-subtle)]" :class="{ 'opacity-65 transition-opacity': isSubmissionsLoading && paginatedSubmissions.length > 0 }">
+            <table class="ui-table w-full text-left text-xs text-[var(--text-secondary)]">
               <thead class="text-[var(--text-tertiary)] bg-[var(--bg-subtle)] uppercase border-b border-[var(--border-subtle)] font-sans">
                 <tr>
                   <th class="px-4 py-3">平台</th>
@@ -1059,7 +1136,19 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-[var(--border-subtle)] font-sans">
-                <tr v-for="sub in paginatedSubmissions" :key="sub.id" class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
+                <template v-if="isSubmissionsLoading && paginatedSubmissions.length === 0">
+                  <tr v-for="n in 6" :key="'sk-' + n">
+                    <td class="px-4 py-3.5"><div class="skeleton-shimmer h-5 w-16"></div></td>
+                    <td class="px-4 py-3.5"><div class="skeleton-shimmer h-4 w-52"></div></td>
+                    <td class="px-4 py-3.5"><div class="skeleton-shimmer h-4 w-12"></div></td>
+                    <td class="px-4 py-3.5"><div class="skeleton-shimmer h-4 w-24"></div></td>
+                    <td class="px-4 py-3.5"><div class="skeleton-shimmer h-5 w-10"></div></td>
+                    <td class="px-4 py-3.5"><div class="skeleton-shimmer h-4 w-14"></div></td>
+                    <td class="px-4 py-3.5"><div class="skeleton-shimmer h-4 w-20"></div></td>
+                    <td class="px-4 py-3.5 text-right"><div class="skeleton-shimmer h-6 w-24 ml-auto"></div></td>
+                  </tr>
+                </template>
+                <tr v-else v-for="sub in paginatedSubmissions" :key="sub.id">
                   <td class="px-4 py-3 font-mono">
                     <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
                       <span :class="['platform-badge', 'plat-' + sub.platform]">
@@ -1071,12 +1160,12 @@
                     </div>
                   </td>
                   <td class="px-4 py-3 text-[var(--text-primary)] font-medium">
-                    <div class="flex items-center space-x-2">
-                      <span class="text-[var(--text-tertiary)] font-mono">[{{ sub.problem_id }}]</span>
-                      <span>{{ sub.problem_title }}</span>
+                    <div class="flex items-center space-x-2 min-w-0">
+                      <span class="text-[var(--text-tertiary)] font-mono shrink-0">[{{ sub.problem_id }}]</span>
+                      <span class="wrap-anywhere">{{ sub.problem_title }}</span>
                     </div>
                   </td>
-                  <td class="px-4 py-3 text-[var(--text-secondary)] font-mono">
+                  <td class="px-4 py-3 text-[var(--text-secondary)] font-mono tabular-nums">
                     <span class="ui-tag font-mono">{{ sub.difficulty || '-' }}</span>
                   </td>
                   <td class="px-4 py-3">
@@ -1098,7 +1187,7 @@
                   <td class="px-4 py-3 text-[var(--text-secondary)] font-mono text-[11px]">
                     {{ sub.code_language || '-' }}
                   </td>
-                  <td class="px-4 py-3 text-[var(--text-secondary)] font-mono text-[11px]" :title="sub.submitted_at">
+                  <td class="px-4 py-3 text-[var(--text-secondary)] font-mono tabular-nums text-[11px]" :title="sub.submitted_at">
                     {{ formatTimeAgo(sub.submitted_at) }}
                   </td>
                   <td class="px-4 py-3 text-right font-sans">
@@ -1107,17 +1196,17 @@
                               type="button"
                               :class="mistakeKeySet.has(sub.platform + ':' + sub.problem_id) ? 'btn-tinted-amber' : 'btn-secondary btn-sm'"
                               :title="mistakeKeySet.has(sub.platform + ':' + sub.problem_id) ? '编辑错题' : '入错题'">
-                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg class="w-3.5 h-3.5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <circle cx="12" cy="12" r="9"></circle>
                           <line x1="12" y1="8" x2="12" y2="12"></line>
                           <line x1="12" y1="16" x2="12.01" y2="16"></line>
                         </svg>
                         <span>{{ mistakeKeySet.has(sub.platform + ':' + sub.problem_id) ? '已入错题' : '入错题' }}</span>
                       </button>
-                      <a v-if="sub.submission_url" :href="sub.submission_url" target="_blank" 
+                      <a v-if="sub.submission_url" :href="sub.submission_url" target="_blank" rel="noopener noreferrer"
                          class="btn-tinted-blue">
                         <span>查看</span>
-                        <svg class="w-3 h-3 opacity-75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg class="w-3 h-3 opacity-75" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                           <polyline points="15 3 21 3 21 9"></polyline>
                           <line x1="10" y1="14" x2="21" y2="3"></line>
@@ -1127,9 +1216,17 @@
                     </div>
                   </td>
                 </tr>
-                <tr v-if="paginatedSubmissions.length === 0">
+                <tr v-if="!isSubmissionsLoading && paginatedSubmissions.length === 0">
                   <td colspan="8" class="px-4 py-12 text-center text-[var(--text-muted)] font-sans">
-                    暂无匹配提交记录
+                    <div class="flex flex-col items-center justify-center space-y-2.5">
+                      <div class="ui-icon-box w-10 h-10 rounded-xl text-[var(--text-muted)]">
+                        <svg class="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                      </div>
+                      <span>暂无匹配提交记录</span>
+                      <button type="button" @click="resetFilters" class="btn-secondary btn-sm">清除全部筛选</button>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -1138,13 +1235,13 @@
 
           <!-- 分页器 -->
           <div class="flex items-center justify-between pt-3 border-t border-[var(--border-subtle)] text-xs font-sans">
-            <span class="text-[var(--text-secondary)] font-mono">{{ currentPage }} / {{ totalPages }} ({{ submissionsTotal }})</span>
+            <span class="text-[var(--text-secondary)] font-mono tabular-nums">{{ currentPage }} / {{ totalPages }} ({{ submissionsTotal }})</span>
             <div class="flex items-center space-x-2 font-sans">
-              <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage <= 1"
+              <button type="button" @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage <= 1"
                       class="btn-secondary btn-sm">
                 上一页
               </button>
-              <button @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage >= totalPages"
+              <button type="button" @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage >= totalPages"
                       class="btn-secondary btn-sm">
                 下一页
               </button>
@@ -1158,35 +1255,41 @@
           <!-- 1. 复习总览 KPI 卡片组 -->
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <!-- 全部错题（点击重置筛选并回到全部错题列表） -->
-            <div :class="['ui-card kpi-lift p-4 sm:p-5 flex flex-col justify-between cursor-pointer select-none',
-                          mistakeStatusFilter === 'all' ? 'ring-1 ring-[var(--primary)]/50' : '']"
+            <div role="button" tabindex="0"
+                 :class="['ui-card kpi-lift kpi-card-active p-4 sm:p-5 flex flex-col justify-between cursor-pointer select-none',
+                          mistakeStatusFilter === 'all' ? 'active-blue' : '']"
                  @click="resetMistakeFilters()"
+                 @keydown.enter.prevent="resetMistakeFilters()"
+                 @keydown.space.prevent="resetMistakeFilters()"
                  title="点击查看全部错题并重置筛选">
               <div class="flex items-center justify-between text-[var(--text-tertiary)] mb-2">
                 <span class="text-xs font-medium" :class="mistakeStatusFilter === 'all' ? 'text-[var(--primary)] font-semibold' : ''">全部错题</span>
                 <div class="ui-icon-box w-7 h-7 rounded-lg text-[var(--primary)]">
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                  <svg class="w-4 h-4" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
                 </div>
               </div>
               <div class="flex items-baseline space-x-2">
-                <span class="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] font-mono">{{ mistakesCounts.total || 0 }}</span>
+                <span class="kpi-metric-value text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] tabular-nums font-mono">{{ mistakesCounts.total || 0 }}</span>
                 <span class="text-xs text-[var(--text-tertiary)]">题</span>
               </div>
             </div>
 
             <!-- 今日待复习 (柔和琥珀色左侧指示线，无刺眼大红底) -->
-            <div :class="['ui-card kpi-lift p-4 sm:p-5 flex flex-col justify-between cursor-pointer select-none',
+            <div role="button" tabindex="0"
+                 :class="['ui-card kpi-lift kpi-card-active p-4 sm:p-5 flex flex-col justify-between cursor-pointer select-none',
                           mistakesCounts.due > 0 ? 'border-l-[3px] border-l-amber-500' : '',
-                          mistakeStatusFilter === 'due' ? 'ring-1 ring-amber-500/50' : '']"
-                 @click="mistakeStatusFilter = 'due'">
+                          mistakeStatusFilter === 'due' ? 'active-amber' : '']"
+                 @click="mistakeStatusFilter = 'due'"
+                 @keydown.enter.prevent="mistakeStatusFilter = 'due'"
+                 @keydown.space.prevent="mistakeStatusFilter = 'due'">
               <div class="flex items-center justify-between text-[var(--text-tertiary)] mb-2">
                 <span class="text-xs font-medium" :class="mistakesCounts.due > 0 || mistakeStatusFilter === 'due' ? 'text-amber-600 dark:text-amber-400 font-semibold' : ''">待补刷</span>
                 <div class="ui-icon-box w-7 h-7 rounded-lg text-amber-500">
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  <svg class="w-4 h-4" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 </div>
               </div>
               <div class="flex items-baseline space-x-2">
-                <span class="text-2xl sm:text-3xl font-extrabold font-mono" :class="mistakesCounts.due > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-primary)]'">
+                <span class="kpi-metric-value text-2xl sm:text-3xl font-extrabold tabular-nums font-mono" :class="mistakesCounts.due > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-primary)]'">
                   {{ mistakesCounts.due || 0 }}
                 </span>
                 <span class="text-xs text-[var(--text-tertiary)]">题</span>
@@ -1194,33 +1297,39 @@
             </div>
 
             <!-- 训练中 -->
-            <div :class="['ui-card kpi-lift p-4 sm:p-5 flex flex-col justify-between cursor-pointer select-none',
-                          mistakeStatusFilter === 'pending_review' ? 'ring-1 ring-amber-500/50' : '']"
-                 @click="mistakeStatusFilter = 'pending_review'">
+            <div role="button" tabindex="0"
+                 :class="['ui-card kpi-lift kpi-card-active p-4 sm:p-5 flex flex-col justify-between cursor-pointer select-none',
+                          mistakeStatusFilter === 'pending_review' ? 'active-amber' : '']"
+                 @click="mistakeStatusFilter = 'pending_review'"
+                 @keydown.enter.prevent="mistakeStatusFilter = 'pending_review'"
+                 @keydown.space.prevent="mistakeStatusFilter = 'pending_review'">
               <div class="flex items-center justify-between text-[var(--text-tertiary)] mb-2">
                 <span class="text-xs font-medium" :class="mistakeStatusFilter === 'pending_review' ? 'text-amber-600 dark:text-amber-400 font-semibold' : ''">补刷中</span>
                 <div class="ui-icon-box w-7 h-7 rounded-lg text-amber-500">
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  <svg class="w-4 h-4" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                 </div>
               </div>
               <div class="flex items-baseline space-x-2">
-                <span class="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] font-mono">{{ mistakesCounts.in_progress || 0 }}</span>
+                <span class="kpi-metric-value text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] tabular-nums font-mono">{{ mistakesCounts.in_progress || 0 }}</span>
                 <span class="text-xs text-[var(--text-tertiary)]">题</span>
               </div>
             </div>
 
             <!-- 已掌握 -->
-            <div :class="['ui-card kpi-lift p-4 sm:p-5 flex flex-col justify-between cursor-pointer select-none',
-                          mistakeStatusFilter === 'mastered' ? 'ring-1 ring-emerald-500/50' : '']"
-                 @click="mistakeStatusFilter = 'mastered'">
+            <div role="button" tabindex="0"
+                 :class="['ui-card kpi-lift kpi-card-active p-4 sm:p-5 flex flex-col justify-between cursor-pointer select-none',
+                          mistakeStatusFilter === 'mastered' ? 'active-emerald' : '']"
+                 @click="mistakeStatusFilter = 'mastered'"
+                 @keydown.enter.prevent="mistakeStatusFilter = 'mastered'"
+                 @keydown.space.prevent="mistakeStatusFilter = 'mastered'">
               <div class="flex items-center justify-between text-[var(--text-tertiary)] mb-2">
                 <span class="text-xs font-medium" :class="mistakeStatusFilter === 'mastered' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : ''">已掌握</span>
                 <div class="ui-icon-box w-7 h-7 rounded-lg text-emerald-500">
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                  <svg class="w-4 h-4" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                 </div>
               </div>
               <div class="flex items-baseline space-x-2">
-                <span class="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">{{ mistakesCounts.mastered || 0 }}</span>
+                <span class="kpi-metric-value text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums font-mono">{{ mistakesCounts.mastered || 0 }}</span>
                 <span class="text-xs text-[var(--text-tertiary)]">题</span>
               </div>
             </div>
@@ -1232,28 +1341,28 @@
             <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pb-4 border-b border-[var(--border-subtle)]">
               <!-- 状态筛选 Segmented Control -->
               <div class="segmented-control self-start overflow-x-auto max-w-full">
-                <button @click="resetMistakeFilters()" :class="['segmented-item text-xs', mistakeStatusFilter === 'all' ? 'active' : '']">
+                <button type="button" @click="resetMistakeFilters()" :class="['segmented-item text-xs', mistakeStatusFilter === 'all' ? 'active' : '']">
                   <span>全部</span>
-                  <span class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/[0.05] dark:bg-white/[0.1] font-mono">{{ mistakesCounts.total || 0 }}</span>
+                  <span class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/[0.05] dark:bg-white/[0.1] font-mono tabular-nums">{{ mistakesCounts.total || 0 }}</span>
                 </button>
-                <button @click="mistakeStatusFilter = 'due'" :class="['segmented-item text-xs', mistakeStatusFilter === 'due' ? 'active' : '']">
+                <button type="button" @click="mistakeStatusFilter = 'due'" :class="['segmented-item text-xs', mistakeStatusFilter === 'due' ? 'active' : '']">
                   <span>待补刷</span>
-                  <span v-if="mistakesCounts.due > 0" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/[0.06] dark:bg-white/[0.12] text-amber-600 dark:text-amber-400 font-mono font-semibold">{{ mistakesCounts.due }}</span>
+                  <span v-if="mistakesCounts.due > 0" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/[0.06] dark:bg-white/[0.12] text-amber-600 dark:text-amber-400 font-mono tabular-nums font-semibold">{{ mistakesCounts.due }}</span>
                 </button>
-                <button @click="mistakeStatusFilter = 'pending_review'" :class="['segmented-item text-xs', mistakeStatusFilter === 'pending_review' ? 'active' : '']">
+                <button type="button" @click="mistakeStatusFilter = 'pending_review'" :class="['segmented-item text-xs', mistakeStatusFilter === 'pending_review' ? 'active' : '']">
                   <span>补刷中</span>
-                  <span class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/[0.05] dark:bg-white/[0.1] font-mono">{{ mistakesCounts.in_progress || 0 }}</span>
+                  <span class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/[0.05] dark:bg-white/[0.1] font-mono tabular-nums">{{ mistakesCounts.in_progress || 0 }}</span>
                 </button>
-                <button @click="mistakeStatusFilter = 'mastered'" :class="['segmented-item text-xs', mistakeStatusFilter === 'mastered' ? 'active' : '']">
+                <button type="button" @click="mistakeStatusFilter = 'mastered'" :class="['segmented-item text-xs', mistakeStatusFilter === 'mastered' ? 'active' : '']">
                   <span>已掌握</span>
-                  <span class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/[0.05] dark:bg-white/[0.1] font-mono">{{ mistakesCounts.mastered || 0 }}</span>
+                  <span class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/[0.05] dark:bg-white/[0.1] font-mono tabular-nums">{{ mistakesCounts.mastered || 0 }}</span>
                 </button>
               </div>
 
               <!-- 右侧平台筛选、排序、搜索与手动录入按钮 -->
               <div class="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
                 <!-- 平台选择 -->
-                <select v-model="mistakePlatformFilter" class="ui-input text-xs !py-1.5 !px-2.5 sm:!w-auto">
+                <select v-model="mistakePlatformFilter" aria-label="筛选平台" class="ui-input text-xs !py-1.5 !px-2.5 sm:!w-auto">
                   <option value="all">全部平台</option>
                   <option value="luogu">洛谷</option>
                   <option value="codeforces">Codeforces</option>
@@ -1263,7 +1372,7 @@
                 </select>
 
                 <!-- 排序方式 -->
-                <select v-model="mistakeSortBy" class="ui-input text-xs !py-1.5 !px-2.5 sm:!w-auto">
+                <select v-model="mistakeSortBy" aria-label="排序方式" class="ui-input text-xs !py-1.5 !px-2.5 sm:!w-auto">
                   <option value="last_submitted_at">最近提交</option>
                   <option value="next_review_at">到期时间</option>
                   <option value="review_count">补刷轮数</option>
@@ -1271,21 +1380,37 @@
 
                 <!-- 搜索框 -->
                 <div class="relative col-span-2 sm:col-span-1 sm:min-w-[180px]">
-                  <input v-model="mistakeSearch" @keyup.enter="loadMistakes" type="text" placeholder="搜索错题..."
-                         class="ui-input text-xs w-full !pl-8 !pr-3 !py-1.5">
-                  <svg class="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-2.5 top-1/2 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  <input v-model="mistakeSearch" @keyup.enter="loadMistakes" type="text" aria-label="搜索错题" placeholder="搜索错题..."
+                         class="ui-input text-xs w-full !pl-8 !pr-7 !py-1.5">
+                  <svg class="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  <button v-if="mistakeSearch" type="button" @click="mistakeSearch = ''" aria-label="清空搜索"
+                          class="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                    <svg class="w-3 h-3" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
                 </div>
 
                 <!-- 手动收录错题按钮 -->
                 <button @click="openAddToMistakesModal({}, false)" type="button" class="btn-primary col-span-2 sm:col-span-1 shrink-0">
-                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  <svg class="w-3.5 h-3.5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                   <span>收录错题</span>
                 </button>
               </div>
             </div>
 
+            <!-- 错题加载骨架屏 -->
+            <div v-if="isMistakesLoading && mistakes.length === 0" class="space-y-3.5">
+              <div v-for="n in 3" :key="'mk-sk-' + n" class="glass-subcard p-4 sm:p-5 rounded-xl space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2"><div class="skeleton-shimmer h-5 w-14"></div><div class="skeleton-shimmer h-5 w-48"></div></div>
+                  <div class="skeleton-shimmer h-5 w-16"></div>
+                </div>
+                <div class="skeleton-shimmer h-10 w-full"></div>
+                <div class="flex justify-between"><div class="skeleton-shimmer h-6 w-20"></div><div class="skeleton-shimmer h-6 w-36"></div></div>
+              </div>
+            </div>
+
             <!-- 错题列表卡片流 -->
-            <div v-if="mistakes.length > 0" class="space-y-3.5">
+            <div v-else-if="mistakes.length > 0" class="space-y-3.5" :class="{ 'opacity-65 transition-opacity': isMistakesLoading }">
               <div v-for="item in mistakes" :key="item.id" 
                    class="glass-subcard p-4 sm:p-5 rounded-xl transition-colors hover:border-[var(--border-hover)]"
                    :class="item.status === 'mastered' ? 'opacity-85' :
@@ -1293,7 +1418,7 @@
                 
                 <!-- 头部：平台、题号、标题、标签与复习状态徽章 -->
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                  <div class="flex items-center flex-wrap gap-2">
+                  <div class="flex items-center flex-wrap gap-2 min-w-0">
                     <!-- 未完成到期错题置顶标识 -->
                     <span v-if="item.is_due" class="ui-badge ui-badge-dot dot-amber !text-[10px] font-sans">置顶</span>
                     <!-- 平台 Badge -->
@@ -1302,9 +1427,9 @@
                     </span>
                     <!-- 题号 & 标题 -->
                     <span class="text-xs font-mono font-bold text-[var(--text-tertiary)]">[{{ item.problem_id }}]</span>
-                    <span class="text-sm font-bold text-[var(--text-primary)] hover:text-blue-500 transition-colors cursor-pointer" @click="openViewNoteModal(item)">
+                    <button type="button" class="text-sm font-bold text-left text-[var(--text-primary)] hover:text-[var(--primary)] transition-colors cursor-pointer wrap-anywhere" @click="openViewNoteModal(item)">
                       {{ item.problem_title }}
-                    </span>
+                    </button>
                     <!-- 难度 -->
                     <span v-if="item.difficulty" class="ui-tag font-mono">
                       {{ item.difficulty }}
@@ -1326,7 +1451,7 @@
                       <span>{{ item.days_left < 0 ? '超期 ' + Math.abs(item.days_left) + ' 天' : '待补刷' }}</span>
                     </span>
                     <!-- 倒计时中 -->
-                    <span v-else-if="item.next_review_at" class="ui-badge ui-badge-dot dot-muted !text-[11px] font-mono">
+                    <span v-else-if="item.next_review_at" class="ui-badge ui-badge-dot dot-muted !text-[11px] font-mono tabular-nums">
                       <span>{{ item.days_left }}天后补刷</span>
                     </span>
                   </div>
@@ -1335,7 +1460,7 @@
                 <!-- 中间主体：补刷进度 + 最新提交时间 + 核心卡点 -->
                 <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] space-y-2.5 text-xs">
                   <!-- 补刷轮次 & 提交时间 -->
-                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[var(--text-tertiary)] font-mono">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[var(--text-tertiary)] font-mono tabular-nums">
                     <div class="flex items-center space-x-2">
                       <span class="text-[11px] font-sans text-[var(--text-secondary)] font-medium">补刷进度:</span>
                       <!-- 6段复习进度点 -->
@@ -1351,51 +1476,51 @@
 
                     <!-- 最新提交时间 -->
                     <div class="text-[11px] flex items-center space-x-1.5" :title="item.last_submitted_at">
-                      <svg class="w-3.5 h-3.5 text-[var(--text-muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                      <svg class="w-3.5 h-3.5 text-[var(--text-muted)]" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                       <span>最新提交: {{ item.last_submitted_at || '-' }}</span>
                       <span v-if="item.last_submitted_at" class="text-[var(--text-muted)]">({{ formatTimeAgo(item.last_submitted_at) }})</span>
                     </div>
                   </div>
 
                   <!-- 核心卡点 -->
-                  <div v-if="item.key_point" class="p-2.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] flex items-start space-x-2">
+                  <div v-if="item.key_point" class="glass-inner-tile p-2.5 rounded-xl border-l-2 border-l-[var(--primary)] text-xs text-[var(--text-secondary)] flex items-start space-x-2">
                     <span class="shrink-0 font-medium text-[var(--text-primary)]">卡点:</span>
-                    <span class="leading-relaxed font-sans">{{ item.key_point }}</span>
+                    <span class="leading-relaxed font-sans wrap-anywhere">{{ item.key_point }}</span>
                   </div>
                 </div>
 
                 <!-- 底部操作按钮栏 (全部统一 8px 按钮规范) -->
                 <div class="mt-3 pt-3 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs font-sans">
                   <!-- 左侧笔记预览入口 -->
-                  <button @click="openViewNoteModal(item)" class="btn-secondary btn-sm">
-                    <svg class="w-3.5 h-3.5 text-[var(--primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                  <button type="button" @click="openViewNoteModal(item)" class="btn-secondary btn-sm">
+                    <svg class="w-3.5 h-3.5 text-[var(--primary)]" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
                     <span>笔记</span>
                   </button>
 
                   <!-- 右侧操作项 -->
                   <div class="flex flex-wrap items-center gap-1.5">
-                    <a v-if="item.problem_url" :href="item.problem_url" target="_blank" class="btn-tinted-blue">
+                    <a v-if="item.problem_url" :href="item.problem_url" target="_blank" rel="noopener noreferrer" class="btn-tinted-blue">
                       <span>原题</span>
-                      <svg class="w-3 h-3 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                      <svg class="w-3 h-3 opacity-80" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                     </a>
 
-                    <button v-if="item.status !== 'mastered'" @click="recordMistakeReview(item)" class="btn-tinted-green">
-                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <button type="button" v-if="item.status !== 'mastered'" @click="recordMistakeReview(item)" class="btn-tinted-green">
+                      <svg class="w-3.5 h-3.5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
                       <span>补刷</span>
                     </button>
 
-                    <button @click="toggleMistakeMaster(item)" class="btn-secondary btn-sm">
-                      <svg class="w-3.5 h-3.5" :class="item.status === 'mastered' ? 'text-amber-500' : 'text-emerald-500'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <button type="button" @click="toggleMistakeMaster(item)" class="btn-secondary btn-sm">
+                      <svg class="w-3.5 h-3.5" aria-hidden="true" :class="item.status === 'mastered' ? 'text-amber-500' : 'text-emerald-500'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
                       <span>{{ item.status === 'mastered' ? '恢复' : '掌握' }}</span>
                     </button>
 
-                    <button @click="openAddToMistakesModal(item, true)" class="btn-secondary btn-sm">
-                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    <button type="button" @click="openAddToMistakesModal(item, true)" class="btn-secondary btn-sm">
+                      <svg class="w-3.5 h-3.5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                       <span>编辑</span>
                     </button>
 
-                    <button @click="deleteMistakeItem(item)" class="btn-danger-ghost" title="移除">
-                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    <button type="button" @click="deleteMistakeItem(item)" class="btn-danger-ghost" aria-label="移除错题" title="移除">
+                      <svg class="w-3.5 h-3.5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
                   </div>
                 </div>
@@ -1438,14 +1563,14 @@
         <div id="tab-panel-settings" v-show="currentTab === 'settings'" class="ui-card p-6 space-y-6 font-sans">
           <div class="space-y-5">
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[var(--border-subtle)]">
-              <div>
-                <h2 class="text-xs font-bold text-[var(--text-primary)] flex items-center space-x-2">
-                  <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="flex items-center space-x-2.5">
+                <div class="ui-icon-box w-8 h-8 rounded-lg text-[var(--primary)]">
+                  <svg class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                   </svg>
-                  <span>平台账号</span>
-                </h2>
+                </div>
+                <h2 class="section-heading">平台账号</h2>
               </div>
 
               <!-- 保存所有配置按钮 -->
@@ -1546,40 +1671,40 @@
                         <!-- 操作工具条 -->
                         <div class="flex items-center space-x-0.5 shrink-0">
                           <!-- 设为主号按钮 -->
-                          <button v-if="!acc.is_primary" @click="handleSetPrimaryAccount(acc)" title="设为主号"
+                          <button type="button" v-if="!acc.is_primary" @click="handleSetPrimaryAccount(acc)" aria-label="设为主号" title="设为主号"
                                   class="p-1 rounded-md text-[var(--text-tertiary)] hover:text-amber-500 hover:bg-[var(--bg-subtle)] transition-colors">
-                            <svg class="w-3.5 h-3.5 stroke-[1.8]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <svg class="w-3.5 h-3.5 stroke-[1.8]" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
                             </svg>
                           </button>
                           <!-- 测试连接按钮 -->
-                          <button @click="handleVerifySingleAccount(acc)" :disabled="isAccountTesting[acc.id]" title="测试账号连通性"
+                          <button type="button" @click="handleVerifySingleAccount(acc)" :disabled="isAccountTesting[acc.id]" aria-label="测试账号连通性" title="测试账号连通性"
                                   class="p-1 rounded-md text-[var(--text-tertiary)] hover:text-blue-500 hover:bg-[var(--bg-subtle)] transition-colors">
-                            <svg :class="['w-3.5 h-3.5 stroke-[1.8]', isAccountTesting[acc.id] ? 'animate-spin text-blue-500' : '']" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <svg :class="['w-3.5 h-3.5 stroke-[1.8]', isAccountTesting[acc.id] ? 'animate-spin text-blue-500' : '']" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
                             </svg>
                           </button>
                           <!-- 单独同步按钮 -->
-                          <button @click="handleSyncSingleAccount(acc)" :disabled="isAccountSyncing[acc.id]" title="抓取此账号题目"
+                          <button type="button" @click="handleSyncSingleAccount(acc)" :disabled="isAccountSyncing[acc.id]" aria-label="抓取此账号题目" title="抓取此账号题目"
                                   class="p-1 rounded-md text-[var(--text-tertiary)] hover:text-emerald-500 hover:bg-[var(--bg-subtle)] transition-colors">
-                            <svg :class="['w-3.5 h-3.5 stroke-[1.8]', isAccountSyncing[acc.id] ? 'animate-spin text-emerald-500' : '']" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <svg :class="['w-3.5 h-3.5 stroke-[1.8]', isAccountSyncing[acc.id] ? 'animate-spin text-emerald-500' : '']" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                               <polyline points="23 4 23 10 17 10"></polyline>
                               <polyline points="1 20 1 14 7 14"></polyline>
                               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                             </svg>
                           </button>
                           <!-- 编辑按钮 -->
-                          <button @click="openEditAccountModal(acc)" title="编辑账号与凭据"
+                          <button type="button" @click="openEditAccountModal(acc)" aria-label="编辑账号与凭据" title="编辑账号与凭据"
                                   class="p-1 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] transition-colors">
-                            <svg class="w-3.5 h-3.5 stroke-[1.8]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <svg class="w-3.5 h-3.5 stroke-[1.8]" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                             </svg>
                           </button>
                           <!-- 删除按钮 -->
-                          <button @click="handleDeleteAccount(acc)" title="移除账号 (做题记录仍将保留)"
+                          <button type="button" @click="handleDeleteAccount(acc)" aria-label="移除账号" title="移除账号 (做题记录仍将保留)"
                                   class="p-1 rounded-md text-[var(--text-tertiary)] hover:text-rose-500 hover:bg-[var(--bg-subtle)] transition-colors">
-                            <svg class="w-3.5 h-3.5 stroke-[1.8]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <svg class="w-3.5 h-3.5 stroke-[1.8]" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                               <polyline points="3 6 5 6 21 6"></polyline>
                               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                             </svg>
@@ -1616,15 +1741,17 @@
             <!-- 系统参数与网络代理 -->
             <div class="glass-subcard p-4 sm:p-5 rounded-xl space-y-4">
               <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
-                <div class="flex items-center space-x-2">
-                  <svg class="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                  </svg>
-                  <span class="font-bold text-[var(--text-primary)] text-xs">同步与代理</span>
+                <div class="flex items-center space-x-2.5">
+                  <div class="ui-icon-box w-7 h-7 rounded-lg text-[var(--primary)]">
+                    <svg class="w-3.5 h-3.5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="3"></circle>
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                  </div>
+                  <h3 class="section-heading">同步与代理</h3>
                 </div>
-                <button @click="saveSystemSettingsOnly" :disabled="isSavingSystem" class="btn-primary">
-                  <svg :class="['w-3.5 h-3.5', isSavingSystem ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button type="button" @click="saveSystemSettingsOnly" :disabled="isSavingSystem" class="btn-primary">
+                  <svg :class="['w-3.5 h-3.5', isSavingSystem ? 'animate-spin' : '']" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                   </svg>
                   <span>{{ isSavingSystem ? '保存中' : '保存' }}</span>
@@ -1659,28 +1786,34 @@
             <!-- 外观与缩放 -->
             <div class="glass-subcard p-4 sm:p-5 rounded-xl space-y-4">
               <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
-                <div class="flex items-center space-x-2">
-                  <svg class="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                    <line x1="8" y1="21" x2="16" y2="21"></line>
-                    <line x1="12" y1="17" x2="12" y2="21"></line>
-                  </svg>
-                  <span class="font-bold text-[var(--text-primary)] text-xs">外观与缩放</span>
+                <div class="flex items-center space-x-2.5">
+                  <div class="ui-icon-box w-7 h-7 rounded-lg text-[var(--primary)]">
+                    <svg class="w-3.5 h-3.5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                      <line x1="8" y1="21" x2="16" y2="21"></line>
+                      <line x1="12" y1="17" x2="12" y2="21"></line>
+                    </svg>
+                  </div>
+                  <h3 class="section-heading">外观与缩放</h3>
                 </div>
                 <span class="text-[10px] text-[var(--text-tertiary)] font-mono">{{ uiScalePref === 'auto' ? '自动' : uiScalePref + '%' }}</span>
               </div>
 
               <!-- 独立开关：磨砂玻璃 -->
               <div class="glass-inner-tile flex items-center justify-between gap-4 p-3.5 rounded-xl">
-                <div class="flex items-center space-x-2">
-                  <span class="text-xs font-semibold text-[var(--text-primary)]">磨砂玻璃</span>
-                  <span :class="['ui-badge ui-badge-dot font-mono !text-[10px] !py-0 !px-1.5', glassMode ? 'dot-blue' : 'dot-muted']">
-                    {{ glassMode ? '开' : '关' }}
-                  </span>
+                <div class="min-w-0">
+                  <div class="flex items-center space-x-2">
+                    <span class="text-xs font-semibold text-[var(--text-primary)]">磨砂玻璃</span>
+                    <span :class="['ui-badge ui-badge-dot font-mono !text-[10px] !py-0 !px-1.5', glassMode ? 'dot-blue' : 'dot-muted']">
+                      {{ glassMode ? '开' : '关' }}
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-[var(--text-tertiary)] mt-0.5">macOS 15 磨砂玻璃材质与景深层次</p>
                 </div>
                 <button type="button"
                         role="switch"
                         :aria-checked="glassMode"
+                        aria-label="切换磨砂玻璃"
                         @click="toggleGlassMode"
                         :class="['mac-switch', glassMode ? 'is-on' : '']">
                   <span class="mac-switch-knob"></span>
@@ -1709,11 +1842,13 @@
             <!-- 本地代码监控服务配置与密钥 (macOS oiboard-agent) -->
             <div class="glass-subcard p-5 rounded-xl space-y-4">
               <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
-                <div class="flex items-center space-x-2">
-                  <svg class="w-4 h-4 text-cyan-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
-                  </svg>
-                  <span class="font-bold text-[var(--text-primary)] text-xs">本地代码同步</span>
+                <div class="flex items-center space-x-2.5">
+                  <div class="ui-icon-box w-7 h-7 rounded-lg text-cyan-500">
+                    <svg class="w-3.5 h-3.5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                    </svg>
+                  </div>
+                  <h3 class="section-heading">本地代码同步</h3>
                 </div>
                 <span :class="['status-pill', overview.local_code?.has_data ? 'status-ok' : 'status-unconfigured']">
                   {{ overview.local_code?.has_data ? '已连接' : '未连接' }}
@@ -1728,7 +1863,7 @@
                            class="ui-input font-mono text-xs flex-1 cursor-not-allowed">
                     <button type="button" @click="copySyncToken" 
                             class="btn-secondary text-xs px-3 py-2 flex items-center space-x-1 shrink-0">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg class="w-3.5 h-3.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
                       </svg>
                       <span>{{ isTokenCopied ? '已复制' : '复制' }}</span>
@@ -1736,7 +1871,7 @@
                   </div>
                 </div>
 
-                <div class="glass-inner-tile p-3.5 rounded-xl space-y-2">
+                <div class="glass-inner-tile p-3.5 rounded-xl space-y-2 tabular-nums">
                   <div class="flex items-center justify-between text-[11px] font-sans">
                     <span class="text-[var(--text-secondary)]">上次同步时间:</span>
                     <span class="font-mono text-[var(--text-primary)] font-semibold">{{ overview.local_code?.synced_at || '未同步' }}</span>
@@ -1755,32 +1890,39 @@
 
             <!-- 账号密码安全设置卡片 (Password Change) -->
             <div class="glass-subcard p-5 rounded-xl space-y-4">
-              <div class="flex items-center space-x-2 pb-3 border-b border-[var(--border-subtle)]">
-                <svg class="w-4 h-4 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg>
-                <span class="font-bold text-[var(--text-primary)] text-xs">修改密码</span>
+              <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
+                <div class="flex items-center space-x-2.5">
+                  <div class="ui-icon-box w-7 h-7 rounded-lg text-purple-500">
+                    <svg class="w-3.5 h-3.5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                  </div>
+                  <h3 class="section-heading">修改密码</h3>
+                </div>
+                <button type="button" @click="showChangePwd = !showChangePwd" class="btn-secondary btn-sm">
+                  <span>{{ showChangePwd ? '隐藏密码' : '显示密码' }}</span>
+                </button>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div>
                   <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">原密码</label>
-                  <input v-model="pwdForm.oldPassword" type="password" placeholder="原密码" 
+                  <input v-model="pwdForm.oldPassword" :type="showChangePwd ? 'text' : 'password'" autocomplete="current-password" placeholder="原密码" 
                          class="ui-input font-mono text-xs">
                 </div>
                 <div>
                   <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">新密码</label>
-                  <input v-model="pwdForm.newPassword" type="password" placeholder="新密码（≥6位）" 
+                  <input v-model="pwdForm.newPassword" :type="showChangePwd ? 'text' : 'password'" autocomplete="new-password" placeholder="新密码（≥6位）" 
                          class="ui-input font-mono text-xs">
                 </div>
                 <div>
                   <label class="block text-[var(--text-secondary)] mb-1 text-[11px] font-medium">确认密码</label>
-                  <input v-model="pwdForm.confirmNewPassword" type="password" placeholder="确认新密码" 
+                  <input v-model="pwdForm.confirmNewPassword" :type="showChangePwd ? 'text' : 'password'" autocomplete="new-password" placeholder="确认新密码" 
                          class="ui-input font-mono text-xs">
                 </div>
               </div>
               <div class="flex justify-end pt-1">
-                <button @click="handleChangePassword" :disabled="isChangingPwd" class="btn-secondary">
+                <button type="button" @click="handleChangePassword" :disabled="isChangingPwd" class="btn-secondary">
                   {{ isChangingPwd ? '修改中' : '确认修改' }}
                 </button>
               </div>
@@ -1820,9 +1962,9 @@
                :class="['notify-popover', notifyAnchorY === 'top' ? 'from-top' : 'from-bottom']"
                :style="notifyPopoverStyle">
           <!-- 头部 -->
-          <div class="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-subtle)]">
+          <div class="glass-popover-header px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between">
             <div class="flex items-center space-x-2">
-              <svg class="w-4 h-4 text-[var(--primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="w-4 h-4 text-[var(--primary)]" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
                 <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
               </svg>
@@ -1836,8 +1978,8 @@
             </div>
             <button @click.stop="collapseNotifyToOrb" type="button"
                     class="p-1 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-                    title="收起为悬浮球">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    aria-label="收起为悬浮球" title="收起为悬浮球">
+              <svg class="w-3.5 h-3.5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
               </svg>
@@ -1861,7 +2003,7 @@
 
               <div class="space-y-1.5">
                 <div v-for="m in dueMistakesList.slice(0, 6)" :key="m.id"
-                     class="p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] border-l-2 border-l-amber-500 flex items-center justify-between gap-2">
+                     class="glass-inner-tile p-2.5 rounded-lg border-l-2 border-l-amber-500 flex items-center justify-between gap-2">
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center space-x-1.5 text-xs">
                       <span class="font-mono text-[10px] text-[var(--text-tertiary)] uppercase">{{ m.platform === 'codeforces' ? 'CF' : m.platform === 'atcoder' ? 'AT' : m.platform === 'luogu' ? 'LG' : m.platform === 'acwing' ? 'AW' : 'LC' }}</span>
@@ -1870,20 +2012,20 @@
                             @click="openViewNoteModal(m); collapseNotifyToOrb()"
                             :title="m.problem_title">{{ m.problem_title }}</span>
                     </div>
-                    <div class="text-[10px] text-[var(--text-muted)] font-mono mt-0.5">
+                    <div class="text-[10px] text-[var(--text-muted)] font-mono tabular-nums mt-0.5">
                       <span>{{ m.days_left < 0 ? ('超期 ' + Math.abs(m.days_left) + ' 天') : '今日到期' }}</span>
                       <span class="mx-1">·</span>
                       <span>进度 {{ m.review_count || 0 }}/6</span>
                     </div>
                   </div>
                   <div class="flex items-center space-x-1 shrink-0">
-                    <a v-if="m.problem_url" :href="m.problem_url" target="_blank"
+                    <a v-if="m.problem_url" :href="m.problem_url" target="_blank" rel="noopener noreferrer"
                        class="btn-secondary !min-h-[24px] !px-2 !text-[10px] !rounded-md">
                       原题
                     </a>
                     <button @click.stop="completeDueMistakeFromNotify(m)" type="button"
                             class="btn-tinted-green !min-h-[24px] !px-2 !text-[10px] !rounded-md !gap-1">
-                      <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      <svg class="w-3 h-3" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
                       <span>补刷</span>
                     </button>
                   </div>
@@ -1904,15 +2046,15 @@
               <div v-if="upcoming3dContests.length > 0" class="space-y-1.5">
                 <a v-for="c in upcoming3dContests.slice(0, 6)" :key="c.id"
                    :href="c.url" target="_blank" rel="noopener noreferrer"
-                   class="block p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] hover:border-[var(--border-accent)] transition-colors">
+                   class="glass-inner-tile block p-2.5 rounded-lg hover:border-[var(--border-accent)] transition-colors">
                   <div class="flex items-center justify-between gap-2 text-[10px] font-mono mb-1">
                     <span :class="['platform-badge !text-[9.5px] !py-0 !px-1.5', 'plat-' + c.platform]">{{ c.platform }}</span>
-                    <span :class="getContestStatus(c) === 'CODING' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-[var(--primary)] font-semibold'">
+                    <span :class="getContestStatus(c) === 'CODING' ? 'text-emerald-600 dark:text-emerald-400 font-semibold tabular-nums' : 'text-[var(--primary)] font-semibold tabular-nums'">
                       {{ formatContestCountdown(c) }}
                     </span>
                   </div>
                   <div class="text-xs font-semibold text-[var(--text-primary)] truncate" :title="c.name">{{ c.name }}</div>
-                  <div class="text-[10px] text-[var(--text-muted)] font-mono mt-0.5">{{ formatContestShortTime(c.start_time) }} · {{ c.duration_str }}</div>
+                  <div class="text-[10px] text-[var(--text-muted)] font-mono tabular-nums mt-0.5">{{ formatContestShortTime(c.start_time) }} · {{ c.duration_str }}</div>
                 </a>
               </div>
               <div v-else class="py-4 text-center text-xs text-[var(--text-muted)]">
@@ -1979,8 +2121,8 @@
 
       <!-- ================= 移动端底部导航栏 (< 768px 竖屏专属) ================= -->
       <nav class="mobile-bottom-nav font-sans" aria-label="主导航">
-        <button @click="currentTab = 'overview'" :class="['mobile-nav-btn', currentTab === 'overview' ? 'active' : '']">
-          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <button type="button" @click="currentTab = 'overview'" :aria-current="currentTab === 'overview' ? 'page' : null" :class="['mobile-nav-btn', currentTab === 'overview' ? 'active' : '']">
+          <svg class="w-5 h-5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <rect x="4" y="4" width="6" height="6" rx="1.5"></rect>
             <rect x="14" y="4" width="6" height="6" rx="1.5"></rect>
             <rect x="4" y="14" width="6" height="6" rx="1.5"></rect>
@@ -1989,8 +2131,8 @@
           <span>总览</span>
         </button>
 
-        <button @click="currentTab = 'contests'" :class="['mobile-nav-btn', currentTab === 'contests' ? 'active' : '']">
-          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <button type="button" @click="currentTab = 'contests'" :aria-current="currentTab === 'contests' ? 'page' : null" :class="['mobile-nav-btn', currentTab === 'contests' ? 'active' : '']">
+          <svg class="w-5 h-5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
             <line x1="16" y1="2" x2="16" y2="6"></line>
             <line x1="8" y1="2" x2="8" y2="6"></line>
@@ -2000,8 +2142,8 @@
           <span v-if="upcomingContestsCount > 0" class="mobile-nav-dot font-mono" style="background: var(--primary);">{{ upcomingContestsCount > 9 ? '9+' : upcomingContestsCount }}</span>
         </button>
 
-        <button @click="currentTab = 'submissions'" :class="['mobile-nav-btn', currentTab === 'submissions' ? 'active' : '']">
-          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <button type="button" @click="currentTab = 'submissions'" :aria-current="currentTab === 'submissions' ? 'page' : null" :class="['mobile-nav-btn', currentTab === 'submissions' ? 'active' : '']">
+          <svg class="w-5 h-5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
             <line x1="9" y1="12" x2="9.01" y2="12"></line>
             <line x1="13" y1="12" x2="16" y2="12"></line>
@@ -2011,8 +2153,8 @@
           <span>提交</span>
         </button>
 
-        <button @click="currentTab = 'mistakes'" :class="['mobile-nav-btn', currentTab === 'mistakes' ? 'active' : '']">
-          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <button type="button" @click="currentTab = 'mistakes'" :aria-current="currentTab === 'mistakes' ? 'page' : null" :class="['mobile-nav-btn', currentTab === 'mistakes' ? 'active' : '']">
+          <svg class="w-5 h-5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
           </svg>
@@ -2020,8 +2162,8 @@
           <span v-if="mistakesCounts.due > 0" class="mobile-nav-dot font-mono" style="background: var(--apple-orange);">{{ mistakesCounts.due > 9 ? '9+' : mistakesCounts.due }}</span>
         </button>
 
-        <button @click="currentTab = 'settings'" :class="['mobile-nav-btn', currentTab === 'settings' ? 'active' : '']">
-          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <button type="button" @click="currentTab = 'settings'" :aria-current="currentTab === 'settings' ? 'page' : null" :class="['mobile-nav-btn', currentTab === 'settings' ? 'active' : '']">
+          <svg class="w-5 h-5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <line x1="4" y1="21" x2="4" y2="14"></line>
             <line x1="4" y1="10" x2="4" y2="3"></line>
             <line x1="12" y1="21" x2="12" y2="12"></line>
@@ -2039,7 +2181,7 @@
     </template>
 
     <!-- 账号添加 / 编辑浮层弹窗 -->
-    <div v-if="accountModalOpen" class="glass-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity">
+    <div v-if="accountModalOpen" role="dialog" aria-modal="true" aria-label="平台账号配置" class="glass-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity">
       <div class="glass-modal w-full max-w-md bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-6 space-y-5 font-sans modal-dialog-anim">
         <!-- 弹窗标题 -->
         <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
@@ -2049,8 +2191,8 @@
               {{ accountModalMode === 'add' ? '添加平台账号' : '编辑平台账号' }}
             </h3>
           </div>
-          <button @click="accountModalOpen = false" class="btn-icon">
-            <svg class="w-4 h-4 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <button type="button" @click="accountModalOpen = false" class="btn-icon" aria-label="关闭弹窗">
+            <svg class="w-4 h-4 stroke-[2]" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
@@ -2101,10 +2243,16 @@
           </div>
 
           <!-- 是否主账号 -->
-          <div class="flex items-center justify-between pt-1">
+          <div class="glass-inner-tile flex items-center justify-between p-3 rounded-xl">
             <span class="font-medium text-[var(--text-primary)]">设为主账号</span>
-            <input type="checkbox" v-model="accountForm.is_primary"
-                   class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer">
+            <button type="button"
+                    role="switch"
+                    :aria-checked="accountForm.is_primary"
+                    aria-label="设为主账号"
+                    @click="accountForm.is_primary = !accountForm.is_primary"
+                    :class="['mac-switch', accountForm.is_primary ? 'is-on' : '']">
+              <span class="mac-switch-knob"></span>
+            </button>
           </div>
         </div>
 
@@ -2112,7 +2260,7 @@
         <div class="pt-3 border-t border-[var(--border-subtle)] flex items-center justify-end gap-2">
           <button @click="accountModalOpen = false" type="button" class="btn-secondary">取消</button>
           <button @click="handleSaveAccount" :disabled="isAccountSubmitting" type="button" class="btn-primary">
-            <svg v-if="isAccountSubmitting" class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg v-if="isAccountSubmitting" class="w-3.5 h-3.5 animate-spin" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 14v1m8-8h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"></path>
             </svg>
             <span>{{ isAccountSubmitting ? '保存中' : '保存' }}</span>
@@ -2121,21 +2269,24 @@
       </div>
     </div>
 
-    <!-- 错题添加 / 编辑弹窗 -->
-    <div v-if="mistakeModalOpen" class="glass-backdrop fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="glass-modal w-full max-w-2xl bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 font-sans my-8 modal-dialog-anim">
+    <!-- 错题添加 / 编辑弹窗 (Minimalist Markdown Studio) -->
+    <div v-if="mistakeModalOpen" role="dialog" aria-modal="true" aria-label="错题收录与编辑" class="glass-backdrop fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div :class="['glass-modal w-full bg-[var(--bg-surface)] border border-[var(--border-bold)] rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 font-sans my-8 modal-dialog-anim transition-[max-width] duration-200', mistakeFormTab === 'split' ? 'max-w-5xl' : 'max-w-2xl']">
         <!-- 弹窗标题 -->
         <div class="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
-          <h3 class="text-sm font-semibold text-[var(--text-primary)]">
-            {{ isMistakeEditing ? '编辑错题' : '收录错题' }}
-          </h3>
-          <button @click="mistakeModalOpen = false" class="btn-icon">
-            <svg class="w-4 h-4 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-[var(--primary)]"></span>
+            <h3 class="text-sm font-semibold text-[var(--text-primary)]">
+              {{ isMistakeEditing ? '编辑错题' : '收录错题' }}
+            </h3>
+          </div>
+          <button type="button" @click="mistakeModalOpen = false" class="btn-icon" aria-label="关闭弹窗">
+            <svg class="w-4 h-4 stroke-[2]" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
 
         <!-- 表单区域 -->
-        <div class="space-y-3.5 text-xs max-h-[72vh] overflow-y-auto pr-1">
+        <div class="space-y-3.5 text-xs max-h-[75vh] overflow-y-auto pr-1">
           <!-- 第一行：平台选择与题号 -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -2182,33 +2333,68 @@
           <div>
             <label class="block text-[var(--text-secondary)] font-medium mb-1">核心卡点</label>
             <textarea v-model="mistakeForm.key_point" rows="2" 
-                      placeholder="核心卡点..."
+                      placeholder="一句话概括突破口或易错边界..."
                       class="ui-input text-xs w-full leading-relaxed"></textarea>
           </div>
 
-          <!-- 第五行：思路与代码 -->
+          <!-- 第五行：Minimalist Markdown Studio -->
           <div>
-            <div class="flex items-center justify-between mb-1.5">
-              <label class="text-[var(--text-secondary)] font-medium">思路与代码</label>
-              
-              <!-- 编辑/预览 Tab -->
-              <div class="segmented-control scale-90 origin-right">
-                <button @click="mistakeFormTab = 'write'" :class="['segmented-item text-[11px] py-0.5 px-2.5', mistakeFormTab === 'write' ? 'active' : '']" type="button">编辑</button>
-                <button @click="mistakeFormTab = 'preview'" :class="['segmented-item text-[11px] py-0.5 px-2.5', mistakeFormTab === 'preview' ? 'active' : '']" type="button">预览</button>
+            <div class="flex items-center justify-between mb-2">
+              <label for="mistake-notes-textarea" class="text-[var(--text-secondary)] font-medium">思路与代码</label>
+
+              <!-- 编辑 / 分屏 / 预览 3 态切换器 -->
+              <div class="segmented-control" role="tablist" aria-label="Markdown 视图模式">
+                <button @click="mistakeFormTab = 'write'" :class="['segmented-item text-[11px] !px-2.5', mistakeFormTab === 'write' ? 'active' : '']" type="button" role="tab" :aria-selected="mistakeFormTab === 'write'">编辑</button>
+                <button @click="mistakeFormTab = 'split'" :class="['hidden md:inline-flex segmented-item text-[11px] !px-2.5', mistakeFormTab === 'split' ? 'active' : '']" type="button" role="tab" :aria-selected="mistakeFormTab === 'split'">分屏</button>
+                <button @click="mistakeFormTab = 'preview'" :class="['segmented-item text-[11px] !px-2.5', mistakeFormTab === 'preview' ? 'active' : '']" type="button" role="tab" :aria-selected="mistakeFormTab === 'preview'">预览</button>
               </div>
             </div>
 
-            <!-- Markdown 编辑态 -->
-            <div v-show="mistakeFormTab === 'write'">
-              <textarea v-model="mistakeForm.notes" rows="9"
-                        placeholder="Markdown 笔记与代码..."
-                        class="ui-input text-xs w-full font-mono leading-relaxed"></textarea>
-            </div>
+            <div class="md-studio-shell">
+              <!-- 精简格式化工具栏 -->
+              <div v-show="mistakeFormTab !== 'preview'" class="md-toolbar">
+                <div class="md-tool-group">
+                  <button type="button" class="md-tool-btn" @click="insertMdSyntax('h2')" title="二级标题 (##)" aria-label="插入二级标题">H2</button>
+                  <button type="button" class="md-tool-btn" @click="insertMdSyntax('h3')" title="三级标题 (###)" aria-label="插入三级标题">H3</button>
+                  <span class="md-tool-sep"></span>
+                  <button type="button" class="md-tool-btn" @click="insertMdSyntax('bold')" title="加粗 (⌘B)" aria-label="加粗">B</button>
+                  <button type="button" class="md-tool-btn" @click="insertMdSyntax('inlineCode')" title="行内代码 (⌘E)" aria-label="行内代码">&lt;/&gt;</button>
+                  <span class="md-tool-sep"></span>
+                  <button type="button" class="md-tool-btn" @click="insertMdSyntax('cpp')" title="插入 C++ 代码块" aria-label="插入 C++ 代码块">C++</button>
+                  <button type="button" class="md-tool-btn" @click="insertMdSyntax('python')" title="插入 Python 代码块" aria-label="插入 Python 代码块">Py</button>
+                  <span class="md-tool-sep"></span>
+                  <button type="button" class="md-tool-btn" @click="insertMdSyntax('quote')" title="引用块" aria-label="插入引用">“ ”</button>
+                  <button type="button" class="md-tool-btn" @click="insertMdSyntax('checklist')" title="检查清单" aria-label="插入检查清单">[ ]</button>
+                  <button type="button" class="md-tool-btn" @click="insertMdSyntax('complexity')" title="插入复杂度摘要" aria-label="插入复杂度摘要">O(n)</button>
+                </div>
+                <button type="button" class="md-template-chip" @click="insertOiTemplate()" title="一键插入标准 OI 复盘结构">
+                  <svg class="w-3 h-3" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v18M3 12h18"/></svg>
+                  <span>OI 模板</span>
+                </button>
+              </div>
 
-            <!-- Markdown 实时预览态 -->
-            <div v-show="mistakeFormTab === 'preview'" 
-                 class="markdown-body p-4 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-[var(--border-subtle)] min-h-[200px] max-h-[280px] overflow-y-auto"
-                 v-html="renderMarkdown(mistakeForm.notes)">
+              <!-- 编辑 / 分屏 / 预览主体 -->
+              <div :class="['md-split-grid', mistakeFormTab === 'split' ? 'is-split' : '']">
+                <div v-show="mistakeFormTab === 'write' || mistakeFormTab === 'split'" class="md-write-pane">
+                  <textarea id="mistake-notes-textarea"
+                            v-model="mistakeForm.notes"
+                            @keydown="handleMdKeydown"
+                            placeholder="支持 Markdown、表格与 ```cpp 代码块；按 Tab 自动缩进..."
+                            class="md-editor-textarea"></textarea>
+                </div>
+                <div id="mistake-editor-preview"
+                     v-show="mistakeFormTab === 'preview' || mistakeFormTab === 'split'"
+                     class="markdown-body md-preview-pane"
+                     v-html="renderMarkdown(mistakeForm.notes)">
+                </div>
+              </div>
+
+              <!-- 底部状态栏 -->
+              <div class="md-statusbar">
+                <span class="font-mono hidden sm:inline">Tab 缩进 · ⌘B 加粗 · ⌘E 行内代码 · ⌘K 链接</span>
+                <span class="font-mono sm:hidden">Markdown 实时解析</span>
+                <span class="font-mono tabular-nums">{{ mistakeNotesStats.lines }} 行 · {{ mistakeNotesStats.chars }} 字</span>
+              </div>
             </div>
           </div>
         </div>
@@ -2226,6 +2412,7 @@
 
     <!-- 查看错题代码与思路笔记弹窗 -->
     <div v-if="viewNoteModalOpen && activeMistake" 
+         role="dialog" aria-modal="true" :aria-label="activeMistake.problem_title || '错题笔记'"
          @mousedown.self="noteBackdropPress = true"
          @mouseup.self="noteBackdropPress && !isResizingNoteModal && (viewNoteModalOpen = false); noteBackdropPress = false"
          class="glass-backdrop fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
@@ -2290,14 +2477,14 @@
             </div>
 
             <!-- 最大化 / 还原 -->
-            <button @click.stop="toggleNoteModalMaximize" type="button" class="btn-icon hidden sm:inline-flex" :title="noteModalSize === 'full' ? '还原' : '最大化'">
-              <svg v-if="noteModalSize === 'full'" class="w-4 h-4 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <button @click.stop="toggleNoteModalMaximize" type="button" class="btn-icon hidden sm:inline-flex" :aria-label="noteModalSize === 'full' ? '还原窗口' : '最大化窗口'" :title="noteModalSize === 'full' ? '还原' : '最大化'">
+              <svg v-if="noteModalSize === 'full'" class="w-4 h-4 stroke-[2]" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <polyline points="4 14 10 14 10 20"></polyline>
                 <polyline points="20 10 14 10 14 4"></polyline>
                 <line x1="14" y1="10" x2="21" y2="3"></line>
                 <line x1="3" y1="21" x2="10" y2="14"></line>
               </svg>
-              <svg v-else class="w-4 h-4 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg v-else class="w-4 h-4 stroke-[2]" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <polyline points="15 3 21 3 21 9"></polyline>
                 <polyline points="9 21 3 21 3 15"></polyline>
                 <line x1="21" y1="3" x2="14" y2="10"></line>
@@ -2306,16 +2493,16 @@
             </button>
 
             <!-- 关闭 -->
-            <button @click.stop="viewNoteModalOpen = false" type="button" class="btn-icon" title="关闭">
-              <svg class="w-4 h-4 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            <button @click.stop="viewNoteModalOpen = false" type="button" class="btn-icon" aria-label="关闭弹窗" title="关闭">
+              <svg class="w-4 h-4 stroke-[2]" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
           </div>
         </div>
 
         <!-- 核心卡点 -->
-        <div v-if="activeMistake.key_point" class="p-3.5 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs space-y-1 flex-shrink-0 my-2">
+        <div v-if="activeMistake.key_point" class="glass-inner-tile border-l-2 border-l-[var(--primary)] p-3.5 rounded-xl text-xs space-y-1 flex-shrink-0 my-2">
           <div class="font-medium text-[var(--text-tertiary)] text-[11px]">核心卡点</div>
-          <p class="leading-relaxed text-[var(--text-secondary)]">{{ activeMistake.key_point }}</p>
+          <p class="leading-relaxed text-[var(--text-secondary)] wrap-anywhere">{{ activeMistake.key_point }}</p>
         </div>
 
         <!-- 详细 Markdown 代码与解题笔记渲染容器 -->
@@ -2373,17 +2560,18 @@
     </div>
 
     <!-- 全局浮动提示 (Hydro 克制左侧色条风格，位于右上避免与右下通知球冲突) -->
-    <div v-if="toast.show" class="glass-toast fixed top-16 right-5 z-[70] px-4 py-2.5 rounded-lg shadow-lg text-xs font-medium border border-[var(--border-hover)] border-l-[3px] flex items-center space-x-2.5 bg-[var(--bg-card)] text-[var(--text-primary)] modal-dialog-anim font-sans"
+    <div v-if="toast.show" role="status" aria-live="polite" aria-atomic="true"
+         class="glass-toast fixed top-16 right-5 z-[70] px-4 py-2.5 rounded-lg shadow-lg text-xs font-medium border border-[var(--border-hover)] border-l-[3px] flex items-center space-x-2.5 bg-[var(--bg-card)] text-[var(--text-primary)] modal-dialog-anim font-sans"
          :class="toast.type === 'success' ? 'border-l-emerald-500' : toast.type === 'info' ? 'border-l-[var(--primary)]' : 'border-l-amber-500'">
-      <svg v-if="toast.type === 'success'" class="w-4 h-4 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <svg v-if="toast.type === 'success'" class="w-4 h-4 text-emerald-500 shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="20 6 9 17 4 12"></polyline>
       </svg>
-      <svg v-else-if="toast.type === 'info'" class="w-4 h-4 text-[var(--primary)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <svg v-else-if="toast.type === 'info'" class="w-4 h-4 text-[var(--primary)] shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"></circle>
         <line x1="12" y1="16" x2="12" y2="12"></line>
         <line x1="12" y1="8" x2="12.01" y2="8"></line>
       </svg>
-      <svg v-else class="w-4 h-4 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <svg v-else class="w-4 h-4 text-amber-500 shrink-0" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"></circle>
         <line x1="12" y1="8" x2="12" y2="12"></line>
         <line x1="12" y1="16" x2="12.01" y2="16"></line>
@@ -2393,6 +2581,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=3.9.3"></script>
+  <script src="/static/app.js?v=5.0.0"></script>
 </body>
 </html>

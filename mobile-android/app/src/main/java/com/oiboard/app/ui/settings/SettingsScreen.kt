@@ -1,5 +1,6 @@
 package com.oiboard.app.ui.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForwardIos
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudSync
@@ -37,8 +40,6 @@ import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,6 +70,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -76,6 +78,11 @@ import com.oiboard.app.data.local.AppThemeMode
 import com.oiboard.app.data.model.AccountItemDto
 import com.oiboard.app.data.model.UserDto
 import com.oiboard.app.ui.auth.ServerUrlDialog
+import com.oiboard.app.ui.components.TactileGlassCard
+import com.oiboard.app.ui.components.TactileIconBadge
+import com.oiboard.app.ui.components.TactilePlatformBadge
+import com.oiboard.app.ui.components.TactileRecessedWell
+import com.oiboard.app.ui.theme.LocalIsDarkTheme
 
 @Composable
 fun SettingsScreen(
@@ -93,11 +100,9 @@ fun SettingsScreen(
     var showServerDialog by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
 
-    // 全局设置本地编辑缓存
-    var pollIntervalInput by remember(uiState.pollInterval) { mutableStateOf(uiState.pollInterval) }
-    var sprintModeInput by remember(uiState.sprintMode) { mutableStateOf(uiState.sprintMode) }
-    var httpProxyInput by remember(uiState.httpProxy) { mutableStateOf(uiState.httpProxy) }
-    var showSaveSettingsConfirm by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        viewModel.loadData()
+    }
 
     LaunchedEffect(uiState.actionMessage) {
         uiState.actionMessage?.let { msg ->
@@ -191,69 +196,15 @@ fun SettingsScreen(
         )
     }
 
-    // 5. 单账号抓取二次确认
-    uiState.pendingSyncAccount?.let { acc ->
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissSyncAccount() },
-            title = { Text("同步平台数据", fontSize = 17.sp, fontWeight = FontWeight.Bold) },
-            text = { Text("立即从 ${acc.platform.uppercase()} 抓取该账号最新提交数据？", fontSize = 13.sp) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.confirmSyncAccount() }) {
-                    Text("同步", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissSyncAccount() }) { Text("取消") }
-            }
-        )
-    }
-
-    // 6. 全网全量同步二次确认
-    if (uiState.showSyncAllDialog) {
-        AlertDialog(
-            onDismissRequest = { viewModel.showSyncAllDialog(false) },
-            title = { Text("全网同步", fontSize = 17.sp, fontWeight = FontWeight.Bold) },
-            text = { Text("是否从所有已绑定的 OJ 平台全量重新抓取数据？通常耗时较长。", fontSize = 13.sp) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.confirmSyncAll() }) {
-                    Text("开始同步", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.showSyncAllDialog(false) }) { Text("取消") }
-            }
-        )
-    }
-
-    // 7. 保存全局配置二次确认
-    if (showSaveSettingsConfirm) {
-        AlertDialog(
-            onDismissRequest = { showSaveSettingsConfirm = false },
-            title = { Text("保存配置", fontSize = 17.sp, fontWeight = FontWeight.Bold) },
-            text = { Text("确定更新轮询间隔与代理等全局调度参数吗？", fontSize = 13.sp) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showSaveSettingsConfirm = false
-                    viewModel.saveGlobalSettings(pollIntervalInput, sprintModeInput, httpProxyInput)
-                }) {
-                    Text("确定", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSaveSettingsConfirm = false }) { Text("取消") }
-            }
-        )
-    }
-
-    // 8. 账号添加/编辑表单弹窗
+    // 5. 账号添加/编辑表单弹窗
     if (uiState.showAccountFormDialog) {
         AccountFormDialog(
             initialAccount = uiState.editingAccount,
             verifyResult = uiState.verifyResult,
             isVerifying = uiState.isVerifying,
-            proxy = httpProxyInput,
+            proxy = uiState.httpProxy,
             onDismiss = { viewModel.dismissAccountForm() },
-            onVerify = { p, h, c -> viewModel.verifyAccount(p, h, c, httpProxyInput) },
+            onVerify = { p, h, c -> viewModel.verifyAccount(p, h, c, uiState.httpProxy) },
             onSave = { p, h, c, a, prim -> viewModel.saveAccount(p, h, c, a, prim) }
         )
     }
@@ -270,34 +221,45 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            Text(
+                text = "偏好与账号",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
+            )
+
             // 一、账户信息卡片
-            Card(
+            TactileGlassCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                cornerRadius = 20.dp
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
-                    Text(
-                        text = "账户信息",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TactileIconBadge(
+                            icon = Icons.Default.AccountCircle,
+                            tint = MaterialTheme.colorScheme.primary,
+                            size = 28.dp,
+                            iconSize = 16.dp
+                        )
+                        Text(
+                            text = "账户信息",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.AccountCircle,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
                                 text = currentUser?.username ?: "未知用户",
@@ -316,11 +278,12 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     // 服务连接入口
-                    Surface(
-                        onClick = { showServerDialog = true },
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.fillMaxWidth()
+                    TactileRecessedWell(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { showServerDialog = true },
+                        cornerRadius = 12.dp
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -330,7 +293,7 @@ fun SettingsScreen(
                                 imageVector = Icons.Outlined.CheckCircle,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(19.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
@@ -344,7 +307,7 @@ fun SettingsScreen(
                                 text = "已连接",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.SemiBold
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
@@ -362,6 +325,7 @@ fun SettingsScreen(
                         onClick = { showLogoutConfirm = true },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
                         Icon(
@@ -376,11 +340,9 @@ fun SettingsScreen(
             }
 
             // 二、平台账号管理卡片
-            Card(
+            TactileGlassCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                cornerRadius = 20.dp
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Row(
@@ -388,12 +350,23 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "平台账号",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TactileIconBadge(
+                                icon = Icons.Outlined.CloudSync,
+                                tint = MaterialTheme.colorScheme.primary,
+                                size = 28.dp,
+                                iconSize = 15.dp
+                            )
+                            Text(
+                                text = "平台账号",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
 
                         TextButton(onClick = { viewModel.openAccountForm(null) }) {
                             Icon(
@@ -409,19 +382,23 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     if (uiState.accounts.isEmpty()) {
-                        Text(
-                            text = "暂无绑定的平台账号",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 12.dp)
-                        )
+                        TactileRecessedWell(
+                            modifier = Modifier.fillMaxWidth(),
+                            cornerRadius = 12.dp
+                        ) {
+                            Text(
+                                text = "暂无绑定的平台账号",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
+                            )
+                        }
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             uiState.accounts.forEach { acc ->
                                 AccountCardItem(
                                     account = acc,
                                     onSetPrimary = { viewModel.requestSetPrimary(acc) },
-                                    onSync = { viewModel.requestSyncAccount(acc) },
                                     onEdit = { viewModel.openAccountForm(acc) },
                                     onDelete = { viewModel.requestDeleteAccount(acc) }
                                 )
@@ -431,124 +408,29 @@ fun SettingsScreen(
                 }
             }
 
-            // 三、全局同步调度卡片
-            Card(
+            // 三、安全与密码卡片
+            TactileGlassCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                cornerRadius = 20.dp
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        TactileIconBadge(
+                            icon = Icons.Outlined.Lock,
+                            tint = Color(0xFF6366F1),
+                            size = 28.dp,
+                            iconSize = 15.dp
+                        )
                         Text(
-                            text = "同步调度",
+                            text = "安全设置",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-
-                        TextButton(onClick = { viewModel.showSyncAllDialog(true) }) {
-                            Icon(
-                                imageVector = Icons.Outlined.CloudSync,
-                                contentDescription = "全网同步",
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("全网同步", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        }
                     }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = pollIntervalInput,
-                        onValueChange = { pollIntervalInput = it },
-                        label = { Text("轮询间隔 (分钟，1~1440)") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = "冲刺高频模式",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "按 1 分钟极高频轮询同步",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = sprintModeInput,
-                            onCheckedChange = { sprintModeInput = it }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    OutlinedTextField(
-                        value = httpProxyInput,
-                        onValueChange = { httpProxyInput = it },
-                        label = { Text("出站代理 (如 http://127.0.0.1:7890)") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Button(
-                        onClick = { showSaveSettingsConfirm = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Save,
-                            contentDescription = "保存",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "保存配置",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-            }
-
-            // 四、安全与密码卡片
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Text(
-                        text = "安全设置",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
                     Spacer(modifier = Modifier.height(14.dp))
 
                     OutlinedButton(
@@ -583,22 +465,22 @@ fun SettingsScreen(
                 }
             }
 
-            // 五、外观主题卡片
-            Card(
+            // 四、外观主题卡片
+            TactileGlassCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                cornerRadius = 20.dp
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.DarkMode,
-                            contentDescription = null,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TactileIconBadge(
+                            icon = Icons.Default.DarkMode,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                            size = 28.dp,
+                            iconSize = 15.dp
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
                         Text(
                             text = "界面主题",
                             fontSize = 17.sp,
@@ -615,14 +497,60 @@ fun SettingsScreen(
                         onClick = { onThemeChange(AppThemeMode.SYSTEM) }
                     )
                     ThemeOptionRow(
-                        title = "极简浅色",
+                        title = "极简浅色 (Porcelain)",
                         selected = currentThemeMode == AppThemeMode.LIGHT,
                         onClick = { onThemeChange(AppThemeMode.LIGHT) }
                     )
                     ThemeOptionRow(
-                        title = "省电深色 (纯黑 OLED)",
+                        title = "深色模式 (Obsidian OLED)",
                         selected = currentThemeMode == AppThemeMode.DARK,
                         onClick = { onThemeChange(AppThemeMode.DARK) }
+                    )
+                }
+            }
+
+            // 五、界面动效设置卡片
+            TactileGlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 20.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        TactileIconBadge(
+                            icon = Icons.Outlined.AutoAwesome,
+                            tint = Color(0xFF10B981),
+                            size = 28.dp,
+                            iconSize = 15.dp
+                        )
+                        Column {
+                            Text(
+                                text = "界面动效",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "导航滑动、数字滚动与按压弹性反馈",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Switch(
+                        checked = uiState.isAnimationEnabled,
+                        onCheckedChange = { viewModel.toggleAnimation(it) }
                     )
                 }
             }
@@ -643,73 +571,62 @@ fun SettingsScreen(
 private fun AccountCardItem(
     account: AccountItemDto,
     onSetPrimary: () -> Unit,
-    onSync: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val platformColor = when (account.platform.lowercase()) {
-        "codeforces" -> Color(0xFF1E88E5)
-        "atcoder" -> Color(0xFF43A047)
-        "luogu" -> Color(0xFFE53935)
-        "acwing" -> Color(0xFF00ACC1)
-        "leetcode", "leetcode_cn" -> Color(0xFFFFA000)
-        else -> MaterialTheme.colorScheme.primary
-    }
-
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-        modifier = Modifier.fillMaxWidth()
+    TactileRecessedWell(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 14.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = platformColor.copy(alpha = 0.15f)
-            ) {
-                Text(
-                    text = account.platform.uppercase(),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = platformColor,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
+            TactilePlatformBadge(platform = account.platform)
 
             Spacer(modifier = Modifier.width(10.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = account.handle,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    if (account.is_primary) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
+                Text(
+                    text = account.handle,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (account.is_primary || !account.alias.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (account.is_primary) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Text(
+                                    text = "主账号",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                        if (!account.alias.isNullOrBlank()) {
                             Text(
-                                text = "主账号",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                text = account.alias,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
-                }
-                if (!account.alias.isNullOrBlank()) {
-                    Text(
-                        text = account.alias,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
 
@@ -723,14 +640,6 @@ private fun AccountCardItem(
                             modifier = Modifier.size(16.dp)
                         )
                     }
-                }
-                IconButton(onClick = onSync, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        imageVector = Icons.Outlined.Sync,
-                        contentDescription = "同步",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
                 }
                 IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
                     Icon(

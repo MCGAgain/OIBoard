@@ -2,8 +2,10 @@ package com.oiboard.app
 
 import android.app.Application
 import android.os.StrictMode
+import coil.ImageLoader
+import coil.ImageLoaderFactory
 
-class OIBoardApp : Application() {
+class OIBoardApp : Application(), ImageLoaderFactory {
     lateinit var container: AppContainer
         private set
 
@@ -13,6 +15,14 @@ class OIBoardApp : Application() {
             setupStrictMode()
         }
         container = AppContainer(this)
+    }
+
+    override fun newImageLoader(): ImageLoader {
+        // 严格遵循低资源与无盘缓存规范：Coil 不启用磁盘缓存
+        return ImageLoader.Builder(this)
+            .diskCache(null)
+            .crossfade(false)
+            .build()
     }
 
     private fun setupStrictMode() {

@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,7 +53,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.oiboard.app.ui.theme.LocalIsDarkTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 sealed class MarkdownBlock {
@@ -80,7 +81,7 @@ sealed class MarkdownBlock {
 @Composable
 fun rememberMarkdownBlocks(
     markdownContent: String,
-    isDark: Boolean = isSystemInDarkTheme()
+    isDark: Boolean = LocalIsDarkTheme.current
 ): List<MarkdownBlock> {
     var blocks by remember(markdownContent, isDark) { mutableStateOf<List<MarkdownBlock>>(emptyList()) }
 
@@ -217,63 +218,107 @@ private fun CodeBlockContainer(
     onCopy: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
-    val bgColor = if (isDark) Color(0xFF1E1E2E) else Color(0xFFF6F8FA)
-    val borderColor = if (isDark) Color(0xFF313244) else Color(0xFFE1E4E8)
-    val headerBgColor = if (isDark) Color(0xFF181825) else Color(0xFFEBEEF2)
+    val isDark = LocalIsDarkTheme.current
+    val bgColor = if (isDark) Color(0xFF0E121A) else Color(0xFF131823)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.11f) else Color(0xFF0F172A).copy(alpha = 0.14f)
+    val headerBgColor = Color(0xFF171E2C)
+    var copied by remember { mutableStateOf(false) }
+
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1500)
+            copied = false
+        }
+    }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
             .background(bgColor)
     ) {
-        // 顶栏：语言徽标与复制按钮
+        // 顶栏：语言徽标与复制按钮（与 Web 端 macOS Obsidian 代码窗一致）
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(headerBgColor)
-                .padding(horizontal = 12.dp, vertical = 4.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = block.language.uppercase().ifBlank { "CODE" },
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                fontFamily = FontFamily.Monospace
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    repeat(3) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(Color.White.copy(alpha = 0.22f), androidx.compose.foundation.shape.CircleShape)
+                        )
+                    }
+                }
+                Text(
+                    text = block.language.uppercase().ifBlank { "CODE" },
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF93C5FD),
+                    fontFamily = FontFamily.Monospace
+                )
+            }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (block.isTruncated) {
                     Icon(
                         imageVector = Icons.Outlined.Warning,
                         contentDescription = "已截断",
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(14.dp)
+                        tint = Color(0xFFF87171),
+                        modifier = Modifier.size(13.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "已截断超长代码",
+                        text = "已截断",
                         fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.error
+                        color = Color(0xFFF87171)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
 
-                IconButton(
-                    onClick = onCopy,
-                    modifier = Modifier.size(24.dp)
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (copied) Color(0xFF22C55E).copy(alpha = 0.16f) else Color.White.copy(alpha = 0.08f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.75.dp,
+                        if (copied) Color(0xFF4ADE80).copy(alpha = 0.45f) else Color.White.copy(alpha = 0.12f)
+                    ),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable {
+                            copied = true
+                            onCopy()
+                        }
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.ContentCopy,
-                        contentDescription = "复制完整代码",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp)
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ContentCopy,
+                            contentDescription = "复制完整代码",
+                            tint = if (copied) Color(0xFF4ADE80) else Color(0xFFCBD5E1),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = if (copied) "已复制" else "复制",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (copied) Color(0xFF4ADE80) else Color(0xFFCBD5E1)
+                        )
+                    }
                 }
             }
         }
@@ -291,8 +336,8 @@ private fun CodeBlockContainer(
                         text = line,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
-                        lineHeight = 17.sp,
-                        color = if (isDark) Color(0xFFABB2BF) else Color(0xFF383A42),
+                        lineHeight = 17.5.sp,
+                        color = Color(0xFFE2E8F0),
                         softWrap = false
                     )
                 }

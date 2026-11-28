@@ -2,19 +2,34 @@ package com.oiboard.app.ui.overview
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
@@ -23,14 +38,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Equalizer
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -44,10 +58,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -56,11 +73,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.oiboard.app.data.model.ContestDto
+import com.oiboard.app.ui.components.AnimatedMetricNumber
+import com.oiboard.app.ui.components.TactileGlassCard
+import com.oiboard.app.ui.components.TactileIconBadge
+import com.oiboard.app.ui.components.TactilePlatformBadge
+import com.oiboard.app.ui.components.TactileRecessedWell
 import com.oiboard.app.ui.overview.charts.ClimbingCurveCanvas
 import com.oiboard.app.ui.overview.charts.DailyEffortCanvas
 import com.oiboard.app.ui.overview.charts.HeatmapCanvas
 import com.oiboard.app.ui.overview.charts.PlatformsDonutCanvas
 import com.oiboard.app.ui.overview.charts.TagsDistributionCanvas
+import com.oiboard.app.ui.theme.LocalAnimationsEnabled
+import com.oiboard.app.ui.theme.LocalIsDarkTheme
 
 @Composable
 fun OverviewScreen(
@@ -70,6 +94,7 @@ fun OverviewScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var selectedPlan by rememberSaveable { mutableStateOf("PLAN_A") }
 
     // 页面进入或切回时进行 60 秒缓存时效检查
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -80,7 +105,8 @@ fun OverviewScreen(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
+                .background(Color.Transparent)
+                .statusBarsPadding(),
             contentAlignment = Alignment.Center
         ) {
             CircularProgressIndicator(
@@ -95,21 +121,23 @@ fun OverviewScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Color.Transparent)
+            .statusBarsPadding()
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        item {
-            Spacer(modifier = Modifier.height(4.dp))
+        item(key = "overview_header", contentType = "overview_header") {
             OverviewHeader(
                 lastSyncTime = uiState.overview?.last_sync_time,
+                isOffline = uiState.isOffline,
                 isRefreshing = uiState.isRefreshing,
                 onRefresh = viewModel::refresh
             )
         }
 
         if (uiState.errorMessage != null) {
-            item {
+            item(key = "overview_error", contentType = "overview_error") {
                 ErrorBanner(
                     message = uiState.errorMessage ?: "",
                     onRetry = viewModel::refresh
@@ -118,7 +146,7 @@ fun OverviewScreen(
         }
 
         // KPI Metric Cards
-        item {
+        item(key = "kpi_metrics_section", contentType = "overview_kpis") {
             val stats = uiState.overview?.stats
             val totalAc = stats?.total_ac ?: 0
             val totalSubs = stats?.total_subs ?: 0
@@ -129,49 +157,87 @@ fun OverviewScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Max),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     KpiCard(
                         title = "累计通过",
-                        mainValue = "$totalAc 题",
-                        subBadge = if (todayAc > 0) "+今日 $todayAc" else null,
+                        value = totalAc,
+                        suffix = " 题",
+                        subBadge = "今日通过 $todayAc",
                         icon = Icons.Outlined.CheckCircle,
-                        modifier = Modifier.weight(1f)
+                        accentTint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                     KpiCard(
                         title = "通过率",
-                        mainValue = "$acRate%",
+                        value = acRate,
+                        suffix = "%",
                         subBadge = "总提交 $totalSubs",
                         icon = Icons.Outlined.Equalizer,
-                        modifier = Modifier.weight(1f)
+                        accentTint = Color(0xFF6366F1),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Max),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     KpiCard(
                         title = "连续活跃",
-                        mainValue = "$streak 天",
-                        subBadge = "最长连续",
+                        value = streak,
+                        suffix = " 天",
+                        subBadge = "活跃天数",
                         icon = Icons.Outlined.LocalFireDepartment,
-                        modifier = Modifier.weight(1f)
+                        accentTint = Color(0xFFF59E0B),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                     KpiCard(
                         title = "今日提交",
-                        mainValue = "$todaySubs 次",
+                        value = todaySubs,
+                        suffix = " 次",
                         subBadge = "今日通过 $todayAc",
                         icon = Icons.Outlined.DateRange,
-                        modifier = Modifier.weight(1f)
+                        accentTint = Color(0xFF10B981),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    )
+                }
+
+                // 方案 B：拆成两张卡，与现有四张组成 2×3
+                if (selectedPlan == "PLAN_B") {
+                    LocalCodeCardsPlanB(
+                        localCode = uiState.overview?.local_code,
+                        onSwitchPlan = { selectedPlan = "PLAN_A" }
                     )
                 }
             }
         }
 
+        // 方案 A：通栏长卡片（位于 2×2 卡片下方，左右对称）
+        if (selectedPlan == "PLAN_A") {
+            item(key = "local_code_plan_a", contentType = "overview_local_code") {
+                LocalCodeCardPlanA(
+                    localCode = uiState.overview?.local_code,
+                    onSwitchPlan = { selectedPlan = "PLAN_B" }
+                )
+            }
+        }
+
         // Upcoming Contests Card
-        item {
+        item(key = "upcoming_contests", contentType = "overview_upcoming") {
             UpcomingContestsCard(
                 contests = uiState.upcomingContests,
                 onNavigateToContests = onNavigateToContests,
@@ -187,7 +253,7 @@ fun OverviewScreen(
         }
 
         // Heatmap Card
-        item {
+        item(key = "heatmap_section", contentType = "overview_heatmap") {
             HeatmapSection(
                 heatmap = uiState.heatmap?.heatmap ?: emptyList(),
                 year = uiState.selectedYear,
@@ -199,14 +265,14 @@ fun OverviewScreen(
         }
 
         // Analytics Workbench
-        item {
+        item(key = "analytics_workbench", contentType = "overview_analytics") {
             AnalyticsWorkbenchCard(
                 uiState = uiState,
                 onChartTabChanged = viewModel::onChartTabChanged
             )
         }
 
-        item {
+        item(key = "bottom_spacer", contentType = "overview_spacer") {
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
@@ -215,6 +281,7 @@ fun OverviewScreen(
 @Composable
 private fun OverviewHeader(
     lastSyncTime: String?,
+    isOffline: Boolean = false,
     isRefreshing: Boolean,
     onRefresh: () -> Unit
 ) {
@@ -230,12 +297,34 @@ private fun OverviewHeader(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
-            if (!lastSyncTime.isNullOrBlank()) {
-                Text(
-                    text = "同步: $lastSyncTime",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isOffline) {
+                    Icon(
+                        imageVector = Icons.Outlined.CloudOff,
+                        contentDescription = "离线缓存",
+                        modifier = Modifier.size(12.dp),
+                        tint = MaterialTheme.colorScheme.tertiary
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "离线缓存",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                    if (!lastSyncTime.isNullOrBlank()) {
+                        Text(
+                            text = " · 同步: $lastSyncTime",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else if (!lastSyncTime.isNullOrBlank()) {
+                    Text(
+                        text = "同步: $lastSyncTime",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
@@ -263,21 +352,23 @@ private fun OverviewHeader(
 @Composable
 private fun KpiCard(
     title: String,
-    mainValue: String,
+    value: Int,
+    suffix: String,
     subBadge: String?,
     icon: ImageVector,
+    accentTint: Color,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    TactileGlassCard(
+        modifier = modifier.fillMaxHeight(),
+        cornerRadius = 20.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .fillMaxHeight()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -287,32 +378,46 @@ private fun KpiCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                TactileIconBadge(
+                    icon = icon,
+                    tint = accentTint,
+                    size = 28.dp,
+                    iconSize = 15.dp
                 )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Text(
-                text = mainValue,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            if (!subBadge.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = subBadge,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                    color = MaterialTheme.colorScheme.primary
+            Column {
+                AnimatedMetricNumber(
+                    targetValue = value,
+                    suffix = suffix,
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
                 )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                if (!subBadge.isNullOrBlank()) {
+                    Text(
+                        text = subBadge,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = accentTint,
+                        maxLines = 1
+                    )
+                } else {
+                    Text(
+                        text = " ",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
@@ -324,11 +429,9 @@ private fun UpcomingContestsCard(
     onNavigateToContests: () -> Unit,
     onContestClick: (ContestDto) -> Unit
 ) {
-    Card(
+    TactileGlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        cornerRadius = 20.dp
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
@@ -336,14 +439,16 @@ private fun UpcomingContestsCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Outlined.DateRange,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TactileIconBadge(
+                        icon = Icons.Outlined.DateRange,
+                        tint = MaterialTheme.colorScheme.primary,
+                        size = 28.dp,
+                        iconSize = 15.dp
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "近期比赛",
                         fontSize = 16.sp,
@@ -370,69 +475,71 @@ private fun UpcomingContestsCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             if (contests.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
+                TactileRecessedWell(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 12.dp
                 ) {
-                    Text(
-                        text = "暂无比赛",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无比赛",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     contests.forEach { contest ->
-                        Row(
+                        TactileRecessedWell(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable { onContestClick(contest) }
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .clickable { onContestClick(contest) },
+                            cornerRadius = 12.dp
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier.padding(end = 10.dp)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = contest.platform.uppercase(),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                TactilePlatformBadge(
+                                    platform = contest.platform,
+                                    modifier = Modifier.padding(end = 10.dp)
+                                )
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = contest.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${contest.start_time.take(16)} · ${contest.status_text}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+                                    contentDescription = "打开链接",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.outline
                                 )
                             }
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = contest.name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "${contest.start_time.take(16)} · ${contest.status_text}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
-                                contentDescription = "打开链接",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.outline
-                            )
                         }
                     }
                 }
@@ -459,11 +566,9 @@ private fun HeatmapSection(
         "leetcode" to "力扣"
     )
 
-    Card(
+    TactileGlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        cornerRadius = 20.dp
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Text(
@@ -522,10 +627,32 @@ private fun HeatmapSection(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            HeatmapCanvas(
-                heatmap = heatmap,
-                year = year
-            )
+            val animationsEnabled = LocalAnimationsEnabled.current
+            val animProgress = remember { Animatable(if (animationsEnabled) 0f else 1f) }
+            androidx.compose.runtime.LaunchedEffect(heatmap, year, animationsEnabled) {
+                if (!animationsEnabled) {
+                    animProgress.snapTo(1f)
+                } else if (heatmap.isNotEmpty()) {
+                    animProgress.snapTo(0f)
+                    animProgress.animateTo(1f, animationSpec = tween(260, easing = FastOutSlowInEasing))
+                } else {
+                    animProgress.snapTo(1f)
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        alpha = animProgress.value
+                        translationY = (1f - animProgress.value) * 10f
+                    }
+            ) {
+                HeatmapCanvas(
+                    heatmap = heatmap,
+                    year = year
+                )
+            }
         }
     }
 }
@@ -535,72 +662,108 @@ private fun AnalyticsWorkbenchCard(
     uiState: OverviewUiState,
     onChartTabChanged: (ChartTab) -> Unit
 ) {
-    Card(
+    val isDark = LocalIsDarkTheme.current
+    val animationsEnabled = LocalAnimationsEnabled.current
+
+    TactileGlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        cornerRadius = 20.dp
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
-            Text(
-                text = "统计分析",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TactileIconBadge(
+                    icon = Icons.Outlined.Equalizer,
+                    tint = MaterialTheme.colorScheme.primary,
+                    size = 28.dp,
+                    iconSize = 15.dp
+                )
+                Text(
+                    text = "统计分析",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Segment tabs
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            // Segment tabs inside recessed well
+            TactileRecessedWell(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 14.dp
             ) {
-                ChartTab.entries.forEach { tab ->
-                    val isSelected = uiState.activeChartTab == tab
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { onChartTabChanged(tab) }
-                    ) {
-                        Text(
-                            text = tab.label,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    ChartTab.entries.forEach { tab ->
+                        val isSelected = uiState.activeChartTab == tab
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent,
+                            border = if (isSelected) {
+                                BorderStroke(
+                                    0.75.dp,
+                                    if (isDark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.08f)
+                                )
+                            } else null,
+                            shadowElevation = 0.dp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onChartTabChanged(tab) }
+                        ) {
+                            Text(
+                                text = tab.label,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Lazy rendering of the selected chart
-            when (uiState.activeChartTab) {
-                ChartTab.CLIMBING_CURVE -> {
-                    ClimbingCurveCanvas(
-                        points = uiState.overview?.climbing_curve ?: emptyList()
-                    )
-                }
-                ChartTab.DAILY_EFFORT -> {
-                    DailyEffortCanvas(
-                        points = uiState.overview?.daily_effort ?: emptyList()
-                    )
-                }
-                ChartTab.PLATFORMS -> {
-                    PlatformsDonutCanvas(
-                        platforms = uiState.overview?.stats?.platforms ?: emptyMap()
-                    )
-                }
-                ChartTab.TAGS -> {
-                    TagsDistributionCanvas(
-                        tags = uiState.tags
-                    )
+            AnimatedContent(
+                targetState = uiState.activeChartTab,
+                transitionSpec = {
+                    if (!animationsEnabled) {
+                        fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+                    } else {
+                        fadeIn(tween(140)) togetherWith fadeOut(tween(100))
+                    }
+                },
+                label = "overview_chart_tab"
+            ) { tab ->
+                when (tab) {
+                    ChartTab.CLIMBING_CURVE -> {
+                        ClimbingCurveCanvas(
+                            points = uiState.overview?.climbing_curve ?: emptyList()
+                        )
+                    }
+                    ChartTab.DAILY_EFFORT -> {
+                        DailyEffortCanvas(
+                            points = uiState.overview?.daily_effort ?: emptyList()
+                        )
+                    }
+                    ChartTab.PLATFORMS -> {
+                        PlatformsDonutCanvas(
+                            platforms = uiState.overview?.stats?.platforms ?: emptyMap()
+                        )
+                    }
+                    ChartTab.TAGS -> {
+                        TagsDistributionCanvas(
+                            tags = uiState.tags
+                        )
+                    }
                 }
             }
         }

@@ -24,15 +24,11 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val isLoading: Boolean = false,
     val accounts: List<AccountItemDto> = emptyList(),
-    val pollInterval: String = "30",
-    val sprintMode: Boolean = false,
     val httpProxy: String = "",
-    val isSavingSettings: Boolean = false,
+    val isAnimationEnabled: Boolean = true,
     // 弹窗状态
     val pendingDeleteAccount: AccountItemDto? = null,
     val pendingSetPrimary: AccountItemDto? = null,
-    val pendingSyncAccount: AccountItemDto? = null,
-    val showSyncAllDialog: Boolean = false,
     val showChangePasswordDialog: Boolean = false,
     val showAccountFormDialog: Boolean = false,
     val editingAccount: AccountItemDto? = null,
@@ -64,6 +60,21 @@ class SettingsViewModel(
 
     init {
         loadData()
+        observeAnimationPreference()
+    }
+
+    private fun observeAnimationPreference() {
+        viewModelScope.launch {
+            prefs.animationEnabledFlow.collect { enabled ->
+                _uiState.update { it.copy(isAnimationEnabled = enabled) }
+            }
+        }
+    }
+
+    fun toggleAnimation(enabled: Boolean) {
+        viewModelScope.launch {
+            prefs.saveAnimationEnabled(enabled)
+        }
     }
 
     fun loadData() {
@@ -74,81 +85,19 @@ class SettingsViewModel(
             val accRes = repository.getAccounts()
             val accounts = if (accRes is ApiResult.Success) accRes.data.accounts else emptyList()
 
-            // 2. 获取配置
+            // 2. 获取配置（仅读取出站代理供账号连通性测试使用）
             val setRes = repository.getSettings()
-            var interval = "30"
-            var sprint = false
             var proxy = ""
             if (setRes is ApiResult.Success) {
-                val configs = setRes.data.configs
-                interval = configs["poll_interval_minutes"] ?: "30"
-                sprint = (configs["sprint_mode"] == "1" || configs["sprint_mode"].equals("true", ignoreCase = true))
-                proxy = configs["http_proxy"] ?: ""
+                proxy = setRes.data.configs["http_proxy"] ?: ""
             }
 
             _uiState.update {
                 it.copy(
                     isLoading = false,
                     accounts = accounts,
-                    pollInterval = interval,
-                    sprintMode = sprint,
                     httpProxy = proxy
                 )
-            }
-        }
-    }
-
-    // 保存全局设置（二次确认）
-    fun saveGlobalSettings(interval: String, sprint: Boolean, proxy: String) {
-        _uiState.update { it.copy(isSavingSettings = true) }
-        viewModelScope.launch {
-            val req = SettingsUpdateRequest(
-                poll_interval_minutes = interval.trim(),
-                sprint_mode = if (sprint) "true" else "false",
-                http_proxy = proxy.trim()
-            )
-            when (val res = repository.updateSettings(req)) {
-                is ApiResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            isSavingSettings = false,
-                            pollInterval = interval.trim(),
-                            sprintMode = sprint,
-                            httpProxy = proxy.trim(),
-                            actionMessage = "配置已保存"
-                        )
-                    }
-                    AppCacheManager.invalidate(CacheTarget.OVERVIEW, CacheTarget.SUBMISSIONS, CacheTarget.CONTESTS)
-                }
-                is ApiResult.Error -> {
-                    _uiState.update { it.copy(isSavingSettings = false, actionMessage = res.message) }
-                }
-                is ApiResult.NetworkError -> {
-                    _uiState.update { it.copy(isSavingSettings = false, actionMessage = "保存失败: 网络错误") }
-                }
-            }
-        }
-    }
-
-    // 全量同步（二次确认）
-    fun showSyncAllDialog(show: Boolean) {
-        _uiState.update { it.copy(showSyncAllDialog = show) }
-    }
-
-    fun confirmSyncAll() {
-        _uiState.update { it.copy(showSyncAllDialog = false) }
-        viewModelScope.launch {
-            when (val res = repository.triggerSyncAll()) {
-                is ApiResult.Success -> {
-                    _uiState.update { it.copy(actionMessage = "已触发全量同步") }
-                    AppCacheManager.invalidate(CacheTarget.OVERVIEW, CacheTarget.SUBMISSIONS, CacheTarget.CONTESTS)
-                }
-                is ApiResult.Error -> {
-                    _uiState.update { it.copy(actionMessage = res.message) }
-                }
-                is ApiResult.NetworkError -> {
-                    _uiState.update { it.copy(actionMessage = "同步触发失败: 网络错误") }
-                }
             }
         }
     }
@@ -289,34 +238,7 @@ class SettingsViewModel(
         }
     }
 
-    // 单账号即时抓取（二次确认）
-    fun requestSyncAccount(account: AccountItemDto) {
-        _uiState.update { it.copy(pendingSyncAccount = account) }
-    }
 
-    fun dismissSyncAccount() {
-        _uiState.update { it.copy(pendingSyncAccount = null) }
-    }
-
-    fun confirmSyncAccount() {
-        val account = _uiState.value.pendingSyncAccount ?: return
-        _uiState.update { it.copy(pendingSyncAccount = null) }
-
-        viewModelScope.launch {
-            when (val res = repository.syncSingleAccount(account.id)) {
-                is ApiResult.Success -> {
-                    _uiState.update { it.copy(actionMessage = "已触发单账号同步") }
-                    AppCacheManager.invalidate(CacheTarget.OVERVIEW, CacheTarget.SUBMISSIONS, CacheTarget.CONTESTS)
-                }
-                is ApiResult.Error -> {
-                    _uiState.update { it.copy(actionMessage = res.message) }
-                }
-                is ApiResult.NetworkError -> {
-                    _uiState.update { it.copy(actionMessage = "同步失败: 网络错误") }
-                }
-            }
-        }
-    }
 
     // 删除账号（二次确认）
     fun requestDeleteAccount(account: AccountItemDto) {

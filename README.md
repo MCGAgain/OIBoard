@@ -22,37 +22,37 @@
 
 ```mermaid
 flowchart TB
-    subgraph Frontend [前端界面 (Vue 3 + ECharts + Tailwind)]
-        UI[数据看板]
-        Nav[侧边栏导航]
-        HMap[年度贡献热力图]
-        Charts[算法标签画像 & 平台占比]
-        Stream[全量提交流 & 错题集]
-        ContestUI[比赛日历 & 实时倒计时]
+    subgraph Frontend ["前端界面 (Vue 3 + ECharts + Tailwind)"]
+        UI["数据看板"]
+        Nav["侧边栏导航"]
+        HMap["年度贡献热力图"]
+        Charts["算法标签画像 & 平台占比"]
+        Stream["全量提交流 & 错题集"]
+        ContestUI["比赛日历 & 实时倒计时"]
     end
 
-    subgraph API_Layer [API 业务层 (FastAPI)]
-        Auth[用户认证与鉴权]
-        Dep[请求拦截器]
-        Router[统计 / 比赛 / 设置 / 认证路由]
+    subgraph API_Layer ["API 业务层 (FastAPI)"]
+        Auth["用户认证与鉴权"]
+        Dep["请求拦截器"]
+        Router["统计 / 比赛 / 设置 / 认证路由"]
     end
 
-    subgraph Scheduler_Engine [异步调度与同步引擎]
-        Loop[后台自动轮询]
-        CF[Codeforces Fetcher]
-        AT[AtCoder Fetcher]
-        LG[Luogu Fetcher]
-        AW[AcWing Fetcher]
-        Contests[Contest Fetcher]
+    subgraph Scheduler_Engine ["异步调度与同步引擎"]
+        Loop["后台自动轮询"]
+        CF["Codeforces Fetcher"]
+        AT["AtCoder Fetcher"]
+        LG["Luogu Fetcher"]
+        AW["AcWing Fetcher"]
+        Contests["Contest Fetcher"]
     end
 
-    subgraph Storage [持久化存储 (SQLite)]
-        Users[(users 用户表)]
-        Sessions[(sessions 会话表)]
-        Submissions[(submissions 提交记录表)]
-        ContestsDB[(contests 比赛表)]
-        Configs[(user_configs 配置表)]
-        Status[(platform_status 状态表)]
+    subgraph Storage ["持久化存储 (SQLite)"]
+        Users[("users 用户表")]
+        Sessions[("sessions 会话表")]
+        Submissions[("submissions 提交记录表")]
+        ContestsDB[("contests 比赛表")]
+        Configs[("user_configs 配置表")]
+        Status[("platform_status 状态表")]
     end
 
     UI -->|API 请求| Dep

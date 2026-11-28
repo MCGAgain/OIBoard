@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+@Immutable
 @Serializable
 data class StatsOverviewResponse(
     val stats: OverallStatsDto = OverallStatsDto(),
@@ -14,6 +15,7 @@ data class StatsOverviewResponse(
     val local_code: LocalCodeDto? = null
 )
 
+@Immutable
 @Serializable
 data class OverallStatsDto(
     val total_ac: Int = 0,
@@ -24,12 +26,14 @@ data class OverallStatsDto(
     val platforms: Map<String, PlatformStatsDto> = emptyMap()
 )
 
+@Immutable
 @Serializable
 data class PlatformStatsDto(
     val ac: Int = 0,
     val total: Int = 0
 )
 
+@Immutable
 @Serializable
 data class PlatformStatusDto(
     val id: Long = 0,
@@ -41,6 +45,7 @@ data class PlatformStatusDto(
     val updated_at: String? = null
 )
 
+@Immutable
 @Serializable
 data class ClimbingCurvePointDto(
     val date: String,
@@ -55,6 +60,7 @@ data class ClimbingCurvePointDto(
     val dailyNewAc: Int get() = if (newAc != 0) newAc else daily_new_ac
 }
 
+@Immutable
 @Serializable
 data class DailyEffortPointDto(
     val date: String,
@@ -62,6 +68,17 @@ data class DailyEffortPointDto(
     val unique_ac: Int = 0
 )
 
+@Immutable
+@Serializable
+data class LocalDeviceDto(
+    val device_id: String = "",
+    val device_name: String = "",
+    val platform: String = "",
+    val agent_version: String = "",
+    val last_seen_at: String? = null
+)
+
+@Immutable
 @Serializable
 data class LocalCodeDto(
     val total_lines: Int = 0,
@@ -72,9 +89,12 @@ data class LocalCodeDto(
     val cpp_lines: Int = 0,
     val java_lines: Int = 0,
     val has_data: Boolean = false,
-    val synced_at: String? = null
+    val synced_at: String? = null,
+    val device_count: Int = 0,
+    val devices: List<LocalDeviceDto> = emptyList()
 )
 
+@Immutable
 @Serializable
 data class HeatmapResponse(
     val heatmap: List<HeatmapDayDto> = emptyList(),
@@ -82,6 +102,7 @@ data class HeatmapResponse(
     val available_years: List<Int> = emptyList()
 )
 
+@Immutable
 @Serializable
 data class HeatmapDayDto(
     val date: String,
@@ -89,11 +110,13 @@ data class HeatmapDayDto(
     val unique_ac: Int = 0
 )
 
+@Immutable
 @Serializable
 data class TagStatsResponse(
     val tags: List<TagStatDto> = emptyList()
 )
 
+@Immutable
 @Serializable
 data class TagStatDto(
     val tag: String,
