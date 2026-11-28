@@ -1,5 +1,7 @@
 package com.oiboard.app.ui.navigation
 
+import android.os.Build
+import android.view.RoundedCorner
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedContent
@@ -12,6 +14,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
@@ -23,27 +26,30 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import com.oiboard.app.data.local.AppThemeMode
 import com.oiboard.app.data.local.UserPreferencesRepository
 import com.oiboard.app.data.model.MistakeItemDto
@@ -91,38 +97,98 @@ fun MainScreen(
 
     // 全屏错题详情页与 Markdown 编辑器状态（错题页与提交页共用）
     var activeMistakeDetail by remember { mutableStateOf<MistakeItemDto?>(null) }
+    var renderedMistakeDetail by remember { mutableStateOf<MistakeItemDto?>(null) }
     var showMistakeEditor by remember { mutableStateOf(false) }
     var editingMistakeTarget by remember { mutableStateOf<MistakeItemDto?>(null) }
+    var renderedEditorTarget by remember { mutableStateOf<MistakeItemDto?>(null) }
 
     val detailBackProgress = remember { Animatable(0f) }
     var detailBackEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
+    val detailBackAlpha = remember { Animatable(1f) }
+    var wasDetailDismissedByBack by remember { mutableStateOf(false) }
+
     val editorBackProgress = remember { Animatable(0f) }
     var editorBackEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
+    val editorBackAlpha = remember { Animatable(1f) }
+    var wasEditorDismissedByBack by remember { mutableStateOf(false) }
 
-    LaunchedEffect(activeMistakeDetail?.id) {
-        detailBackProgress.snapTo(0f)
+    val uiScope = rememberCoroutineScope()
+
+    fun openMistakeDetail(detail: MistakeItemDto) {
+        uiScope.launch {
+            detailBackProgress.snapTo(0f)
+            detailBackAlpha.snapTo(1f)
+            wasDetailDismissedByBack = false
+            renderedMistakeDetail = detail
+            activeMistakeDetail = detail
+        }
     }
-    LaunchedEffect(showMistakeEditor, editingMistakeTarget?.id) {
-        editorBackProgress.snapTo(0f)
+
+    fun closeMistakeDetailByButton() {
+        wasDetailDismissedByBack = false
+        activeMistakeDetail = null
+    }
+
+    fun openMistakeEditor(editing: MistakeItemDto?) {
+        uiScope.launch {
+            editorBackProgress.snapTo(0f)
+            editorBackAlpha.snapTo(1f)
+            wasEditorDismissedByBack = false
+            renderedEditorTarget = editing
+            editingMistakeTarget = editing
+            showMistakeEditor = true
+        }
+    }
+
+    fun closeMistakeEditorByButton() {
+        wasEditorDismissedByBack = false
+        showMistakeEditor = false
+        editingMistakeTarget = null
     }
 
     val hasDetail = activeMistakeDetail != null
     val hasEditor = showMistakeEditor
     val hasOverlay = hasDetail || hasEditor
+    val deviceCornerShape = rememberDeviceCornerShape(hasOverlay)
 
-    // X (Twitter) 风格预测性返回手势：边缘滑动时页面实时缩退、圆角剥离，松手回弹或退出
+    // X (Twitter) 风格预测性返回手势：边缘滑动时页面贴合屏幕物理圆角缩退剥离，确认返回时连贯淡出，取消则弹性回弹
     PredictiveBackHandler(enabled = hasDetail && !hasEditor) { progress: Flow<BackEventCompat> ->
         try {
             progress.collect { backEvent ->
                 detailBackEdge = backEvent.swipeEdge
                 detailBackProgress.snapTo(backEvent.progress)
             }
+            coroutineScope {
+                launch {
+                    detailBackProgress.animateTo(
+                        targetValue = 1.15f,
+                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                    )
+                }
+                launch {
+                    detailBackAlpha.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = 185, easing = FastOutSlowInEasing)
+                    )
+                }
+            }
+            wasDetailDismissedByBack = true
             activeMistakeDetail = null
         } catch (_: CancellationException) {
-            detailBackProgress.animateTo(
-                targetValue = 0f,
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-            )
+            coroutineScope {
+                launch {
+                    detailBackProgress.animateTo(
+                        targetValue = 0f,
+                        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+                    )
+                }
+                launch {
+                    detailBackAlpha.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 120)
+                    )
+                }
+            }
         }
     }
 
@@ -132,13 +198,38 @@ fun MainScreen(
                 editorBackEdge = backEvent.swipeEdge
                 editorBackProgress.snapTo(backEvent.progress)
             }
+            coroutineScope {
+                launch {
+                    editorBackProgress.animateTo(
+                        targetValue = 1.15f,
+                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                    )
+                }
+                launch {
+                    editorBackAlpha.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = 185, easing = FastOutSlowInEasing)
+                    )
+                }
+            }
+            wasEditorDismissedByBack = true
             showMistakeEditor = false
             editingMistakeTarget = null
         } catch (_: CancellationException) {
-            editorBackProgress.animateTo(
-                targetValue = 0f,
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-            )
+            coroutineScope {
+                launch {
+                    editorBackProgress.animateTo(
+                        targetValue = 0f,
+                        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+                    )
+                }
+                launch {
+                    editorBackAlpha.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 120)
+                    )
+                }
+            }
         }
     }
 
@@ -226,7 +317,7 @@ fun MainScreen(
                                     SubmissionsScreen(
                                         viewModel = submissionsViewModel,
                                         onOpenMistakeDetail = { detail ->
-                                            activeMistakeDetail = detail
+                                            openMistakeDetail(detail)
                                         }
                                     )
                                 } else {
@@ -238,11 +329,10 @@ fun MainScreen(
                                     MistakesScreen(
                                         viewModel = mistakesViewModel,
                                         onOpenMistakeDetail = { detail ->
-                                            activeMistakeDetail = detail
+                                            openMistakeDetail(detail)
                                         },
                                         onOpenMistakeEditor = { editing ->
-                                            editingMistakeTarget = editing
-                                            showMistakeEditor = true
+                                            openMistakeEditor(editing)
                                         }
                                     )
                                 } else {
@@ -292,21 +382,26 @@ fun MainScreen(
             }
         }
 
-        // 全屏从右侧滑入详情页（覆盖底栏，支持 X 风格预测性边缘剥离返回）
+        // 全屏从右侧滑入详情页（覆盖底栏，支持 X 风格硬件圆角预测性边缘剥离返回 + 淡出动画）
         AnimatedVisibility(
             visible = hasDetail,
             enter = slideInHorizontally(
                 initialOffsetX = { fullWidth -> fullWidth },
                 animationSpec = tween(durationMillis = detailAnimDuration, easing = FastOutSlowInEasing)
             ) + fadeIn(animationSpec = tween(detailAnimDuration)),
-            exit = slideOutHorizontally(
-                targetOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = detailAnimDuration, easing = FastOutSlowInEasing)
-            ) + fadeOut(animationSpec = tween(detailAnimDuration))
+            exit = if (wasDetailDismissedByBack) {
+                fadeOut(tween(0))
+            } else {
+                slideOutHorizontally(
+                    targetOffsetX = { fullWidth -> fullWidth },
+                    animationSpec = tween(durationMillis = detailAnimDuration, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(detailAnimDuration))
+            }
         ) {
-            activeMistakeDetail?.let { detail ->
+            renderedMistakeDetail?.let { detail ->
                 val editorPeek = editorBackProgress.value.coerceIn(0f, 1f)
-                val detailPeek = detailBackProgress.value.coerceIn(0f, 1f)
+                val detailPeek = detailBackProgress.value.coerceIn(0f, 1.15f)
+                val detailAlpha = detailBackAlpha.value.coerceIn(0f, 1f)
                 val detailModifier = when {
                     hasEditor -> Modifier
                         .fillMaxSize()
@@ -315,17 +410,20 @@ fun MainScreen(
                             scaleX = scale
                             scaleY = scale
                         }
-                    detailPeek > 0f -> {
-                        val cornerRadius = (detailPeek * 32f).dp
+                    detailPeek > 0f || detailAlpha < 1f -> {
                         val edgeSign = if (detailBackEdge == BackEventCompat.EDGE_RIGHT) -1f else 1f
                         Modifier
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(cornerRadius))
                             .graphicsLayer {
-                                val scale = 1f - 0.11f * detailPeek
+                                val clampedPeek = detailPeek
+                                val scale = 1f - 0.13f * clampedPeek
                                 scaleX = scale
                                 scaleY = scale
-                                translationX = edgeSign * size.width * 0.28f * detailPeek
+                                translationX = edgeSign * size.width * 0.25f * clampedPeek
+                                alpha = (detailAlpha * (1f - 0.12f * clampedPeek.coerceAtMost(1f))).coerceIn(0f, 1f)
+                                shape = deviceCornerShape
+                                clip = true
+                                shadowElevation = with(density) { (20.dp * clampedPeek.coerceAtMost(1f)).toPx() }
                             }
                     }
                     else -> Modifier.fillMaxSize()
@@ -333,10 +431,9 @@ fun MainScreen(
                 Box(modifier = detailModifier) {
                     MistakeDetailScreen(
                         mistake = detail,
-                        onBack = { activeMistakeDetail = null },
+                        onBack = { closeMistakeDetailByButton() },
                         onEdit = { item ->
-                            editingMistakeTarget = item
-                            showMistakeEditor = true
+                            openMistakeEditor(item)
                         },
                         onReview = { item ->
                             mistakesViewModel?.requestReview(item)
@@ -345,7 +442,7 @@ fun MainScreen(
                             mistakesViewModel?.requestToggleMaster(item)
                         },
                         onDelete = { item ->
-                            activeMistakeDetail = null
+                            closeMistakeDetailByButton()
                             mistakesViewModel?.requestDelete(item)
                         }
                     )
@@ -363,7 +460,7 @@ fun MainScreen(
             }
         }
 
-        // 全屏层压玻璃 Markdown 错题编辑器子页面（替代弹窗，支持进入/退出动效及预测性返回）
+        // 全屏层压玻璃 Markdown 错题编辑器子页面（替代弹窗，支持进入/退出缩放淡出及 X 风格硬件圆角预测性返回）
         AnimatedVisibility(
             visible = hasEditor,
             enter = slideInVertically(
@@ -373,57 +470,97 @@ fun MainScreen(
                 initialScale = 0.96f,
                 animationSpec = tween(durationMillis = editorAnimDuration, easing = FastOutSlowInEasing)
             ) + fadeIn(animationSpec = tween(durationMillis = editorAnimDuration)),
-            exit = slideOutVertically(
-                targetOffsetY = { fullHeight -> (fullHeight * 0.16f).toInt() },
-                animationSpec = tween(durationMillis = editorAnimDuration, easing = FastOutSlowInEasing)
-            ) + fadeOut(animationSpec = tween(durationMillis = (editorAnimDuration * 0.85f).toInt()))
+            exit = if (wasEditorDismissedByBack) {
+                fadeOut(tween(0))
+            } else {
+                slideOutVertically(
+                    targetOffsetY = { fullHeight -> (fullHeight * 0.16f).toInt() },
+                    animationSpec = tween(durationMillis = editorAnimDuration, easing = FastOutSlowInEasing)
+                ) + scaleOut(
+                    targetScale = 0.94f,
+                    animationSpec = tween(durationMillis = editorAnimDuration, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(durationMillis = (editorAnimDuration * 0.85f).toInt()))
+            }
         ) {
-            val editorPeek = editorBackProgress.value.coerceIn(0f, 1f)
-            val editorModifier = if (editorPeek > 0f) {
-                val cornerRadius = (editorPeek * 32f).dp
+            val editorPeek = editorBackProgress.value.coerceIn(0f, 1.15f)
+            val editorAlpha = editorBackAlpha.value.coerceIn(0f, 1f)
+            val editorModifier = if (editorPeek > 0f || editorAlpha < 1f) {
                 val edgeSign = if (editorBackEdge == BackEventCompat.EDGE_RIGHT) -1f else 1f
                 Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(cornerRadius))
                     .graphicsLayer {
-                        val scale = 1f - 0.11f * editorPeek
+                        val clampedPeek = editorPeek
+                        val scale = 1f - 0.13f * clampedPeek
                         scaleX = scale
                         scaleY = scale
-                        translationX = edgeSign * size.width * 0.26f * editorPeek
-                        translationY = size.height * 0.05f * editorPeek
+                        translationX = edgeSign * size.width * 0.25f * clampedPeek
+                        translationY = size.height * 0.04f * clampedPeek
+                        alpha = (editorAlpha * (1f - 0.12f * clampedPeek.coerceAtMost(1f))).coerceIn(0f, 1f)
+                        shape = deviceCornerShape
+                        clip = true
+                        shadowElevation = with(density) { (20.dp * clampedPeek.coerceAtMost(1f)).toPx() }
                     }
             } else {
                 Modifier.fillMaxSize()
             }
-            MistakeEditorScreen(
-                initialMistake = editingMistakeTarget,
-                onBack = {
-                    showMistakeEditor = false
-                    editingMistakeTarget = null
-                },
-                onConfirmAdd = { req ->
-                    mistakesViewModel?.submitAdd(req)
-                    showMistakeEditor = false
-                    editingMistakeTarget = null
-                    selectedTab = Screen.Mistakes.route
-                },
-                onConfirmEdit = { id, req ->
-                    mistakesViewModel?.submitEdit(id, req)
-                    activeMistakeDetail = activeMistakeDetail?.let { prev ->
-                        if (prev.id == id) {
-                            prev.copy(
-                                key_point = req.key_point ?: prev.key_point,
-                                notes = req.notes ?: prev.notes,
-                                tags = req.tags ?: prev.tags,
-                                problem_url = req.problem_url ?: prev.problem_url
-                            )
-                        } else prev
-                    }
-                    showMistakeEditor = false
-                    editingMistakeTarget = null
-                },
-                modifier = editorModifier
+            Box(modifier = editorModifier) {
+                MistakeEditorScreen(
+                    initialMistake = renderedEditorTarget,
+                    onBack = { closeMistakeEditorByButton() },
+                    onConfirmAdd = { req ->
+                        mistakesViewModel?.submitAdd(req)
+                        closeMistakeEditorByButton()
+                        selectedTab = Screen.Mistakes.route
+                    },
+                    onConfirmEdit = { id, req ->
+                        mistakesViewModel?.submitEdit(id, req)
+                        val updated = activeMistakeDetail?.let { prev ->
+                            if (prev.id == id) {
+                                prev.copy(
+                                    key_point = req.key_point ?: prev.key_point,
+                                    notes = req.notes ?: prev.notes,
+                                    tags = req.tags ?: prev.tags,
+                                    problem_url = req.problem_url ?: prev.problem_url
+                                )
+                            } else prev
+                        }
+                        activeMistakeDetail = updated
+                        if (updated != null) {
+                            renderedMistakeDetail = updated
+                        }
+                        closeMistakeEditorByButton()
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 读取当前设备的物理屏幕四角圆角半径（Android 12+ RoundedCorner API，小米 14 约为 44.67dp），
+ * 使预测性返回拖拽剥离卡片的圆角精确贴合真实物理屏幕边框。
+ */
+@Composable
+private fun rememberDeviceCornerShape(refreshKey: Any): RoundedCornerShape {
+    val view = LocalView.current
+    val density = LocalDensity.current
+    return remember(view, density, refreshKey) {
+        val defaultRadius = 38.dp
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val insets = view.rootWindowInsets
+            fun cornerDp(position: Int): Dp {
+                val radiusPx = insets?.getRoundedCorner(position)?.radius ?: 0
+                return if (radiusPx > 0) with(density) { radiusPx.toDp() } else defaultRadius
+            }
+            RoundedCornerShape(
+                topStart = cornerDp(RoundedCorner.POSITION_TOP_LEFT),
+                topEnd = cornerDp(RoundedCorner.POSITION_TOP_RIGHT),
+                bottomEnd = cornerDp(RoundedCorner.POSITION_BOTTOM_RIGHT),
+                bottomStart = cornerDp(RoundedCorner.POSITION_BOTTOM_LEFT)
             )
+        } else {
+            RoundedCornerShape(defaultRadius)
         }
     }
 }
