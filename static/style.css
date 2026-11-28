@@ -57,6 +57,7 @@
   --shadow-float: 0 16px 40px -8px rgba(15, 23, 42, 0.16), 0 2px 8px rgba(15, 23, 42, 0.05);
   --shadow-pill: 0 1px 2px rgba(15, 23, 42, 0.05);
   --card-specular: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --glass-backdrop: blur(8px) saturate(135%);
 
   --ease-hydro: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
@@ -215,7 +216,7 @@ html[data-glass="on"] body::before {
   transform: translate3d(0, 0, 0);
   contain: strict;
   background-color: #dbe5f6;
-  background-image: url("/static/bg-light.svg?v=5.0.5");
+  background-image: url("/static/bg-light.svg?v=5.0.7");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -223,43 +224,39 @@ html[data-glass="on"] body::before {
 
 html[data-glass="on"].dark body::before {
   background-color: #050811;
-  background-image: url("/static/bg-dark.svg?v=5.0.5");
+  background-image: url("/static/bg-dark.svg?v=5.0.7");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 
-/* Tier 1: 主卡片 — Balanced macOS 15 Sequoia Frosted Glass（16px 轻量模糊，无嵌套 Backdrop Root、低功耗熔融轮廓线） */
+/* Tier 1: 主卡片 — 性能均衡的 macOS 15 磨砂玻璃（8px 高性价比单阶模糊 + 3层精简光影，4K 高刷滑动画质与功耗兼顾） */
 html[data-glass="on"] .ui-card,
 html[data-glass="on"] .apple-card {
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.04) 48%, rgba(255, 255, 255, 0.14) 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.58) 0%, rgba(244, 248, 255, 0.44) 100%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(244, 248, 255, 0.48) 100%);
   border-color: rgba(255, 255, 255, 0.80);
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.98),
-    inset 1px 0 0 rgba(255, 255, 255, 0.58),
-    inset 0 -1px 0 rgba(15, 23, 42, 0.055),
-    0 0 0 1px rgba(15, 23, 42, 0.055),
-    0 14px 32px -16px rgba(15, 23, 42, 0.15);
-  -webkit-backdrop-filter: blur(16px) saturate(185%);
-  backdrop-filter: blur(16px) saturate(185%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 1px 0 0 rgba(255, 255, 255, 0.50),
+    0 6px 18px -10px rgba(15, 23, 42, 0.12);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 
 html[data-glass="on"].dark .ui-card,
 html[data-glass="on"].dark .apple-card {
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.085) 0%, rgba(255, 255, 255, 0.01) 46%, rgba(147, 197, 253, 0.035) 100%),
-    linear-gradient(180deg, rgba(22, 30, 48, 0.56) 0%, rgba(12, 17, 29, 0.48) 100%);
+    linear-gradient(180deg, rgba(22, 30, 48, 0.60) 0%, rgba(12, 17, 29, 0.52) 100%);
   border-color: rgba(255, 255, 255, 0.155);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     inset 1px 0 0 rgba(255, 255, 255, 0.075),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.50),
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 16px 36px -14px rgba(0, 0, 0, 0.72);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  backdrop-filter: blur(16px) saturate(180%);
+    0 10px 22px -10px rgba(0, 0, 0, 0.64);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 
 html[data-glass="on"] .ui-card:hover,
@@ -339,21 +336,21 @@ html[data-glass="on"].dark .heatmap-container-outer {
   box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
 }
 
-/* Tier 3: 仅小型悬浮/吸顶控件保留实时单次下采样毛玻璃（blur 14px，无嵌套 FBO 读取） */
+/* Tier 3: 仅小型悬浮/吸顶控件保留实时单次下采样毛玻璃（统一 --glass-backdrop，无嵌套 FBO 读取） */
 html[data-glass="on"] .hydro-sidebar {
   background: rgba(248, 250, 255, 0.66) !important;
   border-right-color: rgba(15, 23, 42, 0.09) !important;
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.72), 6px 0 28px -12px rgba(15, 23, 42, 0.12);
-  -webkit-backdrop-filter: blur(14px) saturate(175%);
-  backdrop-filter: blur(14px) saturate(175%);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 
 html[data-glass="on"].dark .hydro-sidebar {
   background: rgba(13, 17, 26, 0.68) !important;
   border-right-color: rgba(255, 255, 255, 0.10) !important;
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.05), 8px 0 32px -10px rgba(0, 0, 0, 0.68);
-  -webkit-backdrop-filter: blur(14px) saturate(175%);
-  backdrop-filter: blur(14px) saturate(175%);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 
 html[data-glass="on"] .notify-shell,
@@ -365,8 +362,8 @@ html[data-glass="on"] .glass-toast {
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
     0 0 0 1px rgba(15, 23, 42, 0.085),
     0 18px 44px -10px rgba(15, 23, 42, 0.22);
-  -webkit-backdrop-filter: blur(14px) saturate(175%);
-  backdrop-filter: blur(14px) saturate(175%);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 
 html[data-glass="on"].dark .notify-shell,
@@ -377,8 +374,8 @@ html[data-glass="on"].dark .glass-toast {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 22px 50px -10px rgba(0, 0, 0, 0.74);
-  -webkit-backdrop-filter: blur(14px) saturate(175%);
-  backdrop-filter: blur(14px) saturate(175%);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 
 /* 弹窗磨砂遮罩与窗口本体 */
@@ -403,8 +400,8 @@ html[data-glass="on"] .glass-modal {
     inset 0 1px 0 rgba(255, 255, 255, 0.98),
     0 0 0 1px rgba(15, 23, 42, 0.09),
     0 28px 68px -12px rgba(15, 23, 42, 0.28);
-  -webkit-backdrop-filter: blur(14px) saturate(175%);
-  backdrop-filter: blur(14px) saturate(175%);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 
 html[data-glass="on"].dark .glass-modal {
@@ -413,8 +410,8 @@ html[data-glass="on"].dark .glass-modal {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 30px 72px -12px rgba(0, 0, 0, 0.82);
-  -webkit-backdrop-filter: blur(14px) saturate(175%);
-  backdrop-filter: blur(14px) saturate(175%);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 
 /* 控件、输入框、表格头、提示条在玻璃模式下的精工键帽与凹槽适配 */
@@ -535,14 +532,14 @@ html[data-glass="on"].dark .ui-input {
 html[data-glass="on"] .hydro-notice {
   background: rgba(255, 255, 255, 0.66);
   border-color: rgba(255, 255, 255, 0.8);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 html[data-glass="on"].dark .hydro-notice {
   background: rgba(24, 30, 44, 0.62);
   border-color: rgba(255, 255, 255, 0.11);
-  -webkit-backdrop-filter: blur(14px) saturate(155%);
-  backdrop-filter: blur(14px) saturate(155%);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 
 html[data-glass="on"] table thead {
@@ -569,8 +566,8 @@ html[data-glass="on"] .glass-topbar {
     inset 0 1px 0 rgba(255, 255, 255, 0.94),
     0 0 0 1px rgba(15, 23, 42, 0.065),
     0 12px 30px -14px rgba(15, 23, 42, 0.16);
-  -webkit-backdrop-filter: blur(14px) saturate(175%);
-  backdrop-filter: blur(14px) saturate(175%);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 
 html[data-glass="on"].dark .glass-topbar {
@@ -580,8 +577,8 @@ html[data-glass="on"].dark .glass-topbar {
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     inset 0 -1px 0 rgba(0, 0, 0, 0.45),
     0 14px 36px -14px rgba(0, 0, 0, 0.72);
-  -webkit-backdrop-filter: blur(14px) saturate(175%);
-  backdrop-filter: blur(14px) saturate(175%);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
 }
 
 /* 玻璃态分段控件滑块质感提升 */
@@ -706,25 +703,28 @@ html[data-glass="on"].dark .glass-popover-header {
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
   box-shadow: var(--shadow-ambient), var(--card-specular);
-  transition: border-color 0.2s ease, background-color 0.24s ease, box-shadow 0.22s ease, transform 0.22s var(--ease-hydro);
+  transition: border-color 0.16s ease;
   position: relative;
   overflow: hidden;
-  contain: paint;
+  contain: layout style;
 }
 
 .ui-card:hover, .apple-card:hover {
   border-color: var(--border-hover);
 }
 
+.kpi-lift {
+  transition: transform 0.18s var(--ease-hydro), border-color 0.16s ease;
+}
+
 .kpi-lift:hover {
-  transform: translateY(-2px);
+  transform: translate3d(0, -2px, 0);
   border-color: var(--border-accent);
-  box-shadow: var(--shadow-hover), var(--card-specular);
 }
 
 /* 可点击 KPI 卡片选中态（避免被 overflow:hidden 裁剪外轮廓） */
 .kpi-card-active {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s var(--ease-hydro);
+  transition: border-color 0.18s ease, transform 0.18s var(--ease-hydro);
 }
 .kpi-card-active.active-blue {
   border-color: rgba(0, 113, 227, 0.52) !important;
@@ -752,12 +752,11 @@ html[data-glass="on"].dark .glass-popover-header {
 }
 
 .contest-card {
-  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.22s ease, transform 0.22s var(--ease-hydro);
+  transition: border-color 0.18s ease, transform 0.18s var(--ease-hydro);
 }
 .contest-card:hover {
-  transform: translateY(-2px);
+  transform: translate3d(0, -2px, 0);
   border-color: var(--border-accent);
-  box-shadow: var(--shadow-hover);
 }
 
 /* 排版层级与可读性工具类 */
@@ -1573,15 +1572,15 @@ html[data-glass="on"].dark .btn-chip:not(.active) {
   html[data-glass="on"] .mobile-bottom-nav {
     background: rgba(248, 250, 255, 0.78);
     border-top-color: rgba(15, 23, 42, 0.09);
-    -webkit-backdrop-filter: blur(14px) saturate(175%);
-    backdrop-filter: blur(14px) saturate(175%);
+    -webkit-backdrop-filter: var(--glass-backdrop);
+    backdrop-filter: var(--glass-backdrop);
   }
 
   html[data-glass="on"].dark .mobile-bottom-nav {
     background: rgba(13, 17, 26, 0.80);
     border-top-color: rgba(255, 255, 255, 0.10);
-    -webkit-backdrop-filter: blur(14px) saturate(175%);
-    backdrop-filter: blur(14px) saturate(175%);
+    -webkit-backdrop-filter: var(--glass-backdrop);
+    backdrop-filter: var(--glass-backdrop);
   }
 
   .mobile-nav-btn {

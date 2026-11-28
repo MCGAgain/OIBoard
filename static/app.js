@@ -47,30 +47,24 @@ createApp({
       if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       nextTick(() => {
         const panel = document.getElementById(`tab-panel-${tab}`);
-        if (!panel || typeof panel.animate !== "function") return;
-        const offset = direction >= 0 ? 18 : -16;
-        try {
-          panel.getAnimations().forEach(a => a.cancel());
-          panel.animate(
-            [
-              { opacity: 0, transform: `translateY(${offset}px) scale(0.994)` },
-              { opacity: 1, transform: "translateY(0) scale(1)" }
-            ],
-            { duration: 280, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "backwards" }
-          );
-          const children = Array.from(panel.children).slice(0, 4);
-          children.forEach((child, idx) => {
-            if (typeof child.animate !== "function") return;
-            child.getAnimations().forEach(a => a.cancel());
-            child.animate(
+        if (!panel) return;
+        const cards = panel.classList.contains("ui-card")
+          ? [panel]
+          : Array.from(panel.querySelectorAll(":scope > .ui-card, :scope > div > .ui-card")).slice(0, 12);
+        const offset = direction >= 0 ? 10 : -8;
+        cards.forEach((card, idx) => {
+          if (typeof card.animate !== "function") return;
+          try {
+            card.getAnimations().forEach(a => a.cancel());
+            card.animate(
               [
-                { opacity: 0.35, transform: `translateY(${direction >= 0 ? 10 : -8}px)` },
-                { opacity: 1, transform: "translateY(0)" }
+                { opacity: 0.88, transform: `translate3d(0, ${offset}px, 0)` },
+                { opacity: 1, transform: "translate3d(0, 0, 0)" }
               ],
-              { duration: 260, delay: idx * 35, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "backwards" }
+              { duration: 185, delay: Math.min(idx, 5) * 18, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "backwards" }
             );
-          });
-        } catch (e) {}
+          } catch (e) {}
+        });
       });
     };
 
@@ -2202,8 +2196,8 @@ createApp({
       },
       extraCssText: glassMode.value
         ? (dark
-          ? "border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 14px 34px rgba(0, 0, 0, 0.45); backdrop-filter: blur(16px) saturate(170%); -webkit-backdrop-filter: blur(16px) saturate(170%); z-index: 99999;"
-          : "border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 12px 30px rgba(15, 23, 42, 0.16); backdrop-filter: blur(16px) saturate(170%); -webkit-backdrop-filter: blur(16px) saturate(170%); z-index: 99999;")
+          ? "border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 10px 24px rgba(0, 0, 0, 0.42); backdrop-filter: blur(8px) saturate(135%); -webkit-backdrop-filter: blur(8px) saturate(135%); z-index: 99999;"
+          : "border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 10px 24px rgba(15, 23, 42, 0.14); backdrop-filter: blur(8px) saturate(135%); -webkit-backdrop-filter: blur(8px) saturate(135%); z-index: 99999;")
         : "border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;"
     });
 
