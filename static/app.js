@@ -1202,24 +1202,26 @@ createApp({
           const days = Math.floor(diff / 86400);
           const hours = Math.floor((diff % 86400) / 3600);
           const mins = Math.floor((diff % 3600) / 60);
-          const secs = diff % 60;
           if (days > 0) {
             countdown = `还有 ${days} 天 ${hours} 小时 ${mins} 分`;
           } else if (hours > 0) {
-            countdown = `还有 ${hours} 小时 ${mins} 分 ${secs} 秒`;
+            countdown = `还有 ${hours} 小时 ${mins} 分`;
+          } else if (mins > 0) {
+            countdown = `还有 ${mins} 分`;
           } else {
-            countdown = `还有 ${mins} 分 ${secs} 秒`;
+            countdown = "即将开始";
           }
         } else if (now < et) {
           status = "CODING";
           const remaining = et - now;
           const hours = Math.floor(remaining / 3600);
           const mins = Math.floor((remaining % 3600) / 60);
-          const secs = remaining % 60;
           if (hours > 0) {
-            countdown = `进行中 (剩余 ${hours}小时${mins}分)`;
+            countdown = `进行中 (剩 ${hours}小时${mins}分)`;
+          } else if (mins > 0) {
+            countdown = `进行中 (剩 ${mins}分)`;
           } else {
-            countdown = `进行中 (剩余 ${mins}分${secs}秒)`;
+            countdown = "进行中 (即将结束)";
           }
         }
         map[c.id] = { status, countdown };
@@ -1247,17 +1249,17 @@ createApp({
         const days = Math.floor(diff / 86400);
         const hours = Math.floor((diff % 86400) / 3600);
         const mins = Math.floor((diff % 3600) / 60);
-        const secs = diff % 60;
         if (days > 0) return `还有 ${days} 天 ${hours} 小时 ${mins} 分`;
-        if (hours > 0) return `还有 ${hours} 小时 ${mins} 分 ${secs} 秒`;
-        return `还有 ${mins} 分 ${secs} 秒`;
+        if (hours > 0) return `还有 ${hours} 小时 ${mins} 分`;
+        if (mins > 0) return `还有 ${mins} 分`;
+        return "即将开始";
       } else if (now < et) {
         const remaining = et - now;
         const hours = Math.floor(remaining / 3600);
         const mins = Math.floor((remaining % 3600) / 60);
-        const secs = remaining % 60;
-        if (hours > 0) return `进行中 (剩余 ${hours}小时${mins}分)`;
-        return `进行中 (剩余 ${mins}分${secs}秒)`;
+        if (hours > 0) return `进行中 (剩 ${hours}小时${mins}分)`;
+        if (mins > 0) return `进行中 (剩 ${mins}分)`;
+        return "进行中 (即将结束)";
       }
       return "已结束";
     };
@@ -4016,21 +4018,11 @@ createApp({
         }
       }, 30000);
 
-      // A6-3: 分级时钟驱动 (概览/比赛页 1s 精度更新倒计时，其他非活跃页面 30s 精度保持侧边栏角标不冻结)
-      let idleTabSeconds = 0;
+      // 分钟级比赛倒计时刷新（每 30 秒触发一次，避免 1 秒高频驱动 Vue 渲染损耗资源）
       countdownTimer = setInterval(() => {
         if (document.hidden) return;
-        if (currentTab.value === 'contests' || currentTab.value === 'overview') {
-          updateContestMetas();
-          idleTabSeconds = 0;
-        } else {
-          idleTabSeconds++;
-          if (idleTabSeconds >= 30) {
-            idleTabSeconds = 0;
-            updateContestMetas();
-          }
-        }
-      }, 1000);
+        updateContestMetas();
+      }, 30000);
 
       if (token.value) {
         try {

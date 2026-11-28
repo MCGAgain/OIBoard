@@ -87,7 +87,8 @@ private data class StatusFilter(val id: String, val label: String)
 @Composable
 fun MistakesScreen(
     viewModel: MistakesViewModel,
-    onOpenMistakeDetail: (MistakeItemDto) -> Unit = {}
+    onOpenMistakeDetail: (MistakeItemDto) -> Unit = {},
+    onOpenMistakeEditor: (MistakeItemDto?) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -223,23 +224,18 @@ fun MistakesScreen(
         }
     }
 
-    // 5. 新增 / 编辑错题表单弹窗
-    if (uiState.showAddDialog) {
-        MistakeFormDialog(
-            initialMistake = null,
-            onDismiss = { viewModel.showAddForm(false) },
-            onConfirmAdd = { viewModel.submitAdd(it) },
-            onConfirmEdit = { _, _ -> }
-        )
+    // 5. 同步外部触发展开全屏 Markdown 编辑器
+    LaunchedEffect(uiState.showAddDialog) {
+        if (uiState.showAddDialog) {
+            viewModel.showAddForm(false)
+            onOpenMistakeEditor(null)
+        }
     }
-
-    uiState.editingMistake?.let { editing ->
-        MistakeFormDialog(
-            initialMistake = editing,
-            onDismiss = { viewModel.showEditForm(null) },
-            onConfirmAdd = { },
-            onConfirmEdit = { id, req -> viewModel.submitEdit(id, req) }
-        )
+    LaunchedEffect(uiState.editingMistake) {
+        uiState.editingMistake?.let { editing ->
+            viewModel.showEditForm(null)
+            onOpenMistakeEditor(editing)
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -276,7 +272,7 @@ fun MistakesScreen(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { viewModel.showAddForm(true) }) {
+                    IconButton(onClick = { onOpenMistakeEditor(null) }) {
                         Icon(
                             imageVector = Icons.Outlined.Add,
                             contentDescription = "新增",
@@ -460,7 +456,7 @@ fun MistakesScreen(
                                 },
                                 onReview = { viewModel.requestReview(mistake) },
                                 onToggleMaster = { viewModel.requestToggleMaster(mistake) },
-                                onEdit = { viewModel.showEditForm(mistake) },
+                                onEdit = { onOpenMistakeEditor(mistake) },
                                 onDelete = { viewModel.requestDelete(mistake) },
                                 onClickUrl = {
                                     val url = mistake.problem_url
@@ -711,200 +707,4 @@ private fun MistakeCard(
     }
 }
 
-@Composable
-private fun MistakeFormDialog(
-    initialMistake: MistakeItemDto?,
-    onDismiss: () -> Unit,
-    onConfirmAdd: (MistakeCreateRequest) -> Unit,
-    onConfirmEdit: (Int, MistakeUpdateRequest) -> Unit
-) {
-    val isEdit = initialMistake != null
 
-    var platform by remember { mutableStateOf(initialMistake?.platform ?: "codeforces") }
-    var problemId by remember { mutableStateOf(initialMistake?.problem_id ?: "") }
-    var title by remember { mutableStateOf(initialMistake?.problem_title ?: "") }
-    var difficulty by remember { mutableStateOf(initialMistake?.difficulty ?: "") }
-    var tagsStr by remember { mutableStateOf(initialMistake?.tags?.joinToString(", ") ?: "") }
-    var keyPoint by remember { mutableStateOf(initialMistake?.key_point ?: "") }
-    var notes by remember { mutableStateOf(initialMistake?.notes ?: "") }
-    var url by remember { mutableStateOf(initialMistake?.problem_url ?: "") }
-
-    var showConfirmDialog by remember { mutableStateOf(false) }
-
-    if (showConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showConfirmDialog = false },
-            title = { Text(if (isEdit) "确认更新错题" else "确认录入错题", fontSize = 17.sp, fontWeight = FontWeight.Bold) },
-            text = { Text(if (isEdit) "确定保存对该题考点和笔记的更改吗？" else "确定将该题目添加至错题集吗？", fontSize = 13.sp) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showConfirmDialog = false
-                    val tagList = tagsStr.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                    if (initialMistake != null) {
-                        onConfirmEdit(
-                            initialMistake.id,
-                            MistakeUpdateRequest(
-                                key_point = keyPoint.trim(),
-                                notes = notes.trim(),
-                                tags = tagList,
-                                problem_url = url.trim()
-                            )
-                        )
-                    } else {
-                        onConfirmAdd(
-                            MistakeCreateRequest(
-                                platform = platform.trim(),
-                                problem_id = problemId.trim(),
-                                problem_title = title.trim(),
-                                difficulty = difficulty.trim(),
-                                tags = tagList,
-                                key_point = keyPoint.trim(),
-                                notes = notes.trim(),
-                                problem_url = url.trim()
-                            )
-                        )
-                    }
-                }) {
-                    Text("确定", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showConfirmDialog = false }) { Text("取消") }
-            }
-        )
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = if (isEdit) "编辑错题" else "录入错题",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .imePadding()
-                    .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (!isEdit) {
-                    OutlinedTextField(
-                        value = platform,
-                        onValueChange = { platform = it },
-                        label = { Text("平台代码 (如 codeforces, luogu, atcoder)") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = problemId,
-                        onValueChange = { problemId = it },
-                        label = { Text("题目编号 (如 1800E2)") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = title,
-                        onValueChange = { title = it },
-                        label = { Text("题目名称") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                OutlinedTextField(
-                    value = keyPoint,
-                    onValueChange = { keyPoint = it },
-                    label = { Text("核心考点与错因") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val snippets = listOf(
-                        "## 思路" to "## 解题思路\n",
-                        "## 复杂度" to "## 复杂度\n- 时间：O()\n- 空间：O()",
-                        "C++" to "```cpp\n// code\n```",
-                        "[ ]" to "- [ ] ",
-                        "OI模板" to "## 错因与洞察\n\n## 核心思路\n\n## 复杂度\n- 时间：O()\n- 空间：O()\n\n```cpp\n\n```"
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        snippets.forEach { (chipLabel, snippet) ->
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.09f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        notes = if (notes.isBlank()) {
-                                            snippet
-                                        } else {
-                                            notes.trimEnd() + "\n\n" + snippet
-                                        }
-                                    }
-                            ) {
-                                Text(
-                                    text = chipLabel,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-                    }
-                    OutlinedTextField(
-                        value = notes,
-                        onValueChange = { notes = it },
-                        label = { Text("解题思路与笔记 (支持 Markdown)") },
-                        minLines = 3,
-                        maxLines = 6,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                OutlinedTextField(
-                    value = tagsStr,
-                    onValueChange = { tagsStr = it },
-                    label = { Text("算法标签 (以逗号分隔)") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = { Text("题面链接") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { showConfirmDialog = true },
-                enabled = isEdit || (problemId.isNotBlank() && title.isNotBlank())
-            ) {
-                Text("保存", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        }
-    )
-}

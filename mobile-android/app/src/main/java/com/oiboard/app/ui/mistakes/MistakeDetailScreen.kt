@@ -2,7 +2,6 @@ package com.oiboard.app.ui.mistakes
 
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -76,9 +75,6 @@ fun MistakeDetailScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-
-    // 处理系统返回键与手势
-    BackHandler(onBack = onBack)
 
     var showReviewConfirm by remember { mutableStateOf(false) }
     var showMasterConfirm by remember { mutableStateOf(false) }
