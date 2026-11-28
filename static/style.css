@@ -57,7 +57,7 @@
   --shadow-float: 0 16px 40px -8px rgba(15, 23, 42, 0.16), 0 2px 8px rgba(15, 23, 42, 0.05);
   --shadow-pill: 0 1px 2px rgba(15, 23, 42, 0.05);
   --card-specular: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  --glass-backdrop: blur(8px) saturate(135%);
+  --glass-backdrop: blur(7px);
 
   --ease-hydro: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
@@ -277,8 +277,6 @@ html[data-glass="on"].dark .apple-card:hover {
 }
 
 .mistake-item-card {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 196px;
   contain: layout style paint;
 }
 
@@ -706,7 +704,7 @@ html[data-glass="on"].dark .glass-popover-header {
   transition: border-color 0.16s ease;
   position: relative;
   overflow: hidden;
-  contain: layout style;
+  contain: layout style paint;
 }
 
 .ui-card:hover, .apple-card:hover {
@@ -1324,13 +1322,39 @@ select:focus-visible,
   white-space: nowrap;
 }
 .ui-table tbody tr {
-  transition: background-color 0.14s ease;
+  contain: layout style paint;
 }
 .ui-table tbody tr:hover {
   background: rgba(15, 23, 42, 0.028);
 }
 .dark .ui-table tbody tr:hover {
   background: rgba(255, 255, 255, 0.035);
+}
+
+/* 密集表格行内徽标精简化：取消逐行多阴影与渐变，大幅削减 30 行表格滚动重绘与 GPU 光栅成本 */
+html[data-glass="on"] .ui-table .platform-badge,
+html[data-glass="on"] .ui-table .verdict-badge,
+html[data-glass="on"] .ui-table .ui-tag {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: none;
+}
+html[data-glass="on"].dark .ui-table .platform-badge,
+html[data-glass="on"].dark .ui-table .verdict-badge,
+html[data-glass="on"].dark .ui-table .ui-tag {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+}
+
+/* 高频滚轮/触控板滑动期间冻结表格与卡片悬停命中与过渡重绘，停手 120ms 后即时恢复 */
+html.is-scrolling .ui-table tbody,
+html.is-scrolling .ui-table tbody tr,
+html.is-scrolling .mistake-item-card,
+html.is-scrolling .ui-card .btn-secondary,
+html.is-scrolling .ui-card .btn-tinted-blue,
+html.is-scrolling .ui-card .btn-tinted-green,
+html.is-scrolling .ui-card .btn-tinted-amber,
+html.is-scrolling .ui-card .btn-danger-ghost {
+  pointer-events: none !important;
 }
 
 .btn-primary {

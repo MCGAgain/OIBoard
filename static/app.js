@@ -51,17 +51,18 @@ createApp({
         const cards = panel.classList.contains("ui-card")
           ? [panel]
           : Array.from(panel.querySelectorAll(":scope > .ui-card, :scope > div > .ui-card")).slice(0, 12);
-        const offset = direction >= 0 ? 10 : -8;
+        const offset = direction >= 0 ? 8 : -6;
         cards.forEach((card, idx) => {
           if (typeof card.animate !== "function") return;
           try {
             card.getAnimations().forEach(a => a.cancel());
+            // 仅对位移做 0 帧入场，锁定 opacity: 1 避免毛玻璃卡片先透明后突变模糊
             card.animate(
               [
-                { opacity: 0.88, transform: `translate3d(0, ${offset}px, 0)` },
-                { opacity: 1, transform: "translate3d(0, 0, 0)" }
+                { transform: `translate3d(0, ${offset}px, 0)` },
+                { transform: "translate3d(0, 0, 0)" }
               ],
-              { duration: 185, delay: Math.min(idx, 5) * 18, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "backwards" }
+              { duration: 165, delay: Math.min(idx, 4) * 12, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "backwards" }
             );
           } catch (e) {}
         });
@@ -2196,8 +2197,8 @@ createApp({
       },
       extraCssText: glassMode.value
         ? (dark
-          ? "border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 10px 24px rgba(0, 0, 0, 0.42); backdrop-filter: blur(8px) saturate(135%); -webkit-backdrop-filter: blur(8px) saturate(135%); z-index: 99999;"
-          : "border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 10px 24px rgba(15, 23, 42, 0.14); backdrop-filter: blur(8px) saturate(135%); -webkit-backdrop-filter: blur(8px) saturate(135%); z-index: 99999;")
+          ? "border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 10px 24px rgba(0, 0, 0, 0.42); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); z-index: 99999;"
+          : "border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 10px 24px rgba(15, 23, 42, 0.14); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); z-index: 99999;")
         : "border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); z-index: 99999;"
     });
 
@@ -3947,7 +3948,20 @@ createApp({
     let themeTimer = null;
     let countdownTimer = null;
     let resizeDebounceTimer = null;
+    let scrollIdleTimer = null;
     let lastForegroundWakeupTime = 0;
+
+    const onWindowScroll = () => {
+      const rootEl = document.documentElement;
+      if (!rootEl.classList.contains("is-scrolling")) {
+        rootEl.classList.add("is-scrolling");
+      }
+      if (scrollIdleTimer) clearTimeout(scrollIdleTimer);
+      scrollIdleTimer = setTimeout(() => {
+        scrollIdleTimer = null;
+        rootEl.classList.remove("is-scrolling");
+      }, 120);
+    };
 
     const onWindowResize = () => {
       viewportSize.value = { w: window.innerWidth, h: window.innerHeight };
@@ -4043,6 +4057,7 @@ createApp({
       }
 
       window.addEventListener("resize", onWindowResize);
+      window.addEventListener("scroll", onWindowScroll, { passive: true });
       window.addEventListener("keydown", onKeydown);
       document.addEventListener("mousedown", onDocumentMouseDown);
       document.addEventListener("visibilitychange", onForegroundWakeup);
@@ -4063,6 +4078,8 @@ createApp({
       if (themeTimer) clearInterval(themeTimer);
       if (countdownTimer) clearInterval(countdownTimer);
       if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
+      if (scrollIdleTimer) clearTimeout(scrollIdleTimer);
+      document.documentElement.classList.remove("is-scrolling");
       if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
       if (mistakeSearchDebounceTimer) clearTimeout(mistakeSearchDebounceTimer);
       if (mdPreviewEnhanceTimer) clearTimeout(mdPreviewEnhanceTimer);
@@ -4070,6 +4087,7 @@ createApp({
       clearNotifyAutoHide();
 
       window.removeEventListener("resize", onWindowResize);
+      window.removeEventListener("scroll", onWindowScroll);
       window.removeEventListener("keydown", onKeydown);
       document.removeEventListener("mousedown", onDocumentMouseDown);
       document.removeEventListener("visibilitychange", onForegroundWakeup);
