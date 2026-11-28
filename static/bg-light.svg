@@ -1,13 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
   <defs>
-    <!-- Pre-Diffused macOS 15 Sequoia Optical Porcelain Backdrop (Zero sharp lines, zero SVG filters, 0% idle GPU) -->
+    <!-- macOS 15 Sequoia Optical Porcelain Backdrop (0% Idle GPU, crisp architectural contour cues for visible frosted refraction) -->
     <linearGradient id="baseL" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#d4e1f7"/>
       <stop offset="48%" stop-color="#e5edf9"/>
       <stop offset="100%" stop-color="#cfdcf3"/>
     </linearGradient>
 
-    <!-- Softly Pre-Blurred Chromatic Light Pools -->
     <radialGradient id="causticSapphireL" cx="15%" cy="14%" r="58%">
       <stop offset="0%" stop-color="#4d92ff" stop-opacity="0.58"/>
       <stop offset="42%" stop-color="#8bbaff" stop-opacity="0.28"/>
@@ -33,7 +32,6 @@
       <stop offset="100%" stop-color="#cfdcf3" stop-opacity="0"/>
     </radialGradient>
 
-    <!-- Sculpted Smooth Ribbon Folds with Multi-Stop Feathered Edges -->
     <linearGradient id="foldL1" x1="6%" y1="0%" x2="92%" y2="100%">
       <stop offset="0%" stop-color="#5b9bff" stop-opacity="0.48"/>
       <stop offset="45%" stop-color="#a5c8ff" stop-opacity="0.24"/>
@@ -53,20 +51,39 @@
       <stop offset="100%" stop-color="#dce6f7" stop-opacity="0"/>
     </linearGradient>
 
-    <!-- Diffused Specular Glow Halos (Wide soft stroke mimicking pre-blurred frosted light) -->
-    <linearGradient id="glowCrestL1" x1="0%" y1="0%" x2="100%" y2="0%">
+    <linearGradient id="ridgeL1" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
-      <stop offset="30%" stop-color="#ffffff" stop-opacity="0.48"/>
-      <stop offset="70%" stop-color="#7eb3ff" stop-opacity="0.24"/>
+      <stop offset="28%" stop-color="#ffffff" stop-opacity="0.92"/>
+      <stop offset="68%" stop-color="#3b82f6" stop-opacity="0.34"/>
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
 
-    <linearGradient id="glowCrestL2" x1="0%" y1="0%" x2="100%" y2="0%">
+    <linearGradient id="ridgeL2" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
-      <stop offset="32%" stop-color="#ffffff" stop-opacity="0.44"/>
-      <stop offset="72%" stop-color="#f6b676" stop-opacity="0.22"/>
+      <stop offset="32%" stop-color="#ffffff" stop-opacity="0.88"/>
+      <stop offset="72%" stop-color="#d97706" stop-opacity="0.28"/>
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
+
+    <linearGradient id="contourL1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" stop-opacity="0"/>
+      <stop offset="26%" stop-color="#2563eb" stop-opacity="0.24"/>
+      <stop offset="74%" stop-color="#9a6b38" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#2563eb" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="contourL2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" stop-opacity="0"/>
+      <stop offset="34%" stop-color="#4f46e5" stop-opacity="0.22"/>
+      <stop offset="72%" stop-color="#0284c7" stop-opacity="0.17"/>
+      <stop offset="100%" stop-color="#4f46e5" stop-opacity="0"/>
+    </linearGradient>
+
+    <radialGradient id="arcFadeL" cx="78%" cy="22%" r="36%">
+      <stop offset="0%" stop-color="#2563eb" stop-opacity="0.19"/>
+      <stop offset="65%" stop-color="#0284c7" stop-opacity="0.09"/>
+      <stop offset="100%" stop-color="#2563eb" stop-opacity="0"/>
+    </radialGradient>
   </defs>
 
   <rect width="1920" height="1080" fill="url(#baseL)"/>
@@ -80,8 +97,32 @@
   <path d="M2040,150 C1640,346 1320,128 880,316 C500,480 220,388 -120,564 L-120,1180 L2040,1180 Z" fill="url(#foldL2)"/>
   <path d="M-140,764 C260,568 640,862 1140,684 C1520,550 1780,694 2060,564 L2060,1180 L-140,1180 Z" fill="url(#foldL3)"/>
 
-  <!-- Broad Diffused Crest Halos -->
-  <path d="M-120,250 C280,82 660,348 1120,174 C1460,46 1740,118 2060,-36" fill="none" stroke="url(#glowCrestL1)" stroke-width="26" stroke-linecap="round" opacity="0.55"/>
-  <path d="M2040,150 C1640,346 1320,128 880,316 C500,480 220,388 -120,564" fill="none" stroke="url(#glowCrestL2)" stroke-width="24" stroke-linecap="round" opacity="0.5"/>
-  <path d="M-140,764 C260,568 640,862 1140,684 C1520,550 1780,694 2060,564" fill="none" stroke="url(#glowCrestL1)" stroke-width="22" stroke-linecap="round" opacity="0.45"/>
+  <!-- Crisp Specular Bevel Crests -->
+  <path d="M-120,250 C280,82 660,348 1120,174 C1460,46 1740,118 2060,-36" fill="none" stroke="url(#ridgeL1)" stroke-width="1.15"/>
+  <path d="M2040,150 C1640,346 1320,128 880,316 C500,480 220,388 -120,564" fill="none" stroke="url(#ridgeL2)" stroke-width="1.1"/>
+  <path d="M-140,764 C260,568 640,862 1140,684 C1520,550 1780,694 2060,564" fill="none" stroke="url(#ridgeL1)" stroke-width="1.05"/>
+
+  <!-- Subtle Geometric Optical Focal Arcs (Upper-Right Quadrant) -->
+  <g fill="none" stroke="url(#arcFadeL)" stroke-width="1.0">
+    <circle cx="1520" cy="220" r="240"/>
+    <circle cx="1520" cy="220" r="340"/>
+    <circle cx="1520" cy="220" r="440"/>
+  </g>
+
+  <!-- Algorithmic Parametric Iso-Contours -->
+  <g fill="none" stroke="url(#contourL1)" stroke-width="1.05">
+    <path d="M-80,118 C360,-20 740,256 1220,88 C1560,-30 1800,72 2020,-18"/>
+    <path d="M-80,172 C350,28 730,300 1210,136 C1550,20 1790,116 2020,26"/>
+    <path d="M-80,226 C340,76 720,344 1200,184 C1540,70 1780,160 2020,70"/>
+    <path d="M-80,280 C330,124 710,388 1190,232 C1530,120 1770,204 2020,114"/>
+    <path d="M-80,334 C320,172 700,432 1180,280 C1520,170 1760,248 2020,158"/>
+  </g>
+
+  <!-- Secondary Counter-Flow Iso-Contours -->
+  <g fill="none" stroke="url(#contourL2)" stroke-width="1.0">
+    <path d="M-100,822 C320,644 720,922 1200,744 C1560,610 1820,734 2040,624"/>
+    <path d="M-100,876 C330,698 730,976 1210,798 C1570,664 1830,788 2040,678"/>
+    <path d="M-100,930 C340,752 740,1030 1220,852 C1580,718 1840,842 2040,732"/>
+    <path d="M-100,984 C350,806 750,1084 1230,906 C1590,772 1850,896 2040,786"/>
+  </g>
 </svg>

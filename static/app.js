@@ -56,17 +56,18 @@ createApp({
               { opacity: 0, transform: `translateY(${offset}px) scale(0.994)` },
               { opacity: 1, transform: "translateY(0) scale(1)" }
             ],
-            { duration: 280, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "both" }
+            { duration: 280, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "backwards" }
           );
           const children = Array.from(panel.children).slice(0, 4);
           children.forEach((child, idx) => {
             if (typeof child.animate !== "function") return;
+            child.getAnimations().forEach(a => a.cancel());
             child.animate(
               [
                 { opacity: 0.35, transform: `translateY(${direction >= 0 ? 10 : -8}px)` },
                 { opacity: 1, transform: "translateY(0)" }
               ],
-              { duration: 260, delay: idx * 35, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "both" }
+              { duration: 260, delay: idx * 35, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "backwards" }
             );
           });
         } catch (e) {}
